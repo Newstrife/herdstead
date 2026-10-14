@@ -748,7 +748,8 @@ make pack                                       # export the PCK, then run check
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to main and every pull request (Ubuntu, never a real herdr). Each step calls
-a Makefile target where one exists, so `make check` locally runs the same commands:
+a Makefile target where one exists. `make check` is the full local test gate; CI additionally rebuilds art, smoke-tests
+the main scene, checks the exported PCK and captures screenshots:
 
 1. `make lint`: gdlint over `scripts/` and `tools/` (config in `gdlintrc`) and a gdformat check.
 2. `make docs-check`: every backticked repo path and `make` target in README.md, AGENTS.md, docs/MACHINES.md and
@@ -767,6 +768,9 @@ a Makefile target where one exists, so `make check` locally runs the same comman
    every asset).
 10. `make test`: every test in `tools/run_tests.sh`, judged by its exit code. The load and pack checks already ran, so
     this step sets `HERDSTEAD_SKIP_LOAD_CHECKS=1` to skip them (as `make check` does; a plain `make test` runs them).
+    This includes the developer command contracts (`make test-tools`): suite selection, fake-server isolation,
+    failure-log retention and changed-file lint. `make check` runs the Python tests once as prerequisites, then sets
+    `HERDSTEAD_SKIP_PYTHON_TESTS=1` for the Godot runner.
 11. `CAPTURE_SET=ci make capture` (with `xvfb` and software GL): the key set only, uploading every screenshot with
     `actions/upload-artifact`, pass or fail.
 
