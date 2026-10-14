@@ -116,6 +116,8 @@ class Stack:
 	var line := false
 	var title := false
 	var empty := false
+	## The one-line form needs its own close; the card uses its header's.
+	var line_close := false
 	## The viewer closed the card: `%CardFrame` hides (its own frame with it,
 	## and the panel's own frame is off) and only NEXT shows, still at the
 	## panel's right end.
@@ -269,6 +271,7 @@ static func stack_of(facts: Facts) -> Stack:
 	made.closed = facts.closed
 	made.detail = facts.pane != null and not facts.closed and (not facts.compact or made.carded)
 	made.line = facts.pane != null and not facts.closed and facts.compact
+	made.line_close = made.line and not made.carded
 	made.title = not made.carded and not facts.answering
 	made.empty = facts.pane == null and not facts.closed
 	made.full = not facts.compact

@@ -330,6 +330,8 @@ func _ready() -> void:
 	fold.pressed.connect(func() -> void: fold_requested.emit())
 	var close: Button = %CardClose
 	close.pressed.connect(_on_card_close_pressed)
+	var line_close: Button = %CompactClose
+	line_close.pressed.connect(_on_card_close_pressed)
 	var back: Button = %StepBack
 	back.pressed.connect(func() -> void: step_requested.emit(-1))
 	var on: Button = %StepOn
@@ -608,6 +610,8 @@ func _write_stack(stack: CardPicture.Stack) -> void:
 	var open: Button = %CompactOpen
 	monitor.text = stack.monitor_word
 	open.text = stack.open_word
+	var line_close: Button = %CompactClose
+	line_close.visible = stack.line_close
 	set_framed(not carded and not stack.closed)
 	var frame: HdPanel = %CardFrame
 	frame.visible = not stack.closed

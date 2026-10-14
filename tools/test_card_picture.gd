@@ -596,11 +596,12 @@ func test_a_closed_card_shows_nothing_of_itself() -> void:
 		var facts := _facts(_agent("working"))
 		facts.compact = form != "full"
 		facts.card = form == "card"
+		_eq(CardPicture.stack_of(facts).line_close, form == "line", "a close on the line only (%s)" % form)
 		facts.closed = true
 		var stack := CardPicture.stack_of(facts)
 		_eq(
-			[stack.detail, stack.line, stack.empty, stack.closed],
-			[false, false, false, true],
+			[stack.detail, stack.line, stack.empty, stack.closed, stack.line_close],
+			[false, false, false, true, false],
 			"nothing of the card while closed (%s)" % form
 		)
 	var none := _facts(null)

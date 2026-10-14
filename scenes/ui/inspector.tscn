@@ -816,6 +816,16 @@ theme_type_variation = &"CardHint"
 text = "Open"
 icon_alignment = 2
 
+[node name="CompactClose" type="Button" parent="Frame/Row/CardFrame/Stack/CompactRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 8
+tooltip_text = "Close this card: the office forgets this pick, and herdr's focus leads again. Pick a desk, a chip or a list row (or N) to open a card again."
+focus_mode = 0
+theme_type_variation = &"CardHint"
+text = "×"
+
 [node name="Empty" type="VBoxContainer" parent="Frame/Row/CardFrame/Stack"]
 unique_name_in_owner = true
 anchor_right = 1.0
