@@ -64,6 +64,10 @@ signal next_requested
 signal open_requested
 ## `▾ Esc` was pressed: the HUD folds the panel back to its line.
 signal fold_requested
+## The card's `×` was pressed: the card closed itself and ended answer mode,
+## and the office forgets the pick. Only a pick of the viewer's own opens a
+## card again. Nothing is sent to herdr.
+signal card_closed
 ## `‹` (-1) or `›` (+1) on the one-line row was pressed: the office picks the
 ## one before or after the pick in NEXT's queue, and only picks.
 signal step_requested(direction: int)
@@ -279,6 +283,9 @@ var _key_enter_icon: Texture2D
 var _wide := true
 ## The HUD shows the compact panel as a card (set_card()).
 var _card := false
+## The viewer closed the card (card_closed): nothing of it shows until
+## show_pane() sees their own pick again.
+var _closed := false
 ## Whom NEXT names (show_next()); null for nobody.
 var _next: NextModel
 ## NEXT's own tooltip as the scene says it; the compact line adds whom it names.
@@ -321,6 +328,10 @@ func _ready() -> void:
 	open.pressed.connect(func() -> void: open_requested.emit())
 	var fold: Button = %FoldButton
 	fold.pressed.connect(func() -> void: fold_requested.emit())
+	var close: Button = %CardClose
+	close.pressed.connect(_on_card_close_pressed)
+	var line_close: Button = %CompactClose
+	line_close.pressed.connect(_on_card_close_pressed)
 	var back: Button = %StepBack
 	back.pressed.connect(func() -> void: step_requested.emit(-1))
 	var on: Button = %StepOn
@@ -400,6 +411,9 @@ func show_pane(pane: PaneModel, machine: String, dimmed: bool, pick := Pick.FOLL
 	_machine = machine
 	_dimmed = dimmed
 	_pick = pick
+	# The viewer's own pick opens a closed card again; herdr's focus does not.
+	if pick == Pick.PICKED:
+		_closed = false
 	_show_stack()
 	_bind(pane)
 	if pane == null:
@@ -465,9 +479,24 @@ func card() -> bool:
 	return _card
 
 
+## Whether the viewer closed the card (card_closed); only their own pick
+## opens one again.
+func closed() -> bool:
+	return _closed
+
+
 ## Whether the panel shows its compact line (set_compact()).
 func compact() -> bool:
 	return _compact
+
+
+## The card's `×`: it closes at once (nothing of it shows, only NEXT stays)
+## and answer mode ends with it; the office forgets the pick on card_closed.
+func _on_card_close_pressed() -> void:
+	_closed = true
+	leave_answer()
+	_show_stack()
+	card_closed.emit()
 
 
 ## Whether the screen has room for the line's long words (`Monitor`,
@@ -581,8 +610,11 @@ func _write_stack(stack: CardPicture.Stack) -> void:
 	var open: Button = %CompactOpen
 	monitor.text = stack.monitor_word
 	open.text = stack.open_word
-	set_framed(not carded)
+	var line_close: Button = %CompactClose
+	line_close.visible = stack.line_close
+	set_framed(not carded and not stack.closed)
 	var frame: HdPanel = %CardFrame
+	frame.visible = not stack.closed
 	frame.set_framed(carded)
 	frame.size_flags_horizontal = Control.SIZE_FILL if carded else Control.SIZE_EXPAND_FILL
 	frame.custom_minimum_size.x = card_width if carded else 0.0
@@ -740,7 +772,7 @@ func take_key(event: InputEvent) -> bool:
 ## leaves it focused but not editing: no key of it ever answers then either).
 func _keys_are_mine() -> bool:
 	var box: LineEdit = %ReplyBox
-	return _may_answer() and is_visible_in_tree() and not _out_of_sight() and not box.has_focus()
+	return _may_answer() and not _closed and is_visible_in_tree() and not _out_of_sight() and not box.has_focus()
 
 
 ## A key in answer mode: Escape leaves, `N` leaves and lets the office move on,
@@ -1179,6 +1211,7 @@ func _facts(now_msec: int) -> CardPicture.Facts:
 	facts.machine = _machine
 	facts.dimmed = _dimmed
 	facts.pick = _pick
+	facts.closed = _closed
 	if _pane != null:
 		var state := StringName(_pane.state)
 		facts.state_caption = CardDetails.caption_of(art, state)

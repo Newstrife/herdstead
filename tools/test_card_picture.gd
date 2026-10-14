@@ -588,6 +588,28 @@ func test_the_card_form_shows_the_header_over_the_lines_buttons() -> void:
 	_check(CardPicture.answer_of(facts).title, "the heading is back at full height")
 
 
+## A closed card (the viewer's `×`) shows nothing of itself at any form: no
+## details, no line, no empty state — only the panel's NEXT stays. A card
+## that is not closed is never said closed.
+func test_a_closed_card_shows_nothing_of_itself() -> void:
+	for form: String in ["full", "line", "card"]:
+		var facts := _facts(_agent("working"))
+		facts.compact = form != "full"
+		facts.card = form == "card"
+		_eq(CardPicture.stack_of(facts).line_close, form == "line", "a close on the line only (%s)" % form)
+		facts.closed = true
+		var stack := CardPicture.stack_of(facts)
+		_eq(
+			[stack.detail, stack.line, stack.empty, stack.closed, stack.line_close],
+			[false, false, false, true, false],
+			"nothing of the card while closed (%s)" % form
+		)
+	var none := _facts(null)
+	none.closed = true
+	_check(not CardPicture.stack_of(none).empty, "no empty state while closed, with no pane")
+	_check(not CardPicture.stack_of(_facts()).closed, "a card nobody closed is not closed")
+
+
 ## Answer mode turns the card: its controls open, the chip closes it, the
 ## heading names who is answered, and the switch, the fold and the PANE list go.
 func test_answer_mode_opens_its_controls_and_names_who_is_answered() -> void:

@@ -426,6 +426,13 @@ func pick_desk(key: String, identity := "") -> void:
 	_picked_zone = ""
 
 
+## Forget the viewer's pick: herdr's own focus leads again (active_key()), no
+## pane is the viewer's own (is_picked()), and the card may close.
+func unpick() -> void:
+	picked_key = ""
+	picked_identity = ""
+
+
 ## Whether `pane` is the viewer's pick: its desk, and still the terminal that
 ## was picked there. False for a pane only herdr's focus selects, and for one
 ## whose id another terminal has taken since.

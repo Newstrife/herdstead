@@ -626,6 +626,47 @@ func test_the_staff_panel_is_compact_at_every_size_until_opened() -> void:
 	_eq(recorder.keys, [], "nothing went past the HUD")
 
 
+## Both compact forms can close without opening first. Following herdr's
+## focus keeps the card closed; a new viewer pick brings it back.
+func test_both_compact_forms_close_and_reopen_on_a_pick() -> void:
+	await _hud(Vector2i(480, 320), false)
+	var frame := _frame([_machine(LOCAL, _snapshot(FLOORS))])
+	var pane := frame.pane(_local("api:p1"))
+	var card := hud.inspector
+	var closed: Array[bool] = []
+	card.card_closed.connect(func() -> void: closed.append(true))
+	var line_close := card.get_node_or_null("%CompactClose") as Button
+	_check(line_close != null, "the compact line has a close control")
+	if line_close == null:
+		return
+	var header_close: Button = card.get_node("%CardClose")
+	var card_frame: Control = card.get_node("%CardFrame")
+	var next: Control = card.get_node("%NextButton")
+	for screen: Vector2i in [Vector2i(480, 320), Vector2i(800, 480)]:
+		root.size = screen
+		hud.fit(Vector2(screen))
+		card.show_pane(pane, "", false, OfficePaneInspector.Pick.PICKED)
+		await _frames(3)
+		var button := line_close if screen.y < 400 else header_close
+		var other := header_close if screen.y < 400 else line_close
+		_check(button.is_visible_in_tree() and not other.is_visible_in_tree(), "%s: exactly one close" % screen)
+		_check(card.get_global_rect().encloses(button.get_global_rect()), "%s: close inside panel" % screen)
+		var room := hud.world_rect()
+		var before := closed.size()
+		await _click(button)
+		_check(card.closed() and not card_frame.is_visible_in_tree(), "%s: click closes the card" % screen)
+		_eq(closed.size(), before + 1, "%s: one close signal" % screen)
+		_check(next.is_visible_in_tree(), "%s: NEXT stays" % screen)
+		_eq(hud.world_rect(), room, "%s: closing does not change the world's room" % screen)
+		card.show_pane(pane, "", false)
+		hud.expand_card()
+		await _frames(2)
+		_check(card.closed() and hud.card_compact(), "%s: focus and expansion do not reopen it" % screen)
+		card.show_pane(pane, "", false, OfficePaneInspector.Pick.PICKED)
+		await _frames(2)
+		_check(not card.closed() and button.is_visible_in_tree(), "%s: a viewer pick reopens it" % screen)
+
+
 ## The card is the header over the line's buttons and nothing more: the note
 ## that explains a state (UNREAD's under a done agent, a dropped machine's)
 ## has no row there, so the card holds everything it shows and the note waits
