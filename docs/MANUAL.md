@@ -265,6 +265,9 @@ provider and space. Compact, the panel reads no preview: to see a working agent'
   room to the preview.
 - `Esc` (outside answer mode) or `▾ Esc` in the actions column collapse it again; selecting another pane collapses
   it too. When answer mode ends by itself after a key is sent, the panel stays open so the result stays visible.
+- `×` at the card's top right closes it altogether: the pick is forgotten (herdr's focus leads the office again, and
+  no write is offered to anybody) and only NEXT stays. Picking a desk, a chip or a list row (or `N`) opens a card
+  again; herdr's focus moving never does.
 - `‹ ›` step through NEXT's queue: select only, never expand or answer.
 
 **Switch herdr here** (on a remote machine: Switch herdr on <machine>) is enabled only for a seat you picked yourself,

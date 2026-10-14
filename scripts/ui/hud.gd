@@ -638,6 +638,10 @@ func card_expanded() -> bool:
 ## start's progress, a reconnect). `for_key` is the pane the office is about to
 ## aim the card at (a split's new pane), when that is not the one shown yet.
 func expand_card(for_key := "") -> void:
+	# A closed card (its `×`) opens only on a pick of the viewer's own, which
+	# un-closes it in show_pane() before anything opens it.
+	if inspector.closed():
+		return
 	_expanded = true
 	_expanded_pane = for_key if not for_key.is_empty() else inspector.shown_pane_key()
 	_fit_room()

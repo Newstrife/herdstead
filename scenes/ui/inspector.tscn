@@ -925,3 +925,12 @@ unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"LabelWoodShadow"
+
+[node name="CardClose" type="Button" parent="Frame/Row/CardFrame/Stack/Detail/Left/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+tooltip_text = "Close this card: the office forgets this pick, and herdr's focus leads again. Pick a desk, a chip or a list row (or N) to open a card again."
+focus_mode = 0
+theme_type_variation = &"CardHint"
+text = "×"

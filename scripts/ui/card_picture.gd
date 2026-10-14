@@ -41,6 +41,9 @@ class Facts:
 	var machine := ""
 	var dimmed := false
 	var pick := OfficePaneInspector.Pick.FOLLOWING
+	## The viewer closed the card (its `×`): nothing of it shows, and only
+	## NEXT stays, until they pick a pane again.
+	var closed := false
 	## What the pack calls the pane's state, and the badge it wears for it
 	## (CardDetails.caption_of(), badge_of()): the pack itself is no fact.
 	var state_caption := ""
@@ -113,6 +116,10 @@ class Stack:
 	var line := false
 	var title := false
 	var empty := false
+	## The viewer closed the card: `%CardFrame` hides (its own frame with it,
+	## and the panel's own frame is off) and only NEXT shows, still at the
+	## panel's right end.
+	var closed := false
 	## The panel is at full height: NEXT reads down and wraps, and the empty
 	## state says why.
 	var full := true
@@ -259,10 +266,11 @@ static func of(facts: Facts) -> CardPicture:
 static func stack_of(facts: Facts) -> Stack:
 	var made := Stack.new()
 	made.carded = facts.compact and facts.card
-	made.detail = facts.pane != null and (not facts.compact or made.carded)
-	made.line = facts.pane != null and facts.compact
+	made.closed = facts.closed
+	made.detail = facts.pane != null and not facts.closed and (not facts.compact or made.carded)
+	made.line = facts.pane != null and not facts.closed and facts.compact
 	made.title = not made.carded and not facts.answering
-	made.empty = facts.pane == null
+	made.empty = facts.pane == null and not facts.closed
 	made.full = not facts.compact
 	made.next_wait = not facts.compact or facts.wide
 	made.monitor_word = "Monitor" if facts.wide else ""

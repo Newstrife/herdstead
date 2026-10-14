@@ -260,6 +260,7 @@ func _ready() -> void:
 	hud.attention_snooze_requested.connect(_snooze_attention)
 	hud.attention_hidden_changed.connect(_hide_attention)
 	hud.agent_picked.connect(_pick_from_list)
+	hud.inspector.card_closed.connect(_on_card_closed)
 	# NEWS and EVENTS pick the pane an event is about, as a row of the list does.
 	hud.news_picked.connect(_pick_from_list)
 	hud.event_picked.connect(_pick_from_list)
@@ -714,6 +715,15 @@ func _on_chip_picked(key: String, at: Vector2) -> void:
 	if _card_may_open():
 		hud.expand_card()
 	hud.inspector.arm_answer()
+
+
+## The card's `×`: the pick is forgotten (herdr's focus leads again, and no
+## write is offered to anybody), the card folds, and only NEXT stays until a
+## pick of the viewer's own opens a card again. A selection, never a write.
+func _on_card_closed() -> void:
+	navigator.unpick()
+	hud.compact_card()
+	_refresh()
 
 
 ## A row of the SPACES rail: its zone panned to at once, on its machine's map
