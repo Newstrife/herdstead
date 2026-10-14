@@ -20,14 +20,15 @@
 #   tools/run_tests.sh
 #   GODOT=/path/to/godot PYTHON=python3.12 tools/run_tests.sh
 #
-# HERDSTEAD_SKIP_LOAD_CHECKS=1 skips the two load stages (every script and scene
-# loads, every art pack dresses the scenes) for a caller that has just run them
-# itself: `make check` and CI. Everything else still runs.
+# HERDSTEAD_SKIP_LOAD_CHECKS=1 skips the two load stages for a caller that ran
+# them already. HERDSTEAD_SKIP_PYTHON_TESTS=1 likewise skips the Python checks
+# when `make check` has just run test-art and test-tools.
 #
 # SUITES="test_office_geometry test_lens" runs only the Godot suites named (by
 # their script's name under tools/), each with its floor, marker and log gates
-# as in a full run; the Python asset tests and the fakes still run. `make
-# test-suite S=...` is the everyday spelling. TIER=quick is the quick tier,
+# as in a full run; no Python tests and only their own fakes. Unknown names
+# fail before importing or starting anything. `make test-suite S=...` is the
+# everyday spelling. TIER=quick is the quick tier,
 # QUICK_SUITES below: the art layer and the world (plans, pods, geometry,
 # people, walking, the lens), none of the HUD or the write boundary; `make
 # check-quick` runs it. A suite left out is not checked: the full run (`make
@@ -37,9 +38,10 @@
 set -u
 
 GODOT="${GODOT:-godot}"
-# Hard stop for the whole Godot run, in case a case wedges despite its own waits.
+# Hard stop per Godot process, in case a case wedges despite its own waits.
 RUN_TIMEOUT="${RUN_TIMEOUT:-120}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+started=$(date +%s)
 if [ -x "$ROOT/.venv/bin/python" ]; then
 	DEFAULT_PYTHON="$ROOT/.venv/bin/python"
 else
@@ -121,9 +123,6 @@ MIN_CASES_DESK_SIGNAL=12
 MIN_CASES_DESK_SIGNAL_WIRING=9
 MIN_CASES_PICK_FOLLOWS_WRITE=20
 
-# Unix socket paths stop at ~104 bytes on macOS: keep them short, under /tmp.
-WORK="$(mktemp -d /tmp/herdstead-test.XXXXXX)"
-
 # The quick tier (TIER=quick): every suite that an art, world or geometry
 # change can break and nothing a HUD or write-boundary change needs; about
 # five minutes on a quiet machine with the gates before it, two of them the
@@ -140,90 +139,85 @@ elif [ -n "${TIER:-}" ]; then
 	exit 2
 fi
 if [ -n "$SUITES" ]; then
-	for name in $SUITES; do
-		[ -f "$ROOT/tools/$name.gd" ] || {
-			echo "RUN_TESTS: no suite tools/$name.gd"
-			exit 2
-		}
-	done
-	echo "== suites: $(echo "$SUITES" | tr '\n' ' ')"
+	# read -a preserves literal names (no pathname expansion) and accepts tabs
+	# as well as spaces. Join once so wanted() sees the same words as validation.
+	read -r -a requested <<<"${SUITES//$'\n'/ }"
+	if [ "${#requested[@]}" -eq 0 ]; then
+		echo "RUN_TESTS: empty suite selection"
+		exit 2
+	fi
+	SUITES="${requested[*]}"
 fi
 
 # Whether suite `$1` (a script name) runs: every one when SUITES is empty.
 wanted() {
 	[ -z "$SUITES" ] && return 0
-	case " $(echo "$SUITES" | tr '\n' ' ') " in
+	case " $SUITES " in
 		*" $1 "*) return 0 ;;
 	esac
 	return 1
 }
-SERVER_PID=""
-SERVER_B_PID=""
-SERVER_C_PID=""
-SERVER_D_PID=""
-SERVER_E_PID=""
-SERVER_F_PID=""
-SERVER_G_PID=""
-SERVER_H_PID=""
-SERVER_I_PID=""
-SERVER_J_PID=""
-SERVER_K_PID=""
-SERVER_L_PID=""
-SERVER_M_PID=""
-SERVER_N_PID=""
-SERVER_O_PID=""
-SERVER_P_PID=""
-SERVER_Q_PID=""
-SERVER_R_PID=""
-SERVER_S_PID=""
-SERVER_T_PID=""
-SERVER_U_PID=""
-SERVER_V_PID=""
-SERVER_W_PID=""
-SERVER_X_PID=""
-SERVER_Y_PID=""
-SERVER_Z_PID=""
-SERVER_NEWS_A_PID=""
-SERVER_NEWS_B_PID=""
+
+# Only the current suite's fakes live at once. Record each PID immediately so
+# even a failure while starting the second server reaps the first one.
+SERVER_PIDS=""
+stop_fakes() {
+	local pid
+	for pid in $SERVER_PIDS; do
+		kill "$pid" 2>/dev/null || true
+		wait "$pid" 2>/dev/null || true
+	done
+	SERVER_PIDS=""
+}
 
 cleanup() {
-	for pid in "$SERVER_PID" "$SERVER_B_PID" "$SERVER_C_PID" "$SERVER_D_PID" "$SERVER_E_PID" "$SERVER_F_PID" \
-		"$SERVER_G_PID" "$SERVER_H_PID" "$SERVER_I_PID" "$SERVER_J_PID" "$SERVER_K_PID" "$SERVER_L_PID" \
-		"$SERVER_M_PID" "$SERVER_N_PID" "$SERVER_O_PID" "$SERVER_P_PID" "$SERVER_Q_PID" "$SERVER_R_PID" \
-		"$SERVER_S_PID" "$SERVER_T_PID" "$SERVER_U_PID" "$SERVER_V_PID" "$SERVER_W_PID" "$SERVER_X_PID" \
-		"$SERVER_Y_PID" "$SERVER_Z_PID" "$SERVER_NEWS_A_PID" "$SERVER_NEWS_B_PID"; do
-		if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-			kill "$pid" 2>/dev/null
-			wait "$pid" 2>/dev/null
+	local result=$? saved log
+	stop_fakes
+	if [ "$result" -ne 0 ]; then
+		saved="$ROOT/build/test-results/$(basename "$WORK")"
+		if mkdir -p "$saved" && touch "$ROOT/build/.gdignore"; then
+			for log in "$WORK"/*.log; do
+				[ -f "$log" ] || continue
+				cp "$log" "$saved/" || {
+					echo "RUN_TESTS: could not save logs; kept work at $WORK"
+					return
+				}
+			done
+			echo "RUN_TESTS: logs saved to $saved"
+		else
+			echo "RUN_TESTS: could not save logs; kept work at $WORK"
+			return
 		fi
-	done
+	fi
 	rm -rf "$WORK"
 }
-trap cleanup EXIT
-trap 'exit 130' INT TERM
 
-# Run a command, killing it after RUN_TIMEOUT seconds. macOS has no timeout(1).
+# macOS has no timeout(1). The watchdog's output goes into the suite log too;
+# the marker file lets the parent name a timeout without keeping a pipe open.
 bounded() {
-	# BOUND_SECONDS, while set, gives one slow suite a bound of its own.
 	local limit="${BOUND_SECONDS:-$RUN_TIMEOUT}"
+	local expired="$WORK/timed-out"
+	rm -f "$expired"
 	"$@" &
 	local pid=$!
-	# Detached from stdout so a pipe reader never waits on it, and it takes its
-	# sleep down with it when cancelled.
 	(
 		trap 'kill "$nap" 2>/dev/null; exit 0' TERM
 		sleep "$limit" &
 		nap=$!
 		wait "$nap"
-		echo "RUN_TESTS: killed after ${limit}s" >&2
+		: >"$expired"
 		kill -9 "$pid" 2>/dev/null
 	) >/dev/null 2>&1 &
 	local watchdog=$!
 	wait "$pid"
-	local status=$?
+	local result=$?
 	kill "$watchdog" 2>/dev/null
 	wait "$watchdog" 2>/dev/null
-	return "$status"
+	if [ -f "$expired" ]; then
+		echo "RUN_TESTS: killed after ${limit}s"
+		return 124
+	fi
+	return "$result"
 }
 
 # Fail the run when a suite reports fewer cases than its floor, whatever it
@@ -239,188 +233,38 @@ cases_floor() {
 	fi
 	return 0
 }
-
-
-echo "== Python table asset tests"
-"$PYTHON" "$ROOT/tools/test_table_assets.py" -v || exit 1
-
-# class_name scripts are unknown until imported, and Godot draws textures from
-# its import cache: a fresh checkout has no .godot/, a merge that adds a class
-# leaves the class cache behind, and `make art` leaves the cache behind assets/.
-GODOT="$GODOT" bash "$ROOT/tools/import_if_stale.sh" || {
-	echo "RUN_TESTS: import failed"
-	exit 2
-}
-
 # Start a fake herdr and wait until both of its sockets listen: the client
 # connects synchronously on start.
 start_fake() {
 	"$PYTHON" "$ROOT/tools/fake_herdr.py" \
 		--socket="$WORK/$1.sock" --control="$WORK/$1-ctl.sock" \
-		--fixtures="$ROOT/tools/fixtures" &
+		--fixtures="$ROOT/tools/fixtures" >"$WORK/$1.log" 2>&1 &
 	local pid=$!
+	SERVER_PIDS="$SERVER_PIDS $pid"
 	for _ in $(seq 1 100); do
 		[ -S "$WORK/$1.sock" ] && [ -S "$WORK/$1-ctl.sock" ] && break
 		kill -0 "$pid" 2>/dev/null || { echo "RUN_TESTS: fake herdr $1 died on start"; exit 2; }
 		sleep 0.05
 	done
-	if [ ! -S "$WORK/$1-ctl.sock" ]; then
+	if [ ! -S "$WORK/$1.sock" ] || [ ! -S "$WORK/$1-ctl.sock" ]; then
 		echo "RUN_TESTS: fake herdr $1 never came up"
 		exit 2
 	fi
-	FAKE_PID=$pid
 }
 
-if [ "${HERDSTEAD_SKIP_LOAD_CHECKS:-}" = "1" ]; then
-	echo "== script and pack load checks skipped (HERDSTEAD_SKIP_LOAD_CHECKS=1: the caller ran them)"
-else
-	# Nothing else loads a script no scene and no test references, so a broken one
-	# would go unnoticed. Runs after the import, which the class cache needs.
-	echo "== every script and scene loads"
-	bounded "$GODOT" --headless --path "$ROOT" --script tools/check_scripts.gd 2>&1 | tee "$WORK/scripts.log"
-	scripts_status=${PIPESTATUS[0]}
-	if grep -q "SCRIPT ERROR" "$WORK/scripts.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR while loading the scripts"
-		[ "$scripts_status" -eq 0 ] && scripts_status=1
-	fi
-	if ! grep -q "^SCRIPTS_OK" "$WORK/scripts.log" && [ "$scripts_status" -eq 0 ]; then
-		echo "RUN_TESTS: the script check did not finish"
-		scripts_status=1
-	fi
-	if [ "$scripts_status" -ne 0 ]; then
-		echo "RUN_TESTS: exit $scripts_status"
-		exit "$scripts_status"
-	fi
-
-	echo "== every art pack dresses the scenes"
-	# The semantic IDs the scenes draw with live in scripts/art/art_contract.gd;
-	# this loads every pack in assets/ and holds it to them.
-	bounded "$GODOT" --headless --path "$ROOT" --script tools/check_packs.gd 2>&1 | tee "$WORK/packs.log"
-	packs_status=${PIPESTATUS[0]}
-	if grep -q "SCRIPT ERROR" "$WORK/packs.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR while checking the packs"
-		[ "$packs_status" -eq 0 ] && packs_status=1
-	fi
-	if ! grep -q "^PACKS_OK" "$WORK/packs.log" && [ "$packs_status" -eq 0 ]; then
-		echo "RUN_TESTS: the pack check did not finish"
-		packs_status=1
-	fi
-	if [ "$packs_status" -ne 0 ]; then
-		echo "RUN_TESTS: exit $packs_status"
-		exit "$packs_status"
-	fi
-fi
-
-art_status=0
-if wanted test_art; then
-	echo "== art layer tests"
-	# No herdr: a pack is not a client, and its fixtures are written under $WORK.
-	bounded "$GODOT" --headless --path "$ROOT" --script tools/test_art.gd -- \
-		--work="$WORK" 2>&1 | tee "$WORK/art.log"
-	art_status=${PIPESTATUS[0]}
-	if grep -q "SCRIPT ERROR" "$WORK/art.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR during the art tests"
-		[ "$art_status" -eq 0 ] && art_status=1
-	fi
-	if ! cases_floor "$WORK/art.log" "ART TESTS" "$MIN_CASES_ART"; then
-		[ "$art_status" -eq 0 ] && art_status=1
-	fi
-	if ! grep -q "^ART TESTS OK" "$WORK/art.log" && [ "$art_status" -eq 0 ]; then
-		echo "RUN_TESTS: the art test run did not finish"
-		art_status=1
-	fi
-fi
-
-start_fake herdr
-SERVER_PID=$FAKE_PID
-# A second server stands in for a remote machine; its pane ids repeat the first's.
-start_fake machine
-SERVER_B_PID=$FAKE_PID
-
-started=$(date +%s)
-status=$art_status
-if wanted test_client; then
-	echo "== client + office tests"
-	bounded "$GODOT" --headless --path "$ROOT" --script tools/test_client.gd -- \
-		--socket="$WORK/herdr.sock" --control="$WORK/herdr-ctl.sock" 2>&1 | tee "$WORK/tests.log"
-	status=${PIPESTATUS[0]}
-	[ "$status" -eq 0 ] && status=$art_status
-
-	# The client must notice a closed peer without reading it (engine: "!is_open()").
-	if grep -q '!is_open()' "$WORK/tests.log"; then
-		echo "RUN_TESTS: the client read a closed socket"
-		[ "$status" -eq 0 ] && status=1
-	fi
-	if grep -q "SCRIPT ERROR" "$WORK/tests.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR during the tests"
-		[ "$status" -eq 0 ] && status=1
-	fi
-	if ! cases_floor "$WORK/tests.log" "TESTS" "$MIN_CASES_CLIENT"; then
-		[ "$status" -eq 0 ] && status=1
-	fi
-	if ! grep -q "^TESTS OK" "$WORK/tests.log" && [ "$status" -eq 0 ]; then
-		echo "RUN_TESTS: the test run did not finish"
-		status=1
-	fi
-fi
-
-# fake_ssh.py stands in for ssh; this wrapper runs it with the chosen Python.
-# Written for every run: the machine suite and every write suite take --ssh,
-# so a write suite asked for alone (make test-suite) must find it too.
-printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$(command -v "$PYTHON")" "$ROOT/tools/fake_ssh.py" >"$WORK/ssh"
-chmod +x "$WORK/ssh"
-if wanted test_machines; then
-	echo "== machine tests"
-	PYTHON="$PYTHON" bounded "$GODOT" --headless --path "$ROOT" --script tools/test_machines.gd -- --read-only \
-		--socket-a="$WORK/herdr.sock" --control-a="$WORK/herdr-ctl.sock" \
-		--socket-b="$WORK/machine.sock" --control-b="$WORK/machine-ctl.sock" \
-		--work="$WORK" --ssh="$WORK/ssh" 2>&1 | tee "$WORK/machines.log"
-	machine_status=${PIPESTATUS[0]}
-	if grep -q '!is_open()' "$WORK/machines.log"; then
-		echo "RUN_TESTS: a client read a closed socket during the machine tests"
-		[ "$machine_status" -eq 0 ] && machine_status=1
-	fi
-	if grep -q "SCRIPT ERROR" "$WORK/machines.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR during the machine tests"
-		[ "$machine_status" -eq 0 ] && machine_status=1
-	fi
-	if ! cases_floor "$WORK/machines.log" "MACHINE TESTS" "$MIN_CASES_MACHINE"; then
-		[ "$machine_status" -eq 0 ] && machine_status=1
-	fi
-	if ! grep -q "^MACHINE TESTS OK" "$WORK/machines.log" && [ "$machine_status" -eq 0 ]; then
-		echo "RUN_TESTS: the machine test run did not finish"
-		machine_status=1
-	fi
-	[ "$status" -eq 0 ] && status=$machine_status
-fi
-
-if wanted test_office_incremental; then
-	echo "== incremental office tests"
-	# No herdr here: the office's client is stopped and handed snapshots directly.
-	bounded "$GODOT" --headless --path "$ROOT" --script tools/test_office_incremental.gd -- --read-only \
-		--socket="$WORK/nowhere.sock" --work="$WORK" 2>&1 | tee "$WORK/incremental.log"
-	incremental_status=${PIPESTATUS[0]}
-	if grep -q "SCRIPT ERROR" "$WORK/incremental.log"; then
-		echo "RUN_TESTS: Godot reported a SCRIPT ERROR during the incremental office tests"
-		[ "$incremental_status" -eq 0 ] && incremental_status=1
-	fi
-	if ! cases_floor "$WORK/incremental.log" "INCREMENTAL TESTS" "$MIN_CASES_INCREMENTAL"; then
-		[ "$incremental_status" -eq 0 ] && incremental_status=1
-	fi
-	if ! grep -q "^INCREMENTAL TESTS OK" "$WORK/incremental.log" && [ "$incremental_status" -eq 0 ]; then
-		echo "RUN_TESTS: the incremental office test run did not finish"
-		incremental_status=1
-	fi
-	[ "$status" -eq 0 ] && status=$incremental_status
-fi
-
-# Each suite below runs in its own bounded Godot. Godot can exit 0 on script
-# errors: both log and marker remain gates, just like the existing suites above.
+# run_suites is the one list: first collect its selected names without side
+# effects, then run it. Selection never depends on parsing this shell source
+# or on a second registry that could drift from the actual invocations.
 run_scene_suite() {
 	local script="$1" marker="$2" floor="$3"
 	shift 3
 	wanted "$script" || return 0
+	if [ "$LIST_ONLY" = 1 ]; then
+		SELECTED="$SELECTED $script"
+		return 0
+	fi
 	local log="$WORK/$script.log"
+	echo "== $script"
 	bounded "$GODOT" --headless --path "$ROOT" --script "tools/$script.gd" "$@" 2>&1 | tee "$log"
 	local suite_status=${PIPESTATUS[0]}
 	if grep -Eq 'SCRIPT ERROR|Parse Error' "$log"; then
@@ -434,242 +278,173 @@ run_scene_suite() {
 		echo "RUN_TESTS: $marker did not finish successfully"
 		[ "$suite_status" -eq 0 ] && suite_status=1
 	fi
+	# The client and machine suites must notice a closed peer before reading it.
+	if { [ "$script" = test_client ] || [ "$script" = test_machines ]; } && grep -q '!is_open()' "$log"; then
+		echo "RUN_TESTS: a client read a closed socket"
+		[ "$suite_status" -eq 0 ] && suite_status=1
+	fi
+	if [ "$suite_status" -ne 0 ]; then
+		printf 'RUN_TESTS: rerun with GODOT=%q PYTHON=%q make -C %q test-suite S=%q\n' \
+			"$GODOT" "$PYTHON" "$ROOT" "$script"
+	fi
 	[ "$status" -eq 0 ] && status=$suite_status
 }
 
-run_scene_suite test_office_layout "OFFICE LAYOUT TESTS" "$MIN_CASES_OFFICE_LAYOUT"
-# The map planner: zones in lanes, the atomic plan cache, partitions, the map's furniture.
-run_scene_suite test_office_map "OFFICE MAP TESTS" "$MIN_CASES_OFFICE_MAP"
-# The entry band's fixtures and who rests where: pure, no office.
-run_scene_suite test_office_service "OFFICE SERVICE TESTS" "$MIN_CASES_OFFICE_SERVICE"
-run_scene_suite test_office_navigator "OFFICE NAVIGATOR TESTS" "$MIN_CASES_OFFICE_NAVIGATOR"
-run_scene_suite test_office_geometry "OFFICE GEOMETRY TESTS" "$MIN_CASES_OFFICE_GEOMETRY" -- --work="$WORK"
-# The framed pictures on the row walls: pure placement, the shell that draws
-# it, and the live office's frames through status, focus, selection and a drop.
-run_scene_suite test_office_frames "OFFICE FRAMES TESTS" "$MIN_CASES_OFFICE_FRAMES" -- --read-only \
-	--socket="$WORK/frames-nowhere.sock" --work="$WORK"
-# What a refresh does not redo: one refresh per frame of fleet changes, and a
-# quiet refresh on a kept plan (no placement signature, no structural pass, no lamp).
-run_scene_suite test_office_quiet "QUIET REFRESH TESTS" "$MIN_CASES_OFFICE_QUIET" -- --read-only \
-	--socket="$WORK/quiet-nowhere.sock" --work="$WORK"
-# Day and night (DayLight) over the one pack: the curve, the clock, T, the bar.
-run_scene_suite test_day_light "DAY LIGHT TESTS" "$MIN_CASES_DAY_LIGHT" -- --read-only \
-	--socket="$WORK/day-light-nowhere.sock" --work="$WORK"
-run_scene_suite test_office_reconcile "RECONCILE TESTS" "$MIN_CASES_OFFICE_RECONCILE" -- --read-only \
-	--socket="$WORK/reconcile-nowhere.sock" --work="$WORK"
-# People walking on the shown floor: arrivals, departures, to the pantry and back, cold
-# passes, freezing, re-routing; offices fed like the incremental suite's.
-run_scene_suite test_office_walking "WALKING TESTS" "$MIN_CASES_OFFICE_WALKING" -- --read-only \
-	--socket="$WORK/walking-nowhere.sock" --work="$WORK"
-# Who rests where: the seat with its chip and its paper, the pantry.
-run_scene_suite test_office_rests "RESTS TESTS" "$MIN_CASES_OFFICE_RESTS" -- --read-only \
-	--socket="$WORK/rests-nowhere.sock" --work="$WORK"
-# The left column's SPACES rail (rows, headings, in-view marks), the zone signs
-# and the plate's problem line, by real input.
-run_scene_suite test_space_rail "SPACE RAIL TESTS" "$MIN_CASES_SPACE_RAIL" -- --read-only \
-	--socket="$WORK/space-rail-nowhere.sock" --work="$WORK"
-# The arrows on the world's edges toward blocked desks off screen (where they
-# stand, the pool and its `+N`, the fold, clicks, hovers, overlays), by real input.
-run_scene_suite test_edge_arrows "EDGE ARROW TESTS" "$MIN_CASES_EDGE_ARROWS" -- --read-only \
-	--socket="$WORK/edge-arrows-nowhere.sock" --work="$WORK"
+# One socket for the client suite, an isolated pair for every other connected
+# suite. All pairs retain their colliding pane ids, audit cases and timeouts.
+run_connected_suite() {
+	local script="$1" marker="$2" floor="$3" prefix="$4" limit="$5"
+	shift 5
+	wanted "$script" || return 0
+	if [ "$LIST_ONLY" = 1 ]; then
+		run_scene_suite "$script" "$marker" "$floor"
+		return
+	fi
+	if [ "$script" = test_client ]; then
+		start_fake "$prefix"
+		run_scene_suite "$script" "$marker" "$floor" -- \
+			--socket="$WORK/$prefix.sock" --control="$WORK/$prefix-ctl.sock"
+	else
+		start_fake "$prefix-a"
+		start_fake "$prefix-b"
+		# fake_ssh.py stands in for ssh, using this run's Python, never the user's ssh.
+		printf '#!/usr/bin/env bash\nexec %q %q "$@"\n' \
+			"$(command -v "$PYTHON")" "$ROOT/tools/fake_ssh.py" >"$WORK/ssh"
+		chmod +x "$WORK/ssh"
+		PYTHON="$PYTHON" BOUND_SECONDS="$limit" run_scene_suite "$script" "$marker" "$floor" -- \
+			--socket-a="$WORK/$prefix-a.sock" --control-a="$WORK/$prefix-a-ctl.sock" \
+			--socket-b="$WORK/$prefix-b.sock" --control-b="$WORK/$prefix-b-ctl.sock" \
+			--work="$WORK" --ssh="$WORK/ssh" "$@"
+	fi
+	stop_fakes
+}
 
-run_scene_suite test_attention_store "ATTENTION STORE TESTS" "$MIN_CASES_ATTENTION_STORE"
-run_scene_suite test_agent_list "AGENT LIST TESTS" "$MIN_CASES_AGENT_LIST" -- --work="$WORK"
-run_scene_suite test_attention_integration "ATTENTION INTEGRATION TESTS" "$MIN_CASES_ATTENTION_INTEGRATION" -- \
-	--read-only --socket="$WORK/attention-nowhere.sock" --work="$WORK"
+run_suites() {
+	run_scene_suite test_art "ART TESTS" "$MIN_CASES_ART" -- --work="$WORK"
+	run_connected_suite test_client "TESTS" "$MIN_CASES_CLIENT" herdr "$RUN_TIMEOUT"
+	run_connected_suite test_machines "MACHINE TESTS" "$MIN_CASES_MACHINE" machine "$RUN_TIMEOUT" --read-only
+	# No herdr: these offices are fed snapshots directly and stay read-only.
+	run_scene_suite test_office_incremental "INCREMENTAL TESTS" "$MIN_CASES_INCREMENTAL" -- --read-only \
+		--socket="$WORK/nowhere.sock" --work="$WORK"
+	run_scene_suite test_office_layout "OFFICE LAYOUT TESTS" "$MIN_CASES_OFFICE_LAYOUT"
+	run_scene_suite test_office_map "OFFICE MAP TESTS" "$MIN_CASES_OFFICE_MAP"
+	run_scene_suite test_office_service "OFFICE SERVICE TESTS" "$MIN_CASES_OFFICE_SERVICE"
+	run_scene_suite test_office_navigator "OFFICE NAVIGATOR TESTS" "$MIN_CASES_OFFICE_NAVIGATOR"
+	run_scene_suite test_office_geometry "OFFICE GEOMETRY TESTS" "$MIN_CASES_OFFICE_GEOMETRY" -- --work="$WORK"
+	run_scene_suite test_office_frames "OFFICE FRAMES TESTS" "$MIN_CASES_OFFICE_FRAMES" -- --read-only \
+		--socket="$WORK/frames-nowhere.sock" --work="$WORK"
+	run_scene_suite test_office_quiet "QUIET REFRESH TESTS" "$MIN_CASES_OFFICE_QUIET" -- --read-only \
+		--socket="$WORK/quiet-nowhere.sock" --work="$WORK"
+	run_scene_suite test_day_light "DAY LIGHT TESTS" "$MIN_CASES_DAY_LIGHT" -- --read-only \
+		--socket="$WORK/day-light-nowhere.sock" --work="$WORK"
+	run_scene_suite test_office_reconcile "RECONCILE TESTS" "$MIN_CASES_OFFICE_RECONCILE" -- --read-only \
+		--socket="$WORK/reconcile-nowhere.sock" --work="$WORK"
+	run_scene_suite test_office_walking "WALKING TESTS" "$MIN_CASES_OFFICE_WALKING" -- --read-only \
+		--socket="$WORK/walking-nowhere.sock" --work="$WORK"
+	run_scene_suite test_office_rests "RESTS TESTS" "$MIN_CASES_OFFICE_RESTS" -- --read-only \
+		--socket="$WORK/rests-nowhere.sock" --work="$WORK"
+	run_scene_suite test_space_rail "SPACE RAIL TESTS" "$MIN_CASES_SPACE_RAIL" -- --read-only \
+		--socket="$WORK/space-rail-nowhere.sock" --work="$WORK"
+	run_scene_suite test_edge_arrows "EDGE ARROW TESTS" "$MIN_CASES_EDGE_ARROWS" -- --read-only \
+		--socket="$WORK/edge-arrows-nowhere.sock" --work="$WORK"
+	run_scene_suite test_attention_store "ATTENTION STORE TESTS" "$MIN_CASES_ATTENTION_STORE"
+	run_scene_suite test_agent_list "AGENT LIST TESTS" "$MIN_CASES_AGENT_LIST" -- --work="$WORK"
+	run_scene_suite test_attention_integration "ATTENTION INTEGRATION TESTS" "$MIN_CASES_ATTENTION_INTEGRATION" -- \
+		--read-only --socket="$WORK/attention-nowhere.sock" --work="$WORK"
+	run_scene_suite test_frame_loop "FRAME LOOP TESTS" "$MIN_CASES_FRAME_LOOP" -- --read-only \
+		--socket="$WORK/frame-loop-nowhere.sock" --work="$WORK"
+	# Manifests and saved looks live under WORK, never in the user's save directory.
+	run_scene_suite test_pixel_people "PIXEL PEOPLE TESTS" "$MIN_CASES_PIXEL_PEOPLE" -- --work="$WORK"
+	run_scene_suite test_avatar_studio "AVATAR STUDIO TESTS" "$MIN_CASES_AVATAR_STUDIO" -- --work="$WORK"
+	run_scene_suite test_saved_looks "SAVED LOOKS TESTS" "$MIN_CASES_SAVED_LOOKS" -- --work="$WORK"
+	# Real-input write suites keep their existing 300-second bounds and private pairs.
+	run_connected_suite test_commands "COMMAND TESTS" "$MIN_CASES_COMMANDS" command 300
+	run_connected_suite test_raw_input "RAW INPUT TESTS" "$MIN_CASES_RAW_INPUT" raw 300
+	run_connected_suite test_answers "ANSWER TESTS" "$MIN_CASES_ANSWERS" answer 300
+	run_connected_suite test_bubbles "BUBBLE TESTS" "$MIN_CASES_BUBBLES" bubble 300
+	run_connected_suite test_monitor "MONITOR TESTS" "$MIN_CASES_MONITOR" monitor 300
+	run_connected_suite test_overview "OVERVIEW TESTS" "$MIN_CASES_OVERVIEW" overview 300
+	run_connected_suite test_launch "LAUNCH TESTS" "$MIN_CASES_LAUNCH" launch 300
+	run_connected_suite test_prompt "PROMPT TESTS" "$MIN_CASES_PROMPT" prompt 300
+	run_connected_suite test_split "SPLIT TESTS" "$MIN_CASES_SPLIT" split 300
+	run_connected_suite test_close "CLOSE TESTS" "$MIN_CASES_CLOSE" close 300
+	run_connected_suite test_spaces "SPACES TESTS" "$MIN_CASES_SPACES" spaces 300
+	run_scene_suite test_top_bar "TOP BAR TESTS" "$MIN_CASES_TOP_BAR" -- --read-only \
+		--socket="$WORK/top-bar-nowhere.sock" --work="$WORK"
+	run_scene_suite test_state_log "STATE LOG TESTS" "$MIN_CASES_STATE_LOG" -- --read-only \
+		--socket="$WORK/state-log-nowhere.sock" --work="$WORK"
+	run_scene_suite test_news_events "NEWS EVENTS TESTS" "$MIN_CASES_NEWS_EVENTS" -- --read-only \
+		--socket="$WORK/news-nowhere.sock" --work="$WORK"
+	run_scene_suite test_lens "LENS TESTS" "$MIN_CASES_LENS" -- --read-only \
+		--socket="$WORK/lens-nowhere.sock" --work="$WORK"
+	run_scene_suite test_strategic "STRATEGIC TESTS" "$MIN_CASES_STRATEGIC" -- --read-only \
+		--socket="$WORK/strategic-nowhere.sock" --work="$WORK"
+	run_scene_suite test_alerts "ALERTS TESTS" "$MIN_CASES_ALERTS" -- --read-only \
+		--socket="$WORK/alerts-nowhere.sock" --work="$WORK"
+	run_scene_suite test_card_picture "CARD PICTURE TESTS" "$MIN_CASES_CARD_PICTURE"
+	run_connected_suite test_launch_news "LAUNCH NEWS TESTS" "$MIN_CASES_LAUNCH_NEWS" news "$RUN_TIMEOUT"
+	run_connected_suite test_refusal_ladder "REFUSAL LADDER TESTS" "$MIN_CASES_REFUSAL_LADDER" ladder 300
+	run_scene_suite test_desk_signal "DESK SIGNAL TESTS" "$MIN_CASES_DESK_SIGNAL"
+	run_scene_suite test_desk_signal_wiring "DESK SIGNAL WIRING TESTS" "$MIN_CASES_DESK_SIGNAL_WIRING" -- --read-only \
+		--socket="$WORK/desk-signal-nowhere.sock" --work="$WORK"
+	run_scene_suite test_pick_follows_write "PICK FOLLOWS WRITE TESTS" "$MIN_CASES_PICK_FOLLOWS_WRITE"
+}
 
-# The live office's frame pacer and per-frame work; headless, so no pacing.
-run_scene_suite test_frame_loop "FRAME LOOP TESTS" "$MIN_CASES_FRAME_LOOP" -- --read-only \
-	--socket="$WORK/frame-loop-nowhere.sock" --work="$WORK"
-# The pixel people: their family, the look and its saved file, prefab and
-# standalone showroom; no herdr. Fixture manifests, copies of the sheets and
-# every saved-looks file go under $WORK, never the user's.
-run_scene_suite test_pixel_people "PIXEL PEOPLE TESTS" "$MIN_CASES_PIXEL_PEOPLE" -- --work="$WORK"
-# The Avatar Studio through real input, saving under $WORK; a process of its
-# own, because the studio sets the window's content scale.
-run_scene_suite test_avatar_studio "AVATAR STUDIO TESTS" "$MIN_CASES_AVATAR_STUDIO" -- --work="$WORK"
-# The saved looks file: a save that would lose or hide anything refuses, and
-# says why. Every file it writes goes under $WORK, never the user's.
-run_scene_suite test_saved_looks "SAVED LOOKS TESTS" "$MIN_CASES_SAVED_LOOKS" -- --work="$WORK"
+# Validate the entire selection before imports, Python tests or fake processes.
+# The collection pass does not inspect or execute any GDScript.
+WORK=""
+SELECTED=""
+LIST_ONLY=1
+run_suites
+if [ -n "$SUITES" ]; then
+	for name in "${requested[@]}"; do
+		case "$SELECTED " in
+			*" $name "*) ;;
+			*) echo "RUN_TESTS: unknown suite '$name'"; exit 2 ;;
+		esac
+	done
+	echo "== suites:$SELECTED"
+fi
+for name in $SELECTED; do
+	[ -f "$ROOT/tools/$name.gd" ] || { echo "RUN_TESTS: missing tools/$name.gd"; exit 2; }
+done
 
-# The write boundary, the agent card and `--read-only`, against two fake herdrs
-# of its own whose pane ids collide. It closes by checking that those two saw
-# only the requests its cases opened.
-start_fake command-a
-SERVER_C_PID=$FAKE_PID
-start_fake command-b
-SERVER_D_PID=$FAKE_PID
-# About a minute here, in real time on real frames: its bound is its own, and
-# generous, so a slower machine does not kill it halfway. The SSH case goes
-# through the same fake_ssh wrapper as the machine tests.
-BOUND_SECONDS=300
-run_scene_suite test_commands "COMMAND TESTS" "$MIN_CASES_COMMANDS" -- \
-	--socket-a="$WORK/command-a.sock" --control-a="$WORK/command-a-ctl.sock" \
-	--socket-b="$WORK/command-b.sock" --control-b="$WORK/command-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
+# Unix socket paths stop at ~104 bytes on macOS: keep them short, under /tmp.
+WORK="$(mktemp -d /tmp/herdstead-test.XXXXXX)" || exit 2
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+status=0
+LIST_ONLY=0
 
-# The terminal monitor's raw mode at the write boundary (docs/WRITE_BOUNDARY.md §3),
-# against two more fakes of its own so that its closing check, like the one above, sees only what its own cases opened.
-start_fake raw-a
-SERVER_Q_PID=$FAKE_PID
-start_fake raw-b
-SERVER_R_PID=$FAKE_PID
-run_scene_suite test_raw_input "RAW INPUT TESTS" "$MIN_CASES_RAW_INPUT" -- \
-	--socket-a="$WORK/raw-a.sock" --control-a="$WORK/raw-a-ctl.sock" \
-	--socket-b="$WORK/raw-b.sock" --control-b="$WORK/raw-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# Answer mode: the keys and the one line the agent card sends, against two
-# more fakes of its own, so that its closing check, like the one above, sees
-# only what its own cases opened. About two minutes on real frames.
-start_fake answer-a
-SERVER_E_PID=$FAKE_PID
-start_fake answer-b
-SERVER_F_PID=$FAKE_PID
-run_scene_suite test_answers "ANSWER TESTS" "$MIN_CASES_ANSWERS" -- \
-	--socket-a="$WORK/answer-a.sock" --control-a="$WORK/answer-a-ctl.sock" \
-	--socket-b="$WORK/answer-b.sock" --control-b="$WORK/answer-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# The chips over blocked agents, and the clicks in the world and on the
-# bar that open answer mode, against two more.
-start_fake bubble-a
-SERVER_S_PID=$FAKE_PID
-start_fake bubble-b
-SERVER_T_PID=$FAKE_PID
-run_scene_suite test_bubbles "BUBBLE TESTS" "$MIN_CASES_BUBBLES" -- \
-	--socket-a="$WORK/bubble-a.sock" --control-a="$WORK/bubble-a-ctl.sock" \
-	--socket-b="$WORK/bubble-b.sock" --control-b="$WORK/bubble-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# The terminal monitor (docs/WRITE_BOUNDARY.md §3): its grid against the recorded dumps,
-# and the monitor in an operator office, typed into by real input, against two
-# more fakes of its own. Its raw-mode write gates are in test_raw_input above.
-start_fake monitor-a
-SERVER_G_PID=$FAKE_PID
-start_fake monitor-b
-SERVER_H_PID=$FAKE_PID
-run_scene_suite test_monitor "MONITOR TESTS" "$MIN_CASES_MONITOR" -- \
-	--socket-a="$WORK/monitor-a.sock" --control-a="$WORK/monitor-a-ctl.sock" \
-	--socket-b="$WORK/monitor-b.sock" --control-b="$WORK/monitor-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# The OVERVIEW: its model and timeline, and the table in an operator
-# office by real input, against two more fakes of its own; it writes nothing
-# but the one key a case answers with through the staff panel under it.
-start_fake overview-a
-SERVER_I_PID=$FAKE_PID
-start_fake overview-b
-SERVER_J_PID=$FAKE_PID
-run_scene_suite test_overview "OVERVIEW TESTS" "$MIN_CASES_OVERVIEW" -- \
-	--socket-a="$WORK/overview-a.sock" --control-a="$WORK/overview-a-ctl.sock" \
-	--socket-b="$WORK/overview-b.sock" --control-b="$WORK/overview-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# The launch writes at the boundary (agent.prompt, agent.start, pane.split),
-# against two more fakes of its own.
-start_fake launch-a
-SERVER_K_PID=$FAKE_PID
-start_fake launch-b
-SERVER_L_PID=$FAKE_PID
-run_scene_suite test_launch "LAUNCH TESTS" "$MIN_CASES_LAUNCH" -- \
-	--socket-a="$WORK/launch-a.sock" --control-a="$WORK/launch-a-ctl.sock" \
-	--socket-b="$WORK/launch-b.sock" --control-b="$WORK/launch-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# The one-line reply on the agent card, sent as herdr's own prompt: what the
-# card says of it and every gate before it, by real input, against two more.
-start_fake prompt-a
-SERVER_M_PID=$FAKE_PID
-start_fake prompt-b
-SERVER_N_PID=$FAKE_PID
-run_scene_suite test_prompt "PROMPT TESTS" "$MIN_CASES_PROMPT" -- \
-	--socket-a="$WORK/prompt-a.sock" --control-a="$WORK/prompt-a-ctl.sock" \
-	--socket-b="$WORK/prompt-b.sock" --control-b="$WORK/prompt-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# NEW PANE BESIDE on the agent card: the split, the pick of the new pane and
-# every gate before it, by real input, against two more.
-start_fake split-a
-SERVER_O_PID=$FAKE_PID
-start_fake split-b
-SERVER_P_PID=$FAKE_PID
-run_scene_suite test_split "SPLIT TESTS" "$MIN_CASES_SPLIT" -- \
-	--socket-a="$WORK/split-a.sock" --control-a="$WORK/split-a-ctl.sock" \
-	--socket-b="$WORK/split-b.sock" --control-b="$WORK/split-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# Close pane on the agent card: the two clicks, what goes with the pane,
-# every gate before the one `pane.close`, by real input, against two more.
-start_fake close-a
-SERVER_U_PID=$FAKE_PID
-start_fake close-b
-SERVER_V_PID=$FAKE_PID
-run_scene_suite test_close "CLOSE TESTS" "$MIN_CASES_CLOSE" -- \
-	--socket-a="$WORK/close-a.sock" --control-a="$WORK/close-a-ctl.sock" \
-	--socket-b="$WORK/close-b.sock" --control-b="$WORK/close-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-
-# New space and New worktree on the agent card: the exact params, the
-# branch and directory gates, git's refusals as one line, the pick of the new
-# floor's shell, by real input, against two more.
-start_fake spaces-a
-SERVER_W_PID=$FAKE_PID
-start_fake spaces-b
-SERVER_X_PID=$FAKE_PID
-run_scene_suite test_spaces "SPACES TESTS" "$MIN_CASES_SPACES" -- \
-	--socket-a="$WORK/spaces-a.sock" --control-a="$WORK/spaces-a-ctl.sock" \
-	--socket-b="$WORK/spaces-b.sock" --control-b="$WORK/spaces-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
-unset BOUND_SECONDS
-
-# The top bar's counters: counts, hover breakdowns, clicks and the list filter, by real input.
-run_scene_suite test_top_bar "TOP BAR TESTS" "$MIN_CASES_TOP_BAR" -- --read-only \
-	--socket="$WORK/top-bar-nowhere.sock" --work="$WORK"
-
-# The state log: segments and events from the fleet's clients, by the log's rules.
-run_scene_suite test_state_log "STATE LOG TESTS" "$MIN_CASES_STATE_LOG" -- --read-only \
-	--socket="$WORK/state-log-nowhere.sock" --work="$WORK"
-
-# NEWS and the drawer's EVENTS page: the log's events in herdr's words, by real input.
-run_scene_suite test_news_events "NEWS EVENTS TESTS" "$MIN_CASES_NEWS_EVENTS" -- --read-only \
-	--socket="$WORK/news-nowhere.sock" --work="$WORK"
-# The info lens and the hover mark: hold L, hover a HUD row; by real input.
-run_scene_suite test_lens "LENS TESTS" "$MIN_CASES_LENS" -- --read-only \
-	--socket="$WORK/lens-nowhere.sock" --work="$WORK"
-# The strategic view: `S`, the schematic's squares, clicks, the wheel; by real input.
-run_scene_suite test_strategic "STRATEGIC TESTS" "$MIN_CASES_STRATEGIC" -- --read-only \
-	--socket="$WORK/strategic-nowhere.sock" --work="$WORK"
-# In the background: the title's (N), the one Dock bounce, the chime; headless, so decided, never rung.
-run_scene_suite test_alerts "ALERTS TESTS" "$MIN_CASES_ALERTS" -- --read-only \
-	--socket="$WORK/alerts-nowhere.sock" --work="$WORK"
-# The agent card's picture: what the card shows for the facts it is given
-# (footer, forms, preview captions, NEXT, header), as pure tables.
-run_scene_suite test_card_picture "CARD PICTURE TESTS" "$MIN_CASES_CARD_PICTURE"
-# How a start that is over is said across cards of its pane (the footer's
-# launch line), by real input, against two more fakes of its own; started only
-# when the suite runs, being the last stage.
-if wanted test_launch_news; then
-	start_fake news-a
-	SERVER_NEWS_A_PID=$FAKE_PID
-	start_fake news-b
-	SERVER_NEWS_B_PID=$FAKE_PID
-	run_scene_suite test_launch_news "LAUNCH NEWS TESTS" "$MIN_CASES_LAUNCH_NEWS" -- \
-		--socket-a="$WORK/news-a.sock" --control-a="$WORK/news-a-ctl.sock" \
-		--socket-b="$WORK/news-b.sock" --control-b="$WORK/news-b-ctl.sock" --work="$WORK" --ssh="$WORK/ssh"
+# A focused run is Godot-only. Full checks ran both Python targets already;
+# plain `make test` retains the table tests and also checks these CLI tools.
+if [ -z "$SUITES" ] && [ "${HERDSTEAD_SKIP_PYTHON_TESTS:-}" != 1 ]; then
+	for script in test_table_assets test_dev_tools; do
+		echo "== $script"
+		"$PYTHON" "$ROOT/tools/$script.py" -v 2>&1 | tee "$WORK/$script.log"
+		[ "${PIPESTATUS[0]}" -eq 0 ] || exit 1
+	done
 fi
 
-# "May pane P take kind K now, and why not": the fleet's answer per kind and
-# state on a bare fleet (no office) against two more fakes, and the card's
-# ladder, aims and confirms as tables with no scene. Its one deliberate write
-# is a pair of switches; it closes by checking the two saw only what it opened.
-start_fake ladder-a
-SERVER_Y_PID=$FAKE_PID
-start_fake ladder-b
-SERVER_Z_PID=$FAKE_PID
-BOUND_SECONDS=300
-run_scene_suite test_refusal_ladder "REFUSAL LADDER TESTS" "$MIN_CASES_REFUSAL_LADDER" -- \
-	--socket-a="$WORK/ladder-a.sock" --control-a="$WORK/ladder-a-ctl.sock" \
-	--socket-b="$WORK/ladder-b.sock" --control-b="$WORK/ladder-b-ctl.sock" --work="$WORK"
-unset BOUND_SECONDS
-# Where a desk's signal is and where a zone opens, as the floor view answers
-# them on a bare floor, and the camera's two pan rules: pure, no office.
-run_scene_suite test_desk_signal "DESK SIGNAL TESTS" "$MIN_CASES_DESK_SIGNAL"
-# The live office's reveal, zone opening, pointer and edge arrows, pinned to
-# what 6413cec did on the same fixture.
-run_scene_suite test_desk_signal_wiring "DESK SIGNAL WIRING TESTS" "$MIN_CASES_DESK_SIGNAL_WIRING" -- --read-only \
-	--socket="$WORK/desk-signal-nowhere.sock" --work="$WORK"
-# Where the pick goes after a start, a split, a new space or a worktree the office sent: pure, no office.
-run_scene_suite test_pick_follows_write "PICK FOLLOWS WRITE TESTS" "$MIN_CASES_PICK_FOLLOWS_WRITE"
+# class_name scripts and textures need a fresh import cache, even in focused runs.
+GODOT="$GODOT" bash "$ROOT/tools/import_if_stale.sh" 2>&1 | tee "$WORK/import.log"
+[ "${PIPESTATUS[0]}" -eq 0 ] || { echo "RUN_TESTS: import failed"; exit 2; }
+if [ "${HERDSTEAD_SKIP_LOAD_CHECKS:-}" = 1 ]; then
+	echo "== script and pack load checks skipped (HERDSTEAD_SKIP_LOAD_CHECKS=1)"
+else
+	for stage in scripts packs; do
+		echo "== check_$stage"
+		bounded "$GODOT" --headless --path "$ROOT" --script "tools/check_$stage.gd" 2>&1 | tee "$WORK/$stage.log"
+		stage_status=${PIPESTATUS[0]}
+		marker="$(printf '%s' "$stage" | tr '[:lower:]' '[:upper:]')_OK"
+		if grep -Eq 'SCRIPT ERROR|Parse Error' "$WORK/$stage.log" || ! grep -q "^$marker" "$WORK/$stage.log"; then
+			echo "RUN_TESTS: check_$stage did not finish successfully"
+			[ "$stage_status" -eq 0 ] && stage_status=1
+		fi
+		[ "$stage_status" -eq 0 ] || exit "$stage_status"
+	done
+fi
 
+run_suites
 echo "RUN_TESTS: exit $status in $(( $(date +%s) - started ))s"
 exit "$status"

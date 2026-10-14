@@ -14,6 +14,7 @@ GDLINT ?= $(shell [ -x .venv/bin/gdlint ] && echo .venv/bin/gdlint || echo gdlin
 GDFORMAT ?= $(shell [ -x .venv/bin/gdformat ] && echo .venv/bin/gdformat || echo gdformat)
 OUT ?= build/captures
 RUNS ?= 3
+BASE ?= HEAD
 # The one test entry point, for `test` and for `check`.
 RUN_TESTS = GODOT=$(GODOT) PYTHON=$(PYTHON) bash tools/run_tests.sh
 
@@ -21,7 +22,7 @@ RUN_TESTS = GODOT=$(GODOT) PYTHON=$(PYTHON) bash tools/run_tests.sh
 PACKS := $(notdir $(patsubst %/manifest.json,%,$(wildcard assets/*/manifest.json)))
 
 .DEFAULT_GOAL := help
-.PHONY: help setup import imported run people people-templates people-skins wall-templates table-templates pixel-sources test test-art test-suite check check-quick check-scripts check-packs smoke docs-check lint fmt art capture walk-strips perf pack export clean
+.PHONY: help setup import imported run people people-templates people-skins wall-templates table-templates pixel-sources test test-art test-tools test-suite check check-quick check-scripts check-packs smoke docs-check lint lint-changed fmt art capture walk-strips perf pack export clean
 
 help:  ## List these targets
 	@grep -hE '^[a-z][a-z-]*:.*##' $(MAKEFILE_LIST) \
@@ -52,13 +53,15 @@ test-art:  ## The three Python art contract tests (packs, table, pixel people)
 	$(PYTHON) tools/test_table_assets.py -v
 	$(PYTHON) tools/test_pixel_people.py -v
 
-# The tests run last, and without their own copy of check-scripts and
-# check-packs: both have just run as prerequisites.
-check: check-scripts check-packs lint docs-check test-art  ## What CI runs, in the order it runs it
-	HERDSTEAD_SKIP_LOAD_CHECKS=1 $(RUN_TESTS)
+test-tools:  ## Developer CLI contracts: suite selection, isolated fakes, failure logs and changed-file lint
+	$(PYTHON) tools/test_dev_tools.py -v
 
-check-quick: check-scripts check-packs lint docs-check test-art  ## The quick tier: the same gates, then only the art and world suites (QUICK_SUITES in tools/run_tests.sh); not a substitute for check before a push
-	HERDSTEAD_SKIP_LOAD_CHECKS=1 TIER=quick $(RUN_TESTS)
+# The Godot tests run last; load checks and Python tests just ran as prerequisites.
+check: check-scripts check-packs lint docs-check test-art test-tools  ## Full local gate: load, packs, lint, docs, Python and every Godot suite
+	HERDSTEAD_SKIP_LOAD_CHECKS=1 HERDSTEAD_SKIP_PYTHON_TESTS=1 $(RUN_TESTS)
+
+check-quick: check-scripts check-packs lint docs-check test-art test-tools  ## The quick tier: the same gates, then only the art and world suites (QUICK_SUITES in tools/run_tests.sh); not a substitute for check before a push
+	HERDSTEAD_SKIP_LOAD_CHECKS=1 HERDSTEAD_SKIP_PYTHON_TESTS=1 TIER=quick $(RUN_TESTS)
 
 test-suite:  ## One or more Godot suites as the full run starts them, with their floors: make test-suite S="test_lens test_office_geometry"
 	@test -n "$(S)" || { echo "make test-suite S=<script names under tools/, without .gd>"; exit 2; }
@@ -88,6 +91,9 @@ docs-check:  ## Every repo path and make target the entry docs name in backticks
 lint:  ## gdlint (config in gdlintrc) and a gdformat check over scripts/ and tools/
 	find scripts tools -name '*.gd' -print0 | xargs -0 $(GDLINT)
 	$(GDFORMAT) --check --line-length=120 scripts tools
+
+lint-changed:  ## Check changed GDScript working files vs BASE (default HEAD), including untracked; config changes check all
+	$(PYTHON) tools/lint_changed.py --base "$(BASE)" --gdlint "$(GDLINT)" --gdformat "$(GDFORMAT)"
 
 fmt:  ## Format scripts/ and tools/ the way `make lint` expects
 	$(GDFORMAT) --line-length=120 scripts tools

@@ -81,13 +81,23 @@ Every command lives in the `Makefile`; `make help` lists them.
 ```sh
 make setup      # .venv with the Python and lint tools
 make import     # fill Godot's import cache after a fresh clone
-make check      # everything CI runs: script load, packs, lint, docs, art tests, all Godot tests
+make check      # full local gate: script load, packs, lint, docs, Python and all Godot tests
 make check-quick            # the same gates, then only the art and world suites (about five minutes)
-make test-suite S=test_lens # one Godot suite, as the full run starts it
-make test       # only the Godot and Python tests
+make test-suite S=test_lens # one Godot suite, with only its own fake servers and no Python tests
+make lint-changed           # changed GDScript working files vs HEAD, including staged and untracked
+make lint-changed BASE=origin/main  # include this branch's committed changes
+make test-tools # developer command contracts (no Godot required)
+make test       # load checks, table/tool Python tests and all Godot suites
 make fmt        # format GDScript the way make lint expects
 make capture OUT=/abs/dir   # screenshots against a fake herdr (needs a display)
 ```
+
+The focused commands are editing shortcuts, not substitutes for `make check` before a PR or push. Suite selection
+rejects unknown names before running anything and keeps the full run's case floors and error gates. The test runner
+keeps failure logs under build/test-results/; a failing Godot suite also prints its rerun command. Changed-file lint checks working
+contents (not a staged snapshot); changes to lint configuration or tool selection trigger a full GDScript check.
+CI also rebuilds art, smoke-tests the main scene, checks the exported PCK and captures screenshots; see the manual's
+[CI section](docs/MANUAL.md#ci).
 
 Tests and CI never connect to a real herdr; they use `tools/fake_herdr.py` and `tools/fake_ssh.py`. The rules for
 changing the code (invariants, what to keep in sync, how to test) are in [AGENTS.md](AGENTS.md).
