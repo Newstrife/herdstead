@@ -60,6 +60,9 @@ var _roster: MachineRoster
 var _sites: Array[Site] = []
 ## The last generation handed out; see generation().
 var _generations := 0
+## The herdr gateway's ws root (`--gateway=`), or empty: sites then reach
+## herdr over Unix sockets, SSH machines through MachineLink forwards.
+var _gateway := ""
 ## The write boundary; null until start() and, in read-only mode, for good.
 var _commands: HerdrCommands
 ## What this run saw of every pane's state; see state_log().
@@ -113,15 +116,19 @@ func start(user_args: PackedStringArray, without_writes: bool) -> void:
 		_commands.snapshot_wanted.connect(_on_snapshot_wanted)
 		add_child(_commands)
 	var client := _sites[0].client
-	var socket_path := HerdrClient.resolve_socket_path(user_args)
+	_gateway = HerdrClient.resolve_gateway(user_args)
+	var endpoint := HerdrClient.resolve_endpoint(user_args)
 	if without_writes:
-		print("OFFICE_START: read-only herdr client on " + socket_path)
+		print("OFFICE_START: read-only herdr client on " + endpoint)
 	else:
-		print("OFFICE_START: operator herdr client on %s (may send %s)" % [socket_path, HerdrCommands.methods_text()])
-	client.start(socket_path)
+		print("OFFICE_START: operator herdr client on %s (may send %s)" % [endpoint, HerdrCommands.methods_text()])
+	client.start(endpoint)
+	# Leftover forwards are a desktop-mode artifact, but a machine that ran
+	# socket-mode yesterday and gateway-mode today still has them to sweep.
 	for leftover in MachineLink.clean_leftovers():
 		print("Removed a stale machine forward: " + leftover)
 	_roster = MachineRoster.new()
+	_roster.gateway = _gateway
 	add_child(_roster)
 	_roster.changed.connect(_sync_sites)
 	_roster.start(user_args)
@@ -757,7 +764,7 @@ func _machine(key: String) -> HerdrCommands.Machine:
 	facts.online = site.client.online
 	facts.current = site.client.snapshot_current
 	facts.protocol = site.client.protocol
-	facts.socket_path = site.client.socket_path
+	facts.endpoint = site.client.endpoint
 	facts.snapshot = site.client.snapshot
 	return facts
 
@@ -937,6 +944,12 @@ func _sync_sites() -> void:
 func _open_site(site: Site) -> Site:
 	site.generation = _next_generation()
 	site.client = _new_client(site)
+	if not _gateway.is_empty():
+		# The gateway holds the tunnels: every machine is one WebSocket away.
+		var endpoint := _gateway_endpoint(site)
+		print("MACHINE_START: %s (gateway) on %s" % [site.label, endpoint])
+		site.client.start(endpoint)
+		return site
 	if site.kind == Kind.SSH:
 		var link := MachineLink.new()
 		link.name = "Link"
@@ -956,11 +969,23 @@ func _open_site(site: Site) -> Site:
 	return site
 
 
+## A site's connection target in gateway mode: the gateway's own endpoint for
+## Local, a tunnel it opens for an SSH machine, the socket itself for a debug
+## socket (which lives on this side and needs no gateway).
+func _gateway_endpoint(site: Site) -> String:
+	match site.kind:
+		Kind.LOCAL:
+			return _gateway + "/ws/local"
+		Kind.SSH:
+			return _gateway + "/ws/machine?target=" + site.target.uri_encode() + "&session=" + site.session.uri_encode()
+	return site.socket
+
+
 ## The client of an SSH machine connects only once its own ssh holds the local
 ## end: a file that merely exists at that path is nobody's promise. After that
 ## it rides out ssh restarts with its own reconnect.
 func _on_link_changed(site: Site) -> void:
-	if site.link.state == MachineLink.State.FORWARDING and site.client.socket_path.is_empty():
+	if site.link.state == MachineLink.State.FORWARDING and site.client.endpoint.is_empty():
 		site.client.start(site.link.local_socket)
 	# A link reports while it is being opened, before its machine is listed;
 	# `_sync_sites` announces the finished roster itself.

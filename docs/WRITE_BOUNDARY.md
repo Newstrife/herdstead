@@ -12,6 +12,10 @@ Section 6 collects those measurements.
 ## 1. The write boundary
 
 `HerdrCommands` is the only file under `scripts/` that may name a herdr method outside the read-only three.
+A herdr gateway (`--gateway=`, or the web build served by `tools/herdr_gateway.py`) changes nothing of this: it
+relays the office's bytes to herdr verbatim and adds no socket API requests of its own (it runs the
+`herdr machine list --json` command line for the roster's `GET /api/machines`, never a socket request), so every
+request below still comes from the same code, on the same terms.
 `tools/test_commands.gd` checks this statically against the `allowlist` in `tools/fixtures/herdr_methods.json`,
 which also records every method herdr 0.9.0 lists in its schema. The office talks to the rest of the system only
 through `HerdrFleet`'s typed calls: a `CommandContext` in, a `CommandTicket` out (invariant 1 in `AGENTS.md`).

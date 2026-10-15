@@ -10,6 +10,7 @@
 
 GODOT ?= godot
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
+PORT ?= 8765
 GDLINT ?= $(shell [ -x .venv/bin/gdlint ] && echo .venv/bin/gdlint || echo gdlint)
 GDFORMAT ?= $(shell [ -x .venv/bin/gdformat ] && echo .venv/bin/gdformat || echo gdformat)
 OUT ?= build/captures
@@ -21,7 +22,7 @@ RUN_TESTS = GODOT=$(GODOT) PYTHON=$(PYTHON) bash tools/run_tests.sh
 PACKS := $(notdir $(patsubst %/manifest.json,%,$(wildcard assets/*/manifest.json)))
 
 .DEFAULT_GOAL := help
-.PHONY: help setup import imported run people people-templates people-skins wall-templates table-templates pixel-sources test test-art test-suite check check-quick check-scripts check-packs smoke docs-check lint fmt art capture walk-strips perf pack export clean
+.PHONY: help setup import imported run gateway web-export serve people people-templates people-skins wall-templates table-templates pixel-sources test test-art test-gateway test-suite check check-quick check-scripts check-packs smoke docs-check lint fmt art capture walk-strips perf pack export clean
 
 help:  ## List these targets
 	@grep -hE '^[a-z][a-z-]*:.*##' $(MAKEFILE_LIST) \
@@ -44,8 +45,20 @@ imported:
 run:  ## Run the live office against your own herdr
 	$(GODOT) --path .
 
+gateway:  ## Serve the web export and proxy herdr over WebSocket, on the LAN (PORT= to change, default 8765)
+	$(PYTHON) tools/herdr_gateway.py --port $(PORT)
+
+web-export: imported  ## Build the web export into build/web (needs the Godot export templates installed once)
+	mkdir -p build/web
+	$(GODOT) --headless --path . --export-release "Web" build/web/index.html
+
+serve: web-export gateway  ## web-export, then the gateway on it
+
 test:  ## Every Godot test: script check, client, machines, incremental office
 	$(RUN_TESTS)
+
+test-gateway:  ## The gateway's Python tests (checks, bridges, HTTP)
+	$(PYTHON) tools/test_gateway.py -v
 
 test-art:  ## The three Python art contract tests (packs, table, pixel people)
 	$(PYTHON) tools/test_assets.py -v
@@ -54,10 +67,10 @@ test-art:  ## The three Python art contract tests (packs, table, pixel people)
 
 # The tests run last, and without their own copy of check-scripts and
 # check-packs: both have just run as prerequisites.
-check: check-scripts check-packs lint docs-check test-art  ## What CI runs, in the order it runs it
+check: check-scripts check-packs lint docs-check test-art test-gateway  ## What CI runs, in the order it runs it
 	HERDSTEAD_SKIP_LOAD_CHECKS=1 $(RUN_TESTS)
 
-check-quick: check-scripts check-packs lint docs-check test-art  ## The quick tier: the same gates, then only the art and world suites (QUICK_SUITES in tools/run_tests.sh); not a substitute for check before a push
+check-quick: check-scripts check-packs lint docs-check test-art test-gateway  ## The quick tier: the same gates, then only the art and world suites (QUICK_SUITES in tools/run_tests.sh); not a substitute for check before a push
 	HERDSTEAD_SKIP_LOAD_CHECKS=1 TIER=quick $(RUN_TESTS)
 
 test-suite:  ## One or more Godot suites as the full run starts them, with their floors: make test-suite S="test_lens test_office_geometry"

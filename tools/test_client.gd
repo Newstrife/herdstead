@@ -12,10 +12,10 @@ extends "res://tools/client_test_base.gd"
 func _initialize() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--socket="):
-			socket_path = argument.trim_prefix("--socket=")
+			endpoint = argument.trim_prefix("--socket=")
 		if argument.begins_with("--control="):
 			control_path = argument.trim_prefix("--control=")
-	if socket_path.is_empty() or control_path.is_empty():
+	if endpoint.is_empty() or control_path.is_empty():
 		print("TEST_HARNESS_ERROR: pass --socket= and --control= (use tools/run_tests.sh)")
 		quit(2)
 		return
@@ -63,6 +63,68 @@ func test_resolve_socket_path() -> void:
 	)
 	if not saved.is_empty():
 		OS.set_environment("HERDR_SOCKET_PATH", saved)
+
+
+## The gateway's precedence and spellings: `--gateway=` over HERDR_GATEWAY, an
+## explicit empty one disabling it; host gets ws://, http(s):// normalizes,
+## another scheme is refused rather than read as a socket path.
+func test_resolve_gateway() -> void:
+	var saved := OS.get_environment("HERDR_GATEWAY")
+	OS.set_environment("HERDR_GATEWAY", "env-gw:8765")
+	var table := [
+		[PackedStringArray(["--gateway=flag-gw:9000"]), "ws://flag-gw:9000", "--gateway= wins over the environment"],
+		[PackedStringArray(), "ws://env-gw:8765", "the environment is second"],
+		[PackedStringArray(["--gateway="]), "", "an explicit empty --gateway= disables the environment's"],
+		[PackedStringArray(["--gateway=ws://x:1/"]), "ws://x:1", "a trailing slash goes"],
+		[PackedStringArray(["--gateway=http://x:1"]), "ws://x:1", "http:// is the same gateway's ws"],
+		[PackedStringArray(["--gateway=https://x"]), "wss://x", "https:// is wss"],
+		[PackedStringArray(["--gateway=ftp://x"]), "", "another scheme is refused"],
+	]
+	for row: Array in table:
+		var args: PackedStringArray = row[0]
+		var expected: String = row[1]
+		var name: String = row[2]
+		_eq(HerdrClient.resolve_gateway(args), expected, name)
+	_eq(
+		HerdrClient.resolve_endpoint(PackedStringArray(["--gateway=gw:8765"])),
+		"ws://gw:8765/ws/local",
+		"the local machine is /ws/local under a gateway"
+	)
+	OS.unset_environment("HERDR_GATEWAY")
+	var saved_socket := OS.get_environment("HERDR_SOCKET_PATH")
+	OS.set_environment("HERDR_SOCKET_PATH", "/tmp/none.sock")
+	_eq(HerdrClient.resolve_endpoint(PackedStringArray()), "/tmp/none.sock", "no gateway: the socket path")
+	if not saved_socket.is_empty():
+		OS.set_environment("HERDR_SOCKET_PATH", saved_socket)
+	else:
+		OS.unset_environment("HERDR_SOCKET_PATH")
+	if not saved.is_empty():
+		OS.set_environment("HERDR_GATEWAY", saved)
+
+
+## Which gateway poll failure means "gone" (fall back to Local after
+## MISSING_LIMIT) and which is transient (keep the last good list): every
+## HTTPRequest.Result the roster can see, pinned one way or the other.
+func test_gateway_failure_classification() -> void:
+	var gone := [
+		HTTPRequest.RESULT_CANT_CONNECT,
+		HTTPRequest.RESULT_CANT_RESOLVE,
+		HTTPRequest.RESULT_CONNECTION_ERROR,
+		HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR,
+	]
+	for result: HTTPRequest.Result in gone:
+		_check(MachineRoster.gateway_failure_is_gone(result), "gone: %d" % result)
+	var transient := [
+		HTTPRequest.RESULT_CHUNKED_BODY_SIZE_MISMATCH,
+		HTTPRequest.RESULT_NO_RESPONSE,
+		HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED,
+		HTTPRequest.RESULT_BODY_DECOMPRESS_FAILED,
+		HTTPRequest.RESULT_REQUEST_FAILED,
+		HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,
+		HTTPRequest.RESULT_TIMEOUT,
+	]
+	for result: HTTPRequest.Result in transient:
+		_check(not MachineRoster.gateway_failure_is_gone(result), "transient: %d" % result)
 
 
 func test_normal_path() -> void:
@@ -176,7 +238,7 @@ func test_reconnect_waits_for_a_fresh_snapshot() -> void:
 	_eq(rec.readiness, 3, "same-content recovery still announces a liveness change")
 	client.stop()
 	_eq(client.snapshot_current, false, "stop also invalidates currency")
-	client.start(socket_path)
+	client.start(endpoint)
 	_eq(client.snapshot_current, false, "start waits for a new complete response")
 
 

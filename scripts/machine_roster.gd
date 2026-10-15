@@ -32,7 +32,24 @@ var sockets: Array[DebugSocket] = []
 ## Finished list calls, successful or not; a probe waits for the first.
 var attempts := 0
 
+## The gateway's http root in gateway mode (`--gateway=`), empty otherwise:
+## the machine list then comes from `GET /api/machines` instead of a
+## `herdr machine list` child process, which a browser cannot spawn.
+var gateway := "":
+	set(value):
+		gateway = value
+		if value.is_empty() or _http != null:
+			return
+		_http = HTTPRequest.new()
+		_http.timeout = TIMEOUT
+		# Invariant 9 holds over HTTP too: a list past the child process's
+		# OUTPUT_KEEP cap is not one this office could show anyway.
+		_http.body_size_limit = OUTPUT_KEEP
+		_http.request_completed.connect(_on_list_answered)
+		add_child(_http)
+
 var _lister := ChildProcess.new(OUTPUT_KEEP, STDERR_KEEP)
+var _http: HTTPRequest
 var _left := 0.0
 var _running_for := 0.0
 var _succeeded := false
@@ -213,6 +230,9 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if _http != null:
+		_poll_http(delta)
+		return
 	if _lister.pid > 0:
 		_poll(delta)
 		return
@@ -220,6 +240,67 @@ func _process(delta: float) -> void:
 	if _left <= 0.0:
 		_left = INTERVAL
 		_list()
+
+
+## A gateway poll that never got an answer counts toward the MISSING_LIMIT
+## fallback to Local (the gateway is gone), and every other failure keeps the
+## last good list, as a failed `herdr machine list` does.
+static func gateway_failure_is_gone(result: HTTPRequest.Result) -> bool:
+	return (
+		result == HTTPRequest.RESULT_CANT_CONNECT
+		or result == HTTPRequest.RESULT_CANT_RESOLVE
+		or result == HTTPRequest.RESULT_CONNECTION_ERROR
+		or result == HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR
+	)
+
+
+## One list call through the gateway per INTERVAL, never two in flight.
+## HTTPRequest waits out its own timeout; there is nothing to kill.
+func _poll_http(delta: float) -> void:
+	if _http.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		return
+	_left -= delta
+	if _left > 0.0:
+		return
+	_left = INTERVAL
+	var url := gateway.replace("wss://", "https://").replace("ws://", "http://") + "/api/machines"
+	if _http.request(url) != OK:
+		_gone("the gateway did not take the machine list request")
+
+
+## The gateway's list answer: the same bytes `herdr machine list --json`
+## would have printed, read the same way.
+func _on_list_answered(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	# The child-process path's semantics: "the gateway is gone" (nothing to
+	# connect to) counts toward the MISSING_LIMIT fallback to Local, while a
+	# gateway that answers badly is a transient failure that keeps the last
+	# good list.
+	if result != HTTPRequest.RESULT_SUCCESS:
+		if gateway_failure_is_gone(result):
+			_gone("the gateway is unreachable")
+		else:
+			_failed("the gateway's machine list failed (%d)" % result)
+		return
+	# 503 is the gateway saying herdr cannot run at all: the child-process
+	# path's "cannot find herdr", the same fallback.
+	if code == 503:
+		_gone("the gateway cannot run herdr")
+		return
+	if code != 200:
+		_failed("the gateway's machine list answered %d" % code)
+		return
+	var parsed: Variant = parse_list(body.get_string_from_utf8())
+	if parsed == null:
+		_failed("the gateway's machine list is not a machine list")
+		return
+	attempts += 1
+	_succeeded = true
+	_failing = false
+	_missing = 0
+	var listed: Array[Machine] = parsed
+	if not same_list(listed, machines):
+		machines = listed
+		changed.emit()
 
 
 func _list() -> void:

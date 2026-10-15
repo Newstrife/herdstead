@@ -31,7 +31,7 @@ extends Node
 ##
 ## Its own transport. A command never goes through HerdrClient's request list,
 ## where a failed channel takes the machine offline: a command that fails ends
-## its own ticket and nothing else. Each request opens its own StreamPeerUDS to
+## its own ticket and nothing else. Each request opens its own HerdrPeer to
 ## its machine's socket (herdr answers one request per connection), reads with
 ## its own line cap and timeout, and is matched to its ticket by request id. A
 ## write is never retried, and only one write per pane is ever open.
@@ -288,7 +288,7 @@ class Machine:
 	var online := false
 	var current := false
 	var protocol := 0
-	var socket_path := ""
+	var endpoint := ""
 	var snapshot: HerdrSnapshot
 
 
@@ -296,7 +296,7 @@ class Machine:
 class Channel:
 	var ticket: CommandTicket
 	var entry: CommandAuditEntry
-	var peer: StreamPeerUDS
+	var peer: HerdrPeer
 	var reader: HerdrClient.LineReader
 	var payload := PackedByteArray()
 	var written := 0
@@ -878,7 +878,7 @@ func submit(context: CommandContext, machine: Machine, facts := Callable()) -> C
 		# The slot is taken at the gesture: a second press inside the re-read
 		# window finds it taken, whatever it asks for.
 		_writing[context.pane_key] = ticket
-	var peer := HerdrClient.open_peer(machine.socket_path)
+	var peer := HerdrClient.open_peer(machine.endpoint)
 	if peer == null:
 		ticket.settle(CommandTicket.State.CANCELLED, "herdr's socket is not there")
 		_record(ticket, entry)
@@ -1101,7 +1101,7 @@ func _start_raw(pending: Pending, now: int) -> bool:
 		_record(ticket, pending.entry, false)
 		_refuse_lane(context.pane_key, reason, context)
 		return false
-	var peer := HerdrClient.open_peer(machine.socket_path)
+	var peer := HerdrClient.open_peer(machine.endpoint)
 	if peer == null:
 		ticket.settle(CommandTicket.State.CANCELLED, "herdr's socket is not there")
 		_record(ticket, pending.entry, false)
@@ -1165,7 +1165,7 @@ func _refuse_lane(pane_key: String, reason: CommandRefusal.Reason, like: Command
 ## Move one request along; false once it is over.
 func _pump(channel: Channel, delta: float) -> bool:
 	channel.peer.poll()
-	var status := channel.peer.get_status()
+	var status := channel.peer.status()
 	var why := _write(channel, status)
 	if why.is_empty():
 		# Always drain before judging the status: herdr answers and closes within
@@ -1192,7 +1192,7 @@ func _pump(channel: Channel, delta: float) -> bool:
 func _write(channel: Channel, status: StreamPeerSocket.Status) -> String:
 	if status != StreamPeerSocket.STATUS_CONNECTED or channel.written >= channel.payload.size():
 		return ""
-	var put: Array = channel.peer.put_partial_data(channel.payload.slice(channel.written))
+	var put: Array = channel.peer.write_partial(channel.payload.slice(channel.written))
 	var error: int = put[0]
 	var count: int = put[1]
 	if count > 0:
@@ -1324,7 +1324,7 @@ static func _note_read(entry: CommandAuditEntry, bytes: int, truncated: bool, cu
 ## An input command's re-read came back: judge it, and hand back the write's
 ## own channel when nothing stands against it (null when the ticket is over).
 func _rechecked(channel: Channel, line: String) -> Channel:
-	channel.peer.disconnect_from_host()
+	channel.peer.close()
 	var ticket := channel.ticket
 	var parsed: Variant = _envelope(line, ticket.request_id + CHECK_SUFFIX)
 	if parsed is String:
@@ -1379,7 +1379,7 @@ func _judge(channel: Channel, read: PaneReadResult) -> Channel:
 		entry.refusal = CommandRefusal.name_of(reason)
 		_record(ticket, entry)
 		return null
-	var peer := HerdrClient.open_peer(machine.socket_path)
+	var peer := HerdrClient.open_peer(machine.endpoint)
 	if peer == null:
 		ticket.settle(CommandTicket.State.CANCELLED, "herdr's socket is not there")
 		_record(ticket, entry)
@@ -1396,7 +1396,7 @@ func _judge(channel: Channel, read: PaneReadResult) -> Channel:
 
 ## The re-read brought no text to compare: nothing is written.
 func _recheck_failed(channel: Channel, why: String) -> void:
-	channel.peer.disconnect_from_host()
+	channel.peer.close()
 	channel.ticket.failure = why
 	channel.ticket.refuse(CommandRefusal.Reason.RECHECK_FAILED)
 	channel.entry.refusal = CommandRefusal.name_of(CommandRefusal.Reason.RECHECK_FAILED)
@@ -1421,7 +1421,7 @@ func _end(channel: Channel, why: String, gone := false) -> void:
 
 
 func _close(channel: Channel, state: CommandTicket.State) -> void:
-	channel.peer.disconnect_from_host()
+	channel.peer.close()
 	channel.ticket.settle(state)
 	_record(channel.ticket, channel.entry)
 
