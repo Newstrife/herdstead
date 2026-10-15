@@ -23,7 +23,7 @@ const MAX_STEP_MSEC := 200.0
 ## Real time a flood of megabytes may take to drain through the socket.
 const FLOOD_WAIT := 20.0
 
-var socket_path := ""
+var endpoint := ""
 var control_path := ""
 var client: HerdrClient
 var rec: Recorder
@@ -70,7 +70,7 @@ class Recorder:
 
 func _start_client() -> void:
 	_new_client()
-	client.start(socket_path)
+	client.start(endpoint)
 
 
 func _new_client() -> void:

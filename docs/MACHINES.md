@@ -90,6 +90,28 @@ failure → backoff → OFFLINE (a real `ssh localhost` failing on publickey), k
 reclaiming orphans on the next start after SIGTERM / SIGKILL (`tools/fake_ssh.py` posing as ssh with a local
 forward), aggregating two fake machines, reconnecting after a single disconnect, and malformed snapshots.
 **A real SSH connection reaching a remote herdr has not been verified end to end** (no test host was available).
+Browser-side particulars have not been verified in a real browser yet (the WebSocket path was proven with the
+desktop build over `--gateway=`): the roster's in-flight check reads HTTPClient's status, and the default gateway
+comes from `location.origin`.
+
 `herdr machine list --json` on herdr 0.9.0 prints `[]` for an empty list, so the exact field names of a record have
 not been seen. Parsing lives only in `MachineRoster.normalize()` and accepts the common spellings (`profile_id` / `id`,
 `ssh_target` / `target`, `remote_session` / `session`, `label`, `enabled`).
+
+## Under a gateway (`--gateway=`, web builds)
+
+With a gateway the office opens no forwards itself. The roster reads `GET /api/machines` (the gateway runs
+`herdr machine list --json` server-side and answers its stdout verbatim, a nonzero exit as 502, and an unrunnable
+herdr as 503 — the roster's "gone", falling back to Local-only after 3 misses, as a missing binary does on the
+desktop) and each machine is
+one WebSocket: `/ws/machine?target=<target>&session=<session>`, bridged by `tools/herdr_gateway.py` onto a forward
+the gateway holds per machine. The gateway mirrors this document's rules in Python — `check_target` (including the
+`_invisible` code-point table), `check_session`, `check_home`, `remote_socket_path`, `escape_forward`, and the same
+ssh options (`BatchMode`, `ExitOnForwardFailure`, `ServerAliveInterval=15`, `ServerAliveCountMax=3`,
+`StreamLocalBindUnlink`, `ControlPath=none`) — and the two must stay in step (see AGENTS.md, "If you change X, also
+update Y").
+
+Differences from the desktop path: one forward per machine is shared by every WebSocket (ssh multiplexes them), a
+forward whose ssh died is respawned on the next connection (at most one respawn per 5 s), the gateway writes the
+ssh pid to a sidecar in its `hs-gw-*` directory and sweeps stale ones at startup, and a forward failure reaches the
+client as a WebSocket close with a fixed phrase — the machine's plate does not name ssh's reason over a gateway.

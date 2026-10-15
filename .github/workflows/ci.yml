@@ -51,6 +51,10 @@ jobs:
           timeout 300 make import 2>&1 | tee "$RUNNER_TEMP/import.log"
           if grep -E 'SCRIPT ERROR|Parse Error' "$RUNNER_TEMP/import.log"; then exit 1; fi
 
+      - name: Gateway tests
+        # After Godot is installed and the project imported: the suite's WebSocket
+        # end-to-end runs the real client (tools/probe_ws.gd) through a real gateway.
+        run: timeout 120 make test-gateway
       - name: Developer command and shared harness contracts
         # Python contracts run once, not once per Godot shard.
         run: make test-tools test-harness

@@ -1457,7 +1457,7 @@ func test_office_two_machines() -> void:
 	var far_client := _client(office, 2)
 	var far_link := _site_link_of(office, 2)
 	_check(
-		not office.fleet.link_error("machine:p9").is_empty() and far_client.socket_path.is_empty(),
+		not office.fleet.link_error("machine:p9").is_empty() and far_client.endpoint.is_empty(),
 		"a bad target never gets a client or an ssh"
 	)
 	office.refresh()
@@ -1679,14 +1679,14 @@ func test_office_ssh_machines() -> void:
 	var far := "machine:s1"
 	var far_client := _client(office, 1)
 	var far_link := _site_link_of(office, 1)
-	_check(far_client.socket_path.is_empty(), "no client before its forward exists")
+	_check(far_client.endpoint.is_empty(), "no client before its forward exists")
 	await _until(func() -> bool: return office.fleet.link_state(far) == MachineLink.State.WAITING, "ssh refused")
 	office.refresh()
 	# An empty map has no row to click: a real click on its heading shows it.
 	await _heading_pick(office, far)
 	_check(_plate_text(office, "state").contains("Permission denied"), "its empty map's plate shows ssh's reason")
 	_check(_plate_text(office, "note").contains("Permission denied"), "and so does its note")
-	_check(far_client.socket_path.is_empty(), "still no client while ssh fails")
+	_check(far_client.endpoint.is_empty(), "still no client while ssh fails")
 	OS.unset_environment("FAKE_SSH_FAIL")
 	far_link._left = 0.0
 	await _until(func() -> bool: return _has_panes(office, far, 4), "far live through its forward")

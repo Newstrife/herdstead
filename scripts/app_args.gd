@@ -6,8 +6,8 @@ extends RefCounted
 ## last value.
 ##
 ## Three parsers stay with what they configure and read `raw` themselves:
-## HerdrClient (`--socket=`), MachineRoster (`--machine-socket=`) and FramePacer
-## (`--fps=`). Tool scripts under tools/ keep their own.
+## HerdrClient (`--socket=`, `--gateway=`), MachineRoster (`--machine-socket=`)
+## and FramePacer (`--fps=`). Tool scripts under tools/ keep their own.
 ##
 ## `--read-only` is the one flag also looked for before `--`: Godot keeps an
 ## argument it does not know in its own list, and an office told to be

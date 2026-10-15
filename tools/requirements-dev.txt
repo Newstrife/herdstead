@@ -1,2 +1,3 @@
 -r requirements.txt
 gdtoolkit==4.5.0
+websockets==17.2

@@ -629,7 +629,7 @@ func _facts(socket: String, raw: Dictionary, generation := 1) -> HerdrCommands.M
 	facts.online = true
 	facts.current = true
 	facts.protocol = 22
-	facts.socket_path = socket
+	facts.endpoint = socket
 	facts.snapshot = HerdrSnapshot.from_wire(raw)
 	return facts
 

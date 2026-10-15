@@ -19,6 +19,10 @@ idle ones sit with a mug of coffee. You can see who needs you at a glance, and a
 
 The runtime PNGs and editor resources are committed, so no build step is needed to run it.
 
+To run the office in a browser on your LAN: `make serve` exports a web build and starts a small gateway that serves
+it and proxies herdr over WebSocket (SSH machines included); then open `http://<host>:8765/` on any device. No
+authentication — trusted networks only. The [manual](docs/MANUAL.md#serve-it-on-the-lan-web) has the details.
+
 ## Quick start
 
 From a clone of this repository:

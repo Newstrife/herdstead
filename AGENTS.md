@@ -55,7 +55,9 @@ on a crash or process timeout it names the last unfinished case, not necessarily
 ## Code map
 
 ```text
-herdr socket ─ HerdrClient ─┐
+herdr socket ─ HerdrClient ─┐  (every connection is a HerdrPeer: Unix socket, or WebSocket via --gateway= / on web;
+                               tools/herdr_gateway.py serves the web export and bridges WebSocket ↔ herdr sockets,
+                               holding the ssh -L forwards server-side in gateway mode)
 herdr socket ─ HerdrCommands┤ (write boundary: one connection per command; absent under --read-only)
 ssh -L ─ MachineLink ───────┼─ HerdrFleet ── typed snapshot (HerdrSnapshot, read once by from_wire())
 herdr machine list ─ Roster ┘        │      commands: CommandContext in, CommandTicket out (the agent card's preview, switch and answers, start and split; LaunchWatch follows a launch from snapshots only)
@@ -85,7 +87,9 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
 
 ## Invariants (do not commit a change that breaks one)
 
-1. **The data layer knows nothing of rendering; the rendering layer never touches connections.** `herdr_client`, `herdr_commands`, `machine_link`, `machine_roster` and `herdr_fleet` hold no nodes and no assets;
+1. **The data layer knows nothing of rendering; the rendering layer never touches connections.** `herdr_client`, `herdr_commands`, `machine_link`, `machine_roster` and `herdr_fleet` hold no nodes and no assets
+   (one named exception: in gateway mode `machine_roster` holds an `HTTPRequest` node, because the Godot web platform's only HTTP
+   channel is a node — it is created from code, styled by nothing, and renders nothing; the rule's point, no rendering, stands);
    `office`, `scripts/ui` and `scripts/world` only read the data `HerdrFleet` hands out and never touch client / link / roster / commands objects;
    the agent card also reads and writes only through `HerdrFleet`'s typed calls (`context_for` / `read_pane` / `focus_pane` / `send_keys` / `send_line` /
    `can_operate` / `preview_shown` / `last_write` / `must_look`; "may this pane take this kind of command now, and why not" is answered in one place, `command_refusal`, which every `can_*` asks, and `answers` hands the card the same answers with the values its commands carry (`CommandAnswers`), so `CardActions` holds no fleet; start and split: `start_agent` / `split_pane` / `agent_kinds` / `next_agent_name` /
@@ -193,7 +197,8 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
 | A new or renamed `.gd` / `.tscn` | commit its `.uid` with it; the directory list in the [manual](docs/MANUAL.md) |
 | A new PNG | commit its `.import` with it. `mipmaps/generate` goes by asset family (`docs/ASSET_SPEC.md`, "Import policy by asset family"): the nearest families (theme packs, their pod family and the pixel people, all density 2; the minimum zoom is 2, so they are never minified) keep the project default `false`; the only family still minified is the agent logos, which write `true` explicitly in their `.import`. `tools/test_art.gd` checks every PNG under `res://assets` by family |
 | The procedural drawing of the desk prop library or the pod family (the shared table; `tools/draw_pixel_sources.py`, the template path of `tools/build_table_assets.py`) | `make pixel-sources OUT=<empty dir>` to draw, review, copy the chosen PNGs into `art/daylight/`, then `make art`; `make art` never calls it. The pixel contract the drawing must keep is in both scripts' docstrings, and `make test-art` checks it rule by rule |
-| `OfficeTable`'s geometry constants (the pod: desk, screen, seats, lamps, the desk item: paper and mug) | `docs/WORLD_MODEL.md` (the measure table), and the sorting / footprint assertions in `run_tests.sh`; the rows over a seat (`OfficeStation`'s `BADGE_AT` / `CHIP_AT` / `LENS_AT` / `PLATE_AT`) are pinned by `tools/test_office_geometry.gd` (`test_rows_at_the_pod_pitch_never_meet`); a plate's reach into a vacant neighbour's slot (`OfficeStation.PLATE_REACH`, `OfficeFloorView.widen_plates()`) by the same case's vacant seatings and `test_a_long_name_takes_a_vacant_neighbours_slot`, the plate at rest (`OfficeStation.PLATE_REST`, `OfficeDraw.PLATE_HEIGHT`, 10 tall) by `test_a_plate_at_rest_stands_clear_of_its_label_and_partition` |
+| The SSH checks or forward options in `MachineLink` (`check_target` / `check_session` / `check_home` / `remote_socket_path` / `escape_forward` / `common_options`) | the gateway's mirror of them in `tools/herdr_gateway.py` (same rules in Python), the gateway failure classification (`MachineRoster.gateway_failure_is_gone()`, pinned in `tools/test_client.gd`'s `test_gateway_failure_classification`), and `docs/MACHINES.md` |
+| `OfficeTable`'s geometry constants (the pod: desk, screen, seats, lamps, paper) | `docs/WORLD_MODEL.md` (the measure table), and the sorting / footprint assertions in `run_tests.sh`; the rows over a seat (`OfficeStation`'s `BADGE_AT` / `CHIP_AT` / `LENS_AT` / `PLATE_AT`) are pinned by `tools/test_office_geometry.gd` (`test_rows_at_the_pod_pitch_never_meet`) |
 | The in-world duration form (`OfficeAttention.compact_duration()`: the chip's and the lens line's) | `docs/VISUAL_LANGUAGE.md` ("How long it has waited", "Start not observed", the lens row), `docs/WORLD_MODEL.md` "Rows over a seat" (its widths), and `test_the_compact_duration_is_bounded_and_fits_its_rows` in `tools/test_office_geometry.gd` |
 | The map's and zones' constants (`FloorLayoutPolicy`'s lane, zone, aisle and height fields; `OfficeShell`'s partition, top-run and lane-gap numbers) | `docs/WORLD_MODEL.md`, "Grid, measurement and stable ordering" (and "Shell and joints" for `OfficeShell`), and `tools/test_office_layout.gd`; bump `FloorLayoutPolicy.version` when a plan's geometry changes |
 | herdr protocol fields, machine list fields | `HerdrSnapshot.from_wire()` (with its typed fields and `signature()`) / `MachineRoster.normalize()` (fields are adapted only in these two), `tools/fake_herdr.py` and the fixtures |

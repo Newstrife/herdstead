@@ -3,7 +3,7 @@ extends Node
 ## Read-only, non-blocking transport for the herdr socket API. Knows no rendering.
 ##
 ## One herdr connection answers exactly one request and then closes, so every
-## call opens its own StreamPeerUDS. Only `events.subscribe` keeps its socket
+## call opens its own HerdrPeer. Only `events.subscribe` keeps its connection
 ## open and streams bare envelopes without an id.
 ##
 ## This client never sends a mutating request; HerdrCommands, with its own
@@ -84,7 +84,10 @@ const TOPOLOGY := [
 	"layout.updated",
 ]
 
-var socket_path := ""
+## The connection target: a Unix socket path, or a gateway's ws(s):// URL
+## (HerdrPeer.open() reads the scheme). HerdrCommands reaches it through
+## HerdrCommands.Machine.endpoint.
+var endpoint := ""
 ## True between `connected` and `disconnected`.
 var online := false
 ## Subscription liveness alone cannot make a cached snapshot fresh after a gap.
@@ -150,17 +153,13 @@ class LineReader:
 		cap = limit
 
 	## Pull what `peer` has and return the whole lines it completed, oldest first.
-	func pull(peer: StreamPeerUDS) -> PackedStringArray:
+	func pull(peer: HerdrPeer) -> PackedStringArray:
 		# What the last read left over holds no newline, so only new bytes are searched.
 		var searched := _buffer.size()
 		# A closed peer has nothing left: poll() keeps it connected until every
 		# byte that arrived before the close has been read, and only then drops it.
-		var available := peer.get_available_bytes() if peer.get_status() == StreamPeerSocket.STATUS_CONNECTED else 0
-		if available > 0:
-			var chunk: Array = peer.get_partial_data(available)
-			if chunk[0] == OK:
-				var read: PackedByteArray = chunk[1]
-				_buffer.append_array(read)
+		if peer.status() == StreamPeerSocket.STATUS_CONNECTED:
+			_buffer.append_array(peer.read_available())
 		var lines := PackedStringArray()
 		var cut := _buffer.find(10, searched)
 		while cut >= 0 and cut <= cap:
@@ -194,6 +193,52 @@ static func resolve_socket_path(user_args: PackedStringArray) -> String:
 		return from_environment
 	# Godot does not expand `~`.
 	return OS.get_environment("HOME").path_join(".config/herdr/herdr.sock")
+
+
+## The herdr gateway, when one is in play: `--gateway=` beats HERDR_GATEWAY
+## beats, on the web, the page's own origin (the gateway served it, so it is
+## the same host). Empty without any of them: the office uses Unix sockets.
+## A bare host or host:port gets the ws:// scheme. The URL here is the gateway
+## root; the fleet hangs `/ws/local` and `/ws/machine?…` under it.
+static func resolve_gateway(user_args: PackedStringArray) -> String:
+	var gateway := ""
+	var asked := false
+	for argument in user_args:
+		if argument.begins_with("--gateway="):
+			gateway = argument.trim_prefix("--gateway=")
+			asked = true
+			break
+	# An explicit `--gateway=` (empty included) outranks the environment: it is
+	# also the way to say "sockets, really" when HERDR_GATEWAY is set.
+	if not asked:
+		gateway = OS.get_environment("HERDR_GATEWAY")
+	if gateway.is_empty() and OS.has_feature("web"):
+		var origin := str(JavaScriptBridge.eval("location.origin", true))
+		if origin.begins_with("https://"):
+			gateway = "wss://" + origin.trim_prefix("https://")
+		elif origin.begins_with("http://"):
+			gateway = "ws://" + origin.trim_prefix("http://")
+	# http(s) is the same gateway, spelled for its HTTP side; anything with
+	# another scheme is a mistake worth saying, not a Unix socket path.
+	if gateway.begins_with("https://"):
+		gateway = "wss://" + gateway.trim_prefix("https://")
+	elif gateway.begins_with("http://"):
+		gateway = "ws://" + gateway.trim_prefix("http://")
+	elif gateway.begins_with("ws://") or gateway.begins_with("wss://"):
+		pass
+	elif gateway.contains("://"):
+		push_warning("HERDR gateway must be ws:// or wss://; ignoring: " + gateway)
+		return ""
+	elif not gateway.is_empty():
+		gateway = "ws://" + gateway
+	return gateway.trim_suffix("/")
+
+
+## The local machine's connection target: the gateway's local endpoint, or the
+## Unix socket path without one.
+static func resolve_endpoint(user_args: PackedStringArray) -> String:
+	var gateway := resolve_gateway(user_args)
+	return gateway + "/ws/local" if not gateway.is_empty() else resolve_socket_path(user_args)
 
 
 ## Unix time the pane's current `agent_status` began, or -1 when unknown: a
@@ -294,11 +339,11 @@ static func _continues(previous: StateClock, current: StateClock) -> bool:
 	)
 
 
-func start(path: String) -> void:
+func start(target: String) -> void:
 	_set_snapshot_current(false)
 	_states.clear()
 	_protocol = 0
-	socket_path = path
+	endpoint = target
 	_backoff = BACKOFF_MIN
 	_overflowed = false
 	_retry_left = 0.0
@@ -310,8 +355,8 @@ func stop() -> void:
 	set_process(false)
 	_close_subscription()
 	for channel: Dictionary in _requests:
-		var peer: StreamPeerUDS = channel.peer
-		peer.disconnect_from_host()
+		var peer: HerdrPeer = channel.peer
+		peer.close()
 	_requests.clear()
 	_snapshot_inflight = false
 	online = false
@@ -398,8 +443,8 @@ func _pump_requests(delta: float) -> void:
 		if state == "alive":
 			alive.append(channel)
 			continue
-		var peer: StreamPeerUDS = channel.peer
-		peer.disconnect_from_host()
+		var peer: HerdrPeer = channel.peer
+		peer.close()
 		if channel.method == "session.snapshot":
 			_snapshot_inflight = false
 		if state == "failed":
@@ -418,14 +463,14 @@ func _pump_requests(delta: float) -> void:
 
 
 func _pump_request(channel: Dictionary, delta: float) -> String:
-	var peer: StreamPeerUDS = channel.peer
+	var peer: HerdrPeer = channel.peer
 	peer.poll()
-	var status := peer.get_status()
+	var status := peer.status()
 	if status == StreamPeerSocket.STATUS_CONNECTED and not channel.sent:
 		channel.sent = true
 		var method: String = channel.method
 		var params: Dictionary = channel.params
-		if peer.put_data(_envelope(method, params)) != OK:
+		if peer.write(_envelope(method, params)) != OK:
 			return "failed"
 	# Always drain before judging the status: herdr often answers and closes
 	# within the same poll, and the peer stays connected until those bytes are read.
@@ -507,8 +552,8 @@ func _open_subscription() -> void:
 func _close_subscription() -> void:
 	if _sub.is_empty():
 		return
-	var peer: StreamPeerUDS = _sub.peer
-	peer.disconnect_from_host()
+	var peer: HerdrPeer = _sub.peer
+	peer.close()
 	_sub = {}
 	_sub_started = false
 	_sub_panes = PackedStringArray()
@@ -517,12 +562,12 @@ func _close_subscription() -> void:
 func _pump_subscription(delta: float) -> void:
 	if _sub.is_empty():
 		return
-	var peer: StreamPeerUDS = _sub.peer
+	var peer: HerdrPeer = _sub.peer
 	peer.poll()
-	var status := peer.get_status()
+	var status := peer.status()
 	if status == StreamPeerSocket.STATUS_CONNECTED and not _sub.sent:
 		_sub.sent = true
-		if peer.put_data(_envelope("events.subscribe", {"subscriptions": _sub.subscriptions})) != OK:
+		if peer.write(_envelope("events.subscribe", {"subscriptions": _sub.subscriptions})) != OK:
 			_go_offline()
 			return
 	var lines := _read_lines(_sub)
@@ -707,8 +752,8 @@ func _pane_ids() -> PackedStringArray:
 func _go_offline() -> void:
 	_close_subscription()
 	for channel: Dictionary in _requests:
-		var peer: StreamPeerUDS = channel.peer
-		peer.disconnect_from_host()
+		var peer: HerdrPeer = channel.peer
+		peer.close()
 	_requests.clear()
 	_snapshot_inflight = false
 	_want_snapshot = false
@@ -737,19 +782,14 @@ func _go_offline() -> void:
 ## A connection to the herdr socket at `path`, or null when it is unreachable.
 ## Checks the file first: a missing herdr server is the normal case while it
 ## restarts, not an engine-level error. HerdrCommands opens its own with this.
-static func open_peer(path: String) -> StreamPeerUDS:
-	var dir := DirAccess.open(path.get_base_dir())
-	# FileAccess cannot see a unix socket; DirAccess can.
-	if dir == null or not dir.file_exists(path.get_file()):
-		return null
-	var peer := StreamPeerUDS.new()
-	if peer.connect_to_host(path) != OK:
-		return null
-	return peer
+## One connection to `target`: a Unix socket path, or a gateway's ws(s):// URL
+## (HerdrPeer.open() reads the scheme; a socket path is checked to exist first).
+static func open_peer(target: String) -> HerdrPeer:
+	return HerdrPeer.open(target)
 
 
-func _open_peer() -> StreamPeerUDS:
-	return open_peer(socket_path)
+func _open_peer() -> HerdrPeer:
+	return open_peer(endpoint)
 
 
 func _envelope(method: String, params: Dictionary) -> PackedByteArray:
@@ -781,7 +821,7 @@ static func parse_line(line: String) -> Variant:
 ## and warns once, and the channel's owner fails it.
 func _read_lines(channel: Dictionary) -> PackedStringArray:
 	var reader: LineReader = channel.reader
-	var peer: StreamPeerUDS = channel.peer
+	var peer: HerdrPeer = channel.peer
 	var lines := reader.pull(peer)
 	if reader.overflow and not channel.overflow:
 		push_warning("herdr sent a line longer than %d bytes; dropping that connection" % LINE_MAX)

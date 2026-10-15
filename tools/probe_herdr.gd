@@ -114,7 +114,7 @@ func _probe_machines(user_args: PackedStringArray, timeout: float) -> void:
 		for probe: Dictionary in probes:
 			var link: MachineLink = probe.link
 			var herdr: HerdrClient = probe.client
-			if link != null and link.state == MachineLink.State.FORWARDING and herdr.socket_path.is_empty():
+			if link != null and link.state == MachineLink.State.FORWARDING and herdr.endpoint.is_empty():
 				herdr.start(link.local_socket)
 		await create_timer(0.1).timeout
 		waited += 0.1

@@ -22,7 +22,9 @@ needed to rebuild art. The main scene `scenes/office.tscn` connects to herdr; `s
 of the art packs that never connects.
 
 Socket path, first match wins: `--socket=` > environment variable `HERDR_SOCKET_PATH` > `~/.config/herdr/herdr.sock`.
-Office options go after `--`.
+A gateway, first match wins: `--gateway=` > `HERDR_GATEWAY`; on a web build the page's own origin is the default.
+With a gateway set, every herdr connection — the reads, the write boundary and the machine forwards — is a WebSocket
+to it; see [Serve it on the LAN](#serve-it-on-the-lan-web). Office options go after `--`.
 
 ```sh
 godot --path .                                           # the live office, default session
@@ -33,6 +35,7 @@ godot --path . -- --always-on-top                        # a small window kept i
 godot --path . -- --chime                                # alert tones on for this run
 godot --path . -- --no-bounce --no-title-count           # no Dock bounce, no (N) in the title
 godot --path . -- --fps=24                               # fixed frame cap; --fps=0 means no cap
+godot --path . -- --gateway=host:8765                    # through a herdr gateway instead of a socket (see below)
 
 # headless probe: ping → snapshot → counts → sit on the event stream for 8 s; non-zero exit when unreachable
 godot --headless --path . --script tools/probe_herdr.gd -- --wait=8
@@ -508,8 +511,11 @@ There are no system banners and no catch-up notifications. Alerts are not herdr 
 
 ## herdr machines
 
-Every SSH machine herdr has saved is its own herdr server. Every 10 seconds Herdstead runs `herdr machine list --json`
-and keeps one `ssh -L` forward to each enabled machine. Each machine is its own map, online or offline on its own;
+In gateway mode the gateway does all of this: the office reads `GET /api/machines` instead of running
+`herdr machine list`, and each machine is one WebSocket the gateway bridges to its own `ssh -L` forward.
+
+Without a gateway: every SSH machine herdr has saved is its own herdr server. Every 10 seconds Herdstead runs
+`herdr machine list --json` and keeps one `ssh -L` forward to each enabled machine. Each machine is its own map, online or offline on its own;
 a disconnect dims and freezes only its map. It needs passwordless SSH, a host key you have already accepted by hand,
 and herdr running on the remote. For debugging, `--machine-socket=<name>=/absolute/path/herdr.sock` attaches a local
 socket as a machine. Forwarding, cleanup, target validation, the debug hook and what has been verified are in
@@ -736,9 +742,10 @@ make export                       # import, then export build/Herdstead.app and 
 make export GODOT=/path/to/godot  # a specific Godot binary
 ```
 
-`export_presets.cfg` has a single `macOS` preset with built-in ad-hoc signing and no certificate, Team ID or notarisation
-credentials; never put them in that file. The non-resource include filter is `*.json, *OFL.txt, *LICENSES.txt`: the
-fonts' licence files are not Godot resources and would be left out of the PCK otherwise (`*.json` is already packed as a resource in
+`export_presets.cfg` has a `macOS` preset and a single-threaded `Web` preset (no COOP/COEP headers needed). The `macOS`
+preset uses built-in ad-hoc signing with no certificate, Team ID or notarisation credentials; never put them in that
+file. The non-resource include filter is `*.json, *OFL.txt, *LICENSES.txt`: the fonts' licence files are not Godot
+resources and would be left out of the PCK otherwise (`*.json` is already packed as a resource in
 4.7; it stays as insurance). `tools/` is not packed; `build/` is git-ignored. macOS universal / arm64 export needs Import
 ETC2 ASTC on in `project.godot`; all textures are lossless, so the switch changes no art.
 
@@ -748,6 +755,32 @@ To check the pack's contents, no templates are needed:
 make pack                                       # export the PCK, then run check_pack.gd on every pack in it
 (cd build && godot --main-pack Herdstead.pck)   # run the exported PCK with the editor binary
 ```
+
+## Serve it on the LAN (web)
+
+The web export runs the whole office in a browser: the same rendering, keys and answers, with no install on the
+device. A small gateway (`tools/herdr_gateway.py`) serves the export over HTTP and bridges every herdr connection
+as a WebSocket onto herdr sockets — including SSH machines, whose `ssh -L` forwards the gateway holds server-side.
+It adds no socket API requests of its own: bytes pass through verbatim, and the write boundary in Herdstead is
+unchanged.
+
+```sh
+make serve           # export build/web (needs the export templates once), then listen on 0.0.0.0:8765
+make gateway         # just the gateway, serving an existing export
+PORT=9000 make gateway
+```
+
+Then open `http://<that machine>:8765/` on any LAN device. The browser build finds the gateway by its own origin;
+`--gateway=` and `HERDR_GATEWAY` override it. The desktop build can ride a gateway too, which is how the web path
+is tested without a browser.
+
+**This is a LAN tool with no authentication**: anyone who can reach the port gets herdr's full API, writes
+included, can read every agent's screen, and can open forwards through the gateway host's ssh identity (any saved
+machine's target it is asked for). Bind it to a trusted network only. Known browser degradations: no
+Dock bounce (the `(N)` title count and the chime remain; the first chime waits for one interaction, a browser
+rule), and the browser keeps its own shortcuts (Ctrl+W and friends). Two SSH-machine details also differ under a
+gateway: a forward that fails no longer names its reason on the machine's plate (the WebSocket close reason is a
+fixed phrase on purpose), and `--machine-socket=` debug sockets stay desktop-only (a browser cannot open them).
 
 ## CI
 
@@ -823,6 +856,7 @@ scenes/world/            world prefabs: table (a pod), station, decor, chip, mac
 scenes/people/           pixel_person.tscn and the showroom cells
 scripts/office.gd        OfficeScene, the composition root
 scripts/herdr_client.gd  read-only socket client (ping, session.snapshot, events.subscribe)
+scripts/herdr_peer.gd    one connection to herdr: a Unix socket, or a WebSocket through a gateway (`--gateway=`, web)
 scripts/herdr_commands.gd  HerdrCommands, the write boundary; not constructed under --read-only
 scripts/herdr_fleet.gd   Local + SSH machines; the only thing the office reads data from; feeds the state log
 scripts/machine_link.gd, machine_roster.gd, child_process.gd   ssh -L forwards, herdr machine list, bounded child processes
@@ -843,7 +877,8 @@ scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait f
                          OVERVIEW, strategic view
 scripts/art/             typed art pack models; the only readers of manifest JSON
 scripts/people/          PixelPerson prefab script
-tools/                   builders, contract tests, fake herdr / fake ssh, test suites (test_*.gd), capture and perf
+tools/                   builders, contract tests, fake herdr / fake ssh, test suites (test_*.gd), capture and perf,
+                         herdr_gateway.py (the LAN web/WS gateway) and its test_gateway.py
 tools/fixtures/          snapshots, monitor screen dumps, herdr_methods.json
 docs/                    this manual, WRITE_BOUNDARY, VISUAL_LANGUAGE, WORLD_MODEL, ASSET_SPEC, ARTIST_BRIEF,
                          MACHINES, preview.png and showroom.png (README screenshots), templates/ (generated guide canvases)
