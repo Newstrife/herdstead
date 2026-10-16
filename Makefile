@@ -51,6 +51,7 @@ gateway:  ## Serve the web export and proxy herdr over WebSocket, on the LAN (PO
 web-export: imported  ## Build the web export into build/web (needs the Godot export templates installed once)
 	mkdir -p build/web
 	$(GODOT) --headless --path . --export-release "Web" build/web/index.html
+	$(PYTHON) tools/patch_web_shell.py build/web/index.js
 
 serve: web-export gateway  ## web-export, then the gateway on it
 

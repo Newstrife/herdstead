@@ -769,7 +769,10 @@ make gateway         # just the gateway, serving an existing export
 PORT=9000 make gateway
 ```
 
-Then open `http://<that machine>:8765/` on any LAN device. The browser build finds the gateway by its own origin;
+Then open `http://<that machine>:8765/` on any LAN device. The export patches the engine shell's secure-context
+check (`tools/patch_web_shell.py`, run by `make web-export`): browsers gate it to HTTPS and localhost, but the
+single-threaded build needs nothing it protects except the clipboard (named in the degradations below), and the
+gateway serves plain HTTP on the LAN. The browser build finds the gateway by its own origin;
 `--gateway=` and `HERDR_GATEWAY` override it. The desktop build can ride a gateway too, which is how the web path
 is tested without a browser.
 
@@ -777,7 +780,8 @@ is tested without a browser.
 included, can read every agent's screen, and can open forwards through the gateway host's ssh identity (any saved
 machine's target it is asked for). Bind it to a trusted network only. Known browser degradations: no
 Dock bounce (the `(N)` title count and the chime remain; the first chime waits for one interaction, a browser
-rule), and the browser keeps its own shortcuts (Ctrl+W and friends). Two SSH-machine details also differ under a
+rule), and the browser keeps its own shortcuts (Ctrl+W and friends). Clipboard access is a secure-context API, so
+the terminal monitor's paste chord reads nothing over LAN HTTP (the office answers its empty-clipboard refusal). Two SSH-machine details also differ under a
 gateway: a forward that fails no longer names its reason on the machine's plate (the WebSocket close reason is a
 fixed phrase on purpose), and `--machine-socket=` debug sockets stay desktop-only (a browser cannot open them).
 
