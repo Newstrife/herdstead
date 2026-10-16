@@ -772,8 +772,9 @@ PORT=9000 make gateway
 
 Then open `http://<that machine>:8765/` on any LAN device. The export patches the engine shell's secure-context
 check (`tools/patch_web_shell.py`, run by `make web-export`): browsers gate it to HTTPS and localhost, but the
-single-threaded build needs nothing it protects except the clipboard (named in the degradations below), and the
-gateway serves plain HTTP on the LAN. The browser build finds the gateway by its own origin;
+single-threaded build needs nothing it protects except the clipboard (named in the degradations below) and the
+audio worklets (patched around; sound keeps playing through the engine's fallback), and the gateway serves plain
+HTTP on the LAN. The browser build finds the gateway by its own origin;
 `--gateway=` and `HERDR_GATEWAY` override it. The desktop build can ride a gateway too, which is how the web path
 is tested without a browser.
 
@@ -782,7 +783,8 @@ included, can read every agent's screen, and can open forwards through the gatew
 machine's target it is asked for). Bind it to a trusted network only. Known browser degradations: no
 Dock bounce (the `(N)` title count and the chime remain; the first chime waits for one interaction, a browser
 rule), and the browser keeps its own shortcuts (Ctrl+W and friends). Clipboard access is a secure-context API, so
-the terminal monitor's paste chord reads nothing over LAN HTTP (the office answers its empty-clipboard refusal). Two SSH-machine details also differ under a
+the terminal monitor's paste chord reads nothing over LAN HTTP (the office answers its empty-clipboard refusal), and
+the sample position tracking rides the patched-out audio worklet (sound itself keeps playing). Two SSH-machine details also differ under a
 gateway: a forward that fails no longer names its reason on the machine's plate (the WebSocket close reason is a
 fixed phrase on purpose), and `--machine-socket=` debug sockets stay desktop-only (a browser cannot open them).
 
