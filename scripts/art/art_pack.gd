@@ -269,9 +269,9 @@ func tileset() -> TileSet:
 
 
 ## The provider's logo as built, or null (an unknown provider has none). Nothing
-## in the office wears it: at the pixel people's one texture pixel per unit a
-## logo cannot be drawn on a person, so the name plate and the outfit colours
-## say who sits there. The Avatar Studio lists the agents with it.
+## in the office wears it: it is a smooth 64x64 image, and the office would have
+## to scale it. A laptop wears the provider's mark instead, a few texels drawn in
+## the pack (ArtContract.lid_mark()). The Avatar Studio lists the agents with it.
 func agent_badge(provider: StringName) -> Texture2D:
 	var path := BADGE_ROOT + str(provider) + ".png"
 	if not ResourceLoader.exists(path):

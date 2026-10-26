@@ -23,6 +23,10 @@ script = ExtResource("1_station")
 [node name="Chair" type="Sprite2D" parent="."]
 centered = false
 
+[node name="Mark" type="Sprite2D" parent="Chair"]
+visible = false
+centered = false
+
 [node name="Overlay" type="Node2D" parent="."]
 
 [node name="Plate" type="Label" parent="Overlay"]

@@ -877,12 +877,43 @@ class PixelSourceTests(unittest.TestCase):
         self.assertEqual(
             len(files),
             len(draw_pixel_sources.DESK_PIECES) + len(draw_pixel_sources.FIXTURE_SIZES)
-            + len(draw_pixel_sources.DENSE_SIZES) + len(draw_pixel_sources.PARTITION_SIZES) + 18,
-            "8 desk props, 2 fixture props, 2 density-2 pieces, 7 partition pieces, the pod family's 17 images, 1 manifest",
+            + len(draw_pixel_sources.DENSE_SIZES) + len(draw_pixel_sources.PARTITION_SIZES)
+            + len(draw_pixel_sources.MARK_PROVIDERS) + 18,
+            "8 desk props, 2 fixture props, 2 density-2 pieces, 7 partition pieces, 23 provider marks (D3, 2026-10-27), "
+            "the pod family's 17 images, 1 manifest",
         )
         self.assertEqual(files, sorted(path.relative_to(second) for path in second.rglob("*") if path.is_file()))
         for relative in files:
             self.assertEqual((first / relative).read_bytes(), (second / relative).read_bytes(), relative)
+
+    def test_the_provider_marks_are_the_catalogs_and_ship_as_drawn(self):
+        """D3 (2026-10-27): one mark per agent in data/agent_catalog.json, in its order, each 8x6 texels at the
+        pack's density (4x3 units on a top-left pivot), hard alpha, the pack's palette only, no opaque texel within
+        48 of a state colour; what art/daylight ships and pack.json declares is exactly what the tool draws."""
+        catalog = [agent["id"] for agent in json.loads((ROOT / "data/agent_catalog.json").read_text())["agents"]]
+        self.assertEqual(list(draw_pixel_sources.MARK_PROVIDERS), catalog, "one mark per catalog agent, in its order")
+        drawn = self.draw("drawn")
+        manifest = json.loads((ROOT / "art/daylight/pack.json").read_text())
+        palette = {tuple(bytes.fromhex(value)) for value in manifest["palette"].values()}
+        states = [tuple(bytes.fromhex(manifest["palette"][name])) for name in draw_pixel_sources.MARK_STATE_COLOURS]
+        d = draw_pixel_sources.DENSE
+        for provider in catalog:
+            name = f"mark_{provider}"
+            self.assertEqual(manifest["ui"].get(name), {"path": f"ui/{name}.png", "size": [4, 3], "pivot": [0, 0]}, name)
+            with Image.open(drawn / f"ui/{name}.png") as mark, Image.open(ROOT / f"art/daylight/ui/{name}.png") as shipped:
+                self.assertEqual(mark.size, (4 * d, 3 * d), name)
+                self.assertEqual(list(mark.convert("RGBA").getdata()), list(shipped.convert("RGBA").getdata()),
+                                 f"{name}: art/daylight ships what the tool draws")
+                colours = [colour for _, colour in mark.convert("RGBA").getcolors()]
+            self.assertEqual({colour[3] for colour in colours}, {0, 255}, f"{name}: hard alpha")
+            for colour in colours:
+                if not colour[3]:
+                    continue
+                self.assertIn(colour[:3], palette, f"{name}: the pack's palette")
+                near = min(sum((a - b) ** 2 for a, b in zip(colour[:3], state)) ** 0.5 for state in states)
+                self.assertGreaterEqual(near, 48, f"{name}: {colour[:3]} is {near:.1f} from a state colour")
+        self.assertEqual(sorted(path.name for path in (ROOT / "art/daylight/ui").glob("mark_*.png")),
+                         sorted(f"mark_{provider}.png" for provider in catalog), "no stray mark ships")
 
     def test_the_fixtures_are_drawn_as_the_pack_declares_them(self):
         drawn = self.draw("drawn")

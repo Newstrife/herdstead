@@ -184,7 +184,10 @@ func test_varies_shows_the_pane_s_variation() -> void:
 	var people := _people(studio)
 	var varied := people.resolve("claude", AvatarLook.new(), null, "studio")
 	_eq(_preview(studio).look.skin, varied.skin, "VARIES: the sample pane's skin")
-	_eq(_preview(studio).look.top, &"terra", "and the provider's clothes")
+	# D3 (2026-10-27): clothes vary per pane, so an unpinned top shows the sample
+	# pane's (claude at "studio" draws slate; the provider's default is terra).
+	_eq(_preview(studio).look.top, varied.top, "and the sample pane's clothes")
+	_eq(varied.top, &"slate", "which are not the provider's")
 	await _click_design(_rects(studio, "next_rects")[_row(AvatarLook.SKIN)].get_center())
 	_eq(_preview(studio).look.skin, people.slots[AvatarLook.SKIN].options()[0], "pinned: the pin")
 

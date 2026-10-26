@@ -21,22 +21,22 @@ var _name := ""
 ## Node upper bound for a measured pod and everything this view owns, even
 ## when every retained slot gains a person. Measured on the dressed prefabs
 ## (the geometry suite's count, test_desk_node_budget_bounds_real_prefabs_and_retained_empty_slots,
-## at 2, 4, 18 and 250 columns: 166, 308, 1302 and 17774 nodes with everybody
-## seated, two fewer than when the pod had its two short legs): 24 fixed nodes
-## (19 of the pod: its body, 12 holders, the footprint, the overlay, the frame
-## and its 4 bars; 5 of the
-## background: itself, the lens's wash, the contact holder, the tab label, and
-## the row-wall sign's, spare since lane B2a took the sign off: the counts above
-## were taken with it) and 71 per column (20 of the pod's: a desk, an apron and a screen
-## module, a bracket, 2 laptops, 2 three-node grommets, 2 lamps, 2 papers, 2
-## seat and 2 standing markers; 1 contact shadow; two 15-node stations and two
-## 10-node people). The bound decides which maps fit
+## at 2, 4, 18 and 250 columns: 172, 320, 1356 and 18524 nodes with everybody
+## seated): 24 fixed nodes (20 of the pod: its body, 13 holders, the far
+## laptops' marks' among them, the footprint, the overlay, the frame and its 4
+## bars; 4 of the background: itself, the lens's wash, the contact holder and the
+## tab label; the marks' holder took the node the row-wall sign left spare when
+## lane B2a took the sign off) and 74 per column (21 of the pod's: a desk, an
+## apron and a screen module, a bracket, 2 laptops, the far one's mark, 2
+## three-node grommets, 2 lamps, 2 papers, 2 seat and 2 standing markers; 1
+## contact shadow; two 16-node stations, each chair with its mark, and two 10-node
+## people). The bound decides which maps fit
 ## FloorLayoutPolicy.max_desk_nodes. Geometry tests count real dressed prefabs
 ## so changes to the scenes cannot silently invalidate this allocation
 ## contract. This bounds the settled live group, not temporary queue_free
 ## replacements.
 static func node_budget(capacity: int) -> int:
-	return 24 + 71 * capacity
+	return 24 + 74 * capacity
 
 
 func setup(drawing: OfficeDraw, ground: Node2D, sorted: Node2D, tab_key: String) -> void:
@@ -119,9 +119,12 @@ func _sync_stations(next: DeskPlacement) -> void:
 	pane_stations = assigned
 	# A vacated old slot may now hold another pane. Restore final occupancy only
 	# after all rebindings, so a later vacate cannot erase the earlier occupant.
-	# Retained shells keep their prompt; new occupants are furnished afterwards.
+	# Retained shells keep their prompt and retained agents their laptop's mark;
+	# new occupants are furnished afterwards.
 	for station in stations:
-		table.equip(station.column, station.side, not station.pane_key.is_empty(), station.actor() == null)
+		var worker := station.actor()
+		var provider := worker.provider if worker != null else ""
+		table.equip(station.column, station.side, not station.pane_key.is_empty(), worker == null, provider)
 
 
 func _available(used: Dictionary[OfficeStation, bool]) -> OfficeStation:
