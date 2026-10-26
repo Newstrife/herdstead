@@ -474,8 +474,16 @@ func test_an_edge_keeps_what_it_has_room_for_and_notes_the_rest() -> void:
 ## the arrows stand apart inside the world and count all eight between them,
 ## and a real click at the centre of the first, the zone that has waited
 ## longest, is that arrow's: the map pans to its desk and to no other zone's.
+## Z1 (2026-10-27): 480x320 plans the narrowest map, two lanes of 4 (FRAME-Q2),
+## where one-pane zones stand two abreast and w1 would stand in view beside w0;
+## seven more working panes make w0's pod 5 cells, so w0 takes both lanes.
 func test_a_click_on_the_first_of_a_crowd_of_arrows_pans_to_its_desk() -> void:
-	var office := await _live_office(_blocked_zones(9), Vector2(480, 320))
+	var raw := _blocked_zones(9)
+	for index in range(1, 8):
+		var pane := {"workspace_id": "w0", "tab_id": "w0:t", "pane_id": "w0:p%d" % index}
+		pane.merge({"terminal_id": "terminal-w0-%d" % index, "agent": "claude", "agent_status": "working"})
+		_list(raw, "panes").append(pane)
+	var office := await _live_office(raw, Vector2(480, 320))
 	await _frames(3)
 	var stood := _standing(office.hud, "nine zones at 480x320")
 	_eq(stood.ways.size() + stood.folded, 8, "the arrows and the note count the eight blocked zones")
@@ -680,20 +688,23 @@ func test_an_arrow_click_pans_to_the_desk_and_selects_nothing() -> void:
 ## An edge arrow wins the same way: a real press on 1A's arrow, a snapshot with
 ## the focus moved to a desk out of sight, the release. The map pans to the
 ## arrow's desk, not to the newly focused one; the next move is followed again.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In the 480x320 window (the narrowest map's two lanes, FRAME-Q2), with the focus
+## moved to 5 (ops, under 1A): 4 (notes) stands beside 1A there.
 func test_an_arrow_click_wins_over_a_focus_move_not_drawn_yet() -> void:
-	var office := await _live_office()
+	var office := await _live_office(fixture, Vector2(480, 320))
 	await _frames(2)
 	var navigator := office.navigator
 	var arrow := office.hud.edge_arrows.shown()[0]
 	var wanted := arrow.pane_key()
-	var focused := _pane("notes:p1")
+	var focused := _pane("ops:p1")
 	var at := arrow.get_global_rect().get_center()
 	var revision := navigator.nav_revision
 	_eq(wanted, _pane("hud:p1"), "the arrow is for 1A's blocked desk")
-	_check(not _desk_in_view(office, wanted) and not _desk_in_view(office, focused), "it and 4's desk are out of sight")
+	_check(not _desk_in_view(office, wanted) and not _desk_in_view(office, focused), "it and 5's desk are out of sight")
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
 	var drawn := office.refreshes
-	_arrive(office, _focused_on(fixture, "notes:p1"))
+	_arrive(office, _focused_on(fixture, "ops:p1"))
 	_eq([office.refreshes, navigator.active_key], [drawn, _pane("hs:p1")], "a snapshot with the focus moved is waiting")
 	_release_now(at)
 	await _frames(3)
@@ -743,8 +754,11 @@ func test_an_arrow_goes_when_a_drag_brings_its_desks_into_view() -> void:
 ## agent shows as its SPACES row's count and gets no arrow; on its own map it
 ## gets one, while its desk is off screen; and a machine that drops counts
 ## nobody waiting, so its map shows none.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In an 800x320 window: at 800x480 bee's six zones stand three abreast, 6 in view;
+## 200 units of view leave 6's row below it (480x320's narrow world draws compact arrows).
 func test_no_arrows_for_another_machine_or_a_disconnected_one() -> void:
-	var office := await _two_machine_office(_nobody_blocked(fixture))
+	var office := await _two_machine_office(_nobody_blocked(fixture), Vector2(800, 320))
 	# bee: six zones a window apart, its one blocked agent in the last.
 	var six := _six_zones()
 	for pane: Dictionary in _list(six, "panes"):
@@ -822,17 +836,20 @@ func test_hovering_an_arrow_outlines_its_zones_row() -> void:
 ## zone it stood for stopped waiting, another one waits): the row outlined is
 ## the zone the arrow stands for now, with no move of the pointer; and when
 ## nobody waits any more and the arrow goes, no row is outlined.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In the 480x320 window (the narrowest map's two lanes, FRAME-Q2), with 4 and 6
+## blocked: both stand in lane 1, one above the other (5 and 6 stand side by side).
 func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_row() -> void:
 	var first := _six_zones()
-	_record_of(first, "w4:t0:p0").agent_status = "blocked"
-	var office := await _live_office(first)
+	_record_of(first, "w3:t0:p0").agent_status = "blocked"
+	var office := await _live_office(first, Vector2(480, 320))
 	await _frames(2)
 	var arrow := office.hud.edge_arrows.shown()[0]
 	var rail := office.hud.spaces
-	_eq(arrow.zone_key(), _zone("w4"), "an arrow for 5, whose blocked desk is below the view")
+	_eq(arrow.zone_key(), _zone("w3"), "an arrow for 4, whose blocked desk is below the view")
 	var at := arrow.get_global_rect().get_center()
 	await _pointer_to(at)
-	_check(rail.row_for(_zone("w4")).pointed(), "the pointer on it outlines 5's row")
+	_check(rail.row_for(_zone("w3")).pointed(), "the pointer on it outlines 4's row")
 	var second := _six_zones()
 	_record_of(second, "w5:t0:p0").agent_status = "blocked"
 	_feed(office, second)
@@ -842,7 +859,7 @@ func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_row
 	_eq(arrow.zone_key(), _zone("w5"), "handed 6, which waits now")
 	_check(arrow.get_global_rect().has_point(at), "and still under the pointer, which has not moved")
 	_check(rail.row_for(_zone("w5")).pointed(), "6's row is the one outlined")
-	_check(not rail.row_for(_zone("w4")).pointed(), "5's no more")
+	_check(not rail.row_for(_zone("w3")).pointed(), "4's no more")
 	_feed(office, _six_zones())
 	await _frames(3)
 	_eq(office.hud.edge_arrows.shown().size(), 0, "nobody waits: the arrow goes")
@@ -855,10 +872,12 @@ func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_row
 ## is the longest wait now): the row outlined stays the zone of the arrow under
 ## the resting pointer. And an arrow that comes back under the resting pointer,
 ## an overlay closed, outlines its row again with no move of the pointer.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In the 480x320 window: at 800x480 the six zones' map is two rows of three.
 func test_arrows_changing_pool_places_keep_the_row_under_the_pointer_outlined() -> void:
 	var raw := _six_zones()
 	_record_of(raw, "w5:t0:p0").agent_status = "blocked"
-	var office := await _live_office(raw)
+	var office := await _live_office(raw, Vector2(480, 320))
 	await _frames(4)
 	_record_of(raw, "w0:t0:p1").agent_status = "blocked"
 	_feed(office, raw)

@@ -72,13 +72,28 @@ func _minimized_office(screen := Vector2(SCREEN)) -> OfficeDouble:
 ## read back too), and no pane again within ten seconds. A floor that is
 ## not shown (Local's bravo, blocked too) is not read; working, done and shell
 ## panes are not; nothing is ever written. The reader keeps the asking line.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it
+## stands one row; the map replans. Alpha and bravo are one lane each and stand
+## side by side, so Local's bravo would be on screen while Local's map is shown
+## first. Local's bravo gets seven more shells (a 5-cell pod, two lanes), and a
+## 480x480 window (340x308 of the world, the narrowest map's two lanes,
+## FRAME-Q2) stands it under alpha as one lane of 9 did, under the same 308
+## units of view. bee's map stays snapshot_basic's.
 func test_bubbles_read_blocked_panes_on_screen_one_at_a_time() -> void:
 	_blocked_pair()
+	var wide := _raw()
+	var shell: Dictionary = _list(wide, "panes").filter(func(pane: Dictionary) -> bool: return pane.pane_id == "alpha:p2")[0]
+	for index in range(2, 9):
+		var pane: Dictionary = shell.duplicate(true)
+		pane.merge({"pane_id": "bravo:s%d" % index, "terminal_id": "term-bravo-s%d" % index}, true)
+		pane.merge({"workspace_id": "bravo", "tab_id": "bravo:t1"}, true)
+		_list(wide, "panes").append(pane)
+	_ctl("control-a", "set_snapshot", {"snapshot": wide})
 	# Held from before the office is there: bee's map is the one shown, its
 	# chips on screen and read, for as long as bee's snapshot is in and Local's
 	# is not.
 	_ctl("control-b", "next", {"action": "hold", "method": "pane.read"})
-	var office := await _office_with(false, true, true, Vector2(SCREEN), true)
+	var office := await _office_with(false, true, true, Vector2(480, 480), true)
 	await _zone_pick(office, HerdrFleet.pane_key(BEE, "alpha"))
 	await _bee_bubbles_on_screen(office)
 	await _until(func() -> bool: return _number(_ctl("control-b", "stats"), "held_replies") == 1, "a read is held")

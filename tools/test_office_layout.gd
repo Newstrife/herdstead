@@ -3,7 +3,8 @@ extends "res://tools/test_base.gd"
 
 ## The widths a floor is first planned at in the shipped windows, narrowest to
 ## widest, and the stress floor at two of them.
-const FURNISHED_WIDTHS: Array[int] = [11, 20, 32, 60]
+## Z1 (2026-10-27): 24 is the default window's plan width (772 units).
+const FURNISHED_WIDTHS: Array[int] = [11, 20, 24, 32, 60]
 
 var people: PixelPeople
 ## Made on first use by _pen().
@@ -564,8 +565,9 @@ func test_policy_width_resize_does_not_reflow_but_revision_does() -> void:
 	_eq(resized.lanes, first.lanes, "lanes are fixed at the first plan")
 	rules.version += 1
 	var revised := _plan(floor_model, resized, rules)
-	# The map's width is a whole number of lanes (10L + 3): 40 cells give 3 lanes, 33 cells.
-	_eq([revised.lanes, revised.initial_width_cells], [3, 33], "explicit policy revision replans")
+	# The map's width is a whole number of lanes (5L + 3): 40 cells give 7 lanes, 38 cells.
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	_eq([revised.lanes, revised.initial_width_cells], [7, 38], "explicit policy revision replans")
 
 
 func test_duplicate_identity_and_budget_fail_without_mutating_old_plan() -> void:
@@ -706,9 +708,10 @@ func test_decorations_are_validated_and_thin_obstacles_block_graph_edges() -> vo
 
 
 func test_budget_diagnostics_reject_input_before_seat_allocation() -> void:
-	# The widest zone the 512-cell width budget allows is 50 lanes, 499 cells:
-	# past its pad, 498 hold a pod of at most 496 columns (capacity is even; one
-	# cell a column and the pod's passage cell). 1100 panes, 550 columns, do not.
+	# The widest zone the 512-cell width budget allows is 101 lanes, 504 cells
+	# (Z1, 2026-10-27; 50 lanes of 9, 499 cells, before): past its pad, 503 hold
+	# a pod of at most 502 columns (capacity is even; one cell a column and the
+	# pod's passage cell). 1100 panes, 550 columns, do not.
 	var too_wide := OfficeFloorLayout.plan(MapModel.of(_floor([_room("wide", 1100)])))
 	_eq(too_wide.plan, null, "table cannot fit the measured width budget")
 	_check(
@@ -875,11 +878,11 @@ func test_previous_plan_cannot_understate_its_render_allocation() -> void:
 	_check(not OfficeFloorLayout.validate(previous).is_empty(), "extra measured columns cannot bypass capacity cost")
 
 
-## A zone of two lanes (four twelve-pane pods, 7 cells each: four rows in one
-## lane, so the zone takes two, two to a row): pod b, at x 9 of the first row,
-## grows to twelve columns (13 cells). In place it would reach x 22, past the
-## widest zone a 25-cell width budget allows (two lanes, to x 20); the left end
-## of its row, which a's removal emptied, holds it.
+## A zone of four lanes (four twelve-pane pods, 7 cells each: two lanes hold
+## one a row, so the zone takes the map's four, two to a row): pod b, at x 9 of
+## the first row, grows to twelve columns (13 cells). In place it would reach
+## x 22, past the widest zone a 25-cell width budget allows (four lanes, to
+## x 20); the left end of its row, which a's removal emptied, holds it.
 func test_over_budget_in_place_growth_uses_a_valid_relocation() -> void:
 	var rules := FloorLayoutPolicy.new()
 	rules.width_cells = 25
@@ -887,7 +890,8 @@ func test_over_budget_in_place_growth_uses_a_valid_relocation() -> void:
 	var growing := _room("b", 12, 1)
 	var floor_model := _floor([_room("a", 12), growing, _room("c", 12, 2), _room("d", 12, 3)])
 	var previous := _plan(floor_model, null, rules)
-	_eq(previous.zones[0].lanes, 2, "a zone of two lanes")
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	_eq(previous.zones[0].lanes, 4, "a zone of four lanes")
 	_eq(previous.desk("b").reserved_cells.position.x, 9, "b stands right of a, 8 cells into the zone")
 	floor_model.rooms.remove_at(0)
 	growing.panes = _room("b", 24).panes
@@ -1034,23 +1038,27 @@ func test_a_one_zone_plan_places_its_zone_over_its_rows() -> void:
 	_eq([map.rooms, map.pane_count()], [floor_model.rooms, floor_model.pane_count()], "its rooms and panes")
 	floor_model.mezzanine_of = "machine/source"
 	_eq(map.geometry_signature(), floor_model.geometry_signature(), "a mezzanine grouping is not geometry")
-	# 640 units are 20 cells: one lane (10 + 3 = 13 cells). Table c has 4 columns,
-	# 11 cells: two lanes' 18 inner cells hold it, one lane's 8 do not.
-	var plan := FloorPlanCache.new().prepare(map, _pen(), 640.0)
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	# 416 units are 13 cells: two lanes (5 * 2 + 3 = 13 cells; 640 units, which
+	# planned one lane of 9, now plan three). Table c has 12 columns, 13 cells:
+	# three lanes' 13 inner cells hold it, two lanes' 8 do not. Its three tables
+	# (11, 7 and 13 cells) share no row even then: three pod rows.
+	var plan := FloorPlanCache.new().prepare(map, _pen(), 416.0)
 	_check(plan != null and _rows(plan).size() > 1, "a valid plan of several rows")
 	if plan == null:
 		return
 	_eq(plan.zones.size(), 1, "places one zone")
 	var zone := plan.zones[0]
 	_eq([zone.zone_key, plan.zone(floor_model.key), plan.zone("machine/other")], [plan.floor_key, zone, null], "by key")
-	_eq([zone.first_lane, zone.lanes, plan.lanes], [0, 2, 2], "two lanes wide: the map widened to two first")
-	_eq(plan.floor_cells.size.x, 23, "a map of two lanes is 10 * 2 + 3 cells wide")
+	_eq([zone.first_lane, zone.lanes, plan.lanes], [0, 3, 3], "three lanes wide: the map widened to three first")
+	_eq(plan.floor_cells.size.x, 18, "a map of three lanes is 5 * 3 + 3 cells wide")
 	var pod := OfficeZoneLayout.pod_row_cells()
-	_eq(zone.cells, Rect2i(1, 6, 19, pod * _rows(plan).size()), "from row 6, 19 cells wide, whole pod rows deep")
-	_eq(zone.slot(), Rect2i(1, 5, 19, pod * _rows(plan).size() + 1), "under its aisle row")
-	_eq(zone.initial_width_cells, 19, "first laid out that wide")
+	_eq(_rows(plan).size(), 3, "a pod row for each table")
+	_eq(zone.cells, Rect2i(1, 6, 14, pod * _rows(plan).size()), "from row 6, 14 cells wide, whole pod rows deep")
+	_eq(zone.slot(), Rect2i(1, 5, 14, pod * _rows(plan).size() + 1), "under its aisle row")
+	_eq(zone.initial_width_cells, 14, "first laid out that wide")
 	for index in _rows(plan).size():
-		_eq(_rows(plan)[index].band_cells, Rect2i(1, 6 + index * pod, 19, pod), "row %d is its band" % index)
+		_eq(_rows(plan)[index].band_cells, Rect2i(1, 6 + index * pod, 14, pod), "row %d is its band" % index)
 	var desks := 0
 	for row in zone.rows:
 		desks += row.desks.size()
@@ -1061,10 +1069,71 @@ func test_a_one_zone_plan_places_its_zone_over_its_rows() -> void:
 		_check(placed.reserved_cells.position.x >= zone.cells.position.x + 1, "right of the pad: %s" % placed.tab_key)
 
 
+## A lane holds the narrowest pod (2 columns, 3 cells, right of the 1-cell pad)
+## and a new zone takes lanes, up to the map's, until its pods stand in one row.
+func test_a_lane_holds_the_narrowest_pod_and_a_zone_stands_one_row() -> void:
+	var policy := FloorLayoutPolicy.new()
+	_eq(
+		[policy.lane_pitch(), policy.zone_width(1), policy.zone_width(2), policy.map_width(4)],
+		[5, 4, 9, 23],
+		"a lane is 4 cells, pitch 5; a zone of k lanes is 5k - 1, a map of L lanes 5L + 3"
+	)
+	_eq(
+		[policy.lanes_for(24), policy.lanes_for(15), policy.lanes_for(10)],
+		[4, 2, 2],
+		"the default window's 24 cells plan four lanes, the walking suites' 15 two, the 480x320 window's 10 two (FRAME-Q2)"
+	)
+	_eq(
+		[policy.lanes_for_inner(3), policy.lanes_for_inner(5), policy.lanes_for_inner(7), policy.lanes_for_inner(9)],
+		[1, 2, 2, 3],
+		"a pod of c columns, c + 1 cells, spans ceil((c + 3) / 5) lanes"
+	)
+	_eq(policy.version, 3, "the lane unit is a new plan geometry")
+	_eq(_lane_shape(1), [4, 1, 1], "one tab of two panes: a zone of one lane on the four-lane map")
+	_eq(_lane_shape(2), [4, 2, 1], "two tabs: two lanes, one row")
+	_eq(_lane_shape(3), [4, 3, 1], "three tabs: three lanes, one row")
+	_eq(_lane_shape(7), [4, 4, 2], "seven tabs: the map's four lanes, then a second row")
+	_eq(_lane_shape(1, 8), [4, 2, 1], "a pod of four columns (eight panes) takes two lanes")
+
+
+## The narrowest plan is two lanes (13 cells): the 480x320-unit view (340 units,
+## 10 cells) and every width under 13 cells plan what 13 do, so the smallest
+## window keeps the top wall's window, its picture and the pantry. Z1
+## (2026-10-27): the narrowest plan stays two lanes, so the smallest window
+## keeps a window, a picture and the pantry; FRAME-Q2.
+func test_the_narrowest_plan_is_two_lanes() -> void:
+	var policy := FloorLayoutPolicy.new()
+	_eq(policy.lanes_for(floori(340.0 / FloorLayoutPolicy.GRID)), 2, "the 480x320 window's 340 units: two lanes")
+	for width in range(1, 13):
+		_eq(policy.lanes_for(width), 2, "%d cells: two lanes" % width)
+	_eq(
+		[policy.lanes_for(13), policy.lanes_for(17), policy.lanes_for(18)],
+		[2, 2, 3],
+		"and from 13 cells on, as many as fit"
+	)
+	var plan := OfficeFloorLayout.plan(MapModel.of(_floor([_room("a", 2)])), null, _real_rules(10)).plan
+	_eq(plan.floor_cells.size.x if plan != null else -1, 13, "a map first planned at 10 cells is 13 wide")
+
+
+## [map lanes, zone lanes, pod rows] of one workspace of `tabs` tabs of `panes`
+## panes, first planned at 25 cells (800 units).
+func _lane_shape(tabs: int, panes := 2) -> Array:
+	var rooms: Array[RoomModel] = []
+	for index in tabs:
+		rooms.append(_room("t%d" % index, panes, index))
+	var result := OfficeFloorLayout.plan(MapModel.of(_floor(rooms)), null, _real_rules(25))
+	_eq(result.problems, PackedStringArray(), "%d tabs of %d: a valid plan" % [tabs, panes])
+	if result.plan == null:
+		return []
+	var zone := result.plan.zones[0]
+	return [result.plan.lanes, zone.lanes, zone.rows.size()]
+
+
 ## The planners furnish a candidate before its one validation, the pantry and
 ## then the furniture: the same plan as validating the bare plan, furnishing it
 ## and validating it again, with half the flood fills. Three tables of one lane
-## each leave the other lane's gap to furnish.
+## each stand in one row of three lanes and leave the other lanes' gaps to
+## furnish.
 func test_a_furnished_plan_is_validated_once() -> void:
 	var rules := FloorLayoutPolicy.new()
 	rules.actor_footprint = PixelPerson.footprint()
@@ -1134,9 +1203,9 @@ func _gap_pieces(plan: FloorPlan, gap: OfficeDecorPlanner.LaneGap) -> Array[Deco
 	return found
 
 
-## A map of three workspaces of different heights, side by side and stacked,
-## which leaves lane gaps under the shorter ones. A twelve-pane pod (7 cells)
-## fills a one-lane zone's pod row: two 2-pane pods (3 cells) would share one.
+## A map of three workspaces of different heights and widths, which leaves
+## lane gaps beside and under the shorter ones. A twelve-pane pod (7 cells)
+## fills a two-lane zone's pod row: two 2-pane pods (3 cells) would share one.
 func _three_zones() -> MapModel:
 	var zones: Array[ZoneModel] = [
 		_zoned("machine/1", 1, [_room("a", 12), _room("b", 12, 1), _room("c", 12, 2)]),
@@ -1217,8 +1286,10 @@ func _map_of(model: RefCounted) -> MapModel:
 ## The top-wall run and the lane gaps stand on grids of the map itself, never
 ## on the tables: keyed by the run's grid step, or by the lane and the row, and
 ## where a zone grows the pieces that still fit keep their key and their place.
+## Z1 (2026-10-27): asked 25 cells (23 wide, the default window's map), not 32:
+## 32 now plans 28 cells, where no top-wall plant fits (the report's FRAME-Q2).
 func test_the_top_run_and_lane_gaps_keep_their_place_when_a_zone_grows() -> void:
-	var rules := _real_rules(32)
+	var rules := _real_rules(25)
 	var decor := OfficeDecorPlanner.new(_pen())
 	var fixtures := OfficeFixturePlanner.new(_pen())
 	var first := (
@@ -1399,8 +1470,8 @@ func test_the_window_run_is_centred_between_the_pantry_and_the_door() -> void:
 ## AStarGrid2D steps straight through even with its points on the centres
 ## (docs/WORLD_MODEL.md, "Collision and walking"), takes that edge away and leaves both nodes.
 func test_no_walk_graph_edge_enters_an_obstacle() -> void:
-	# 32 cells: two lanes, so the top wall stands a plant (the pods leave the
-	# one-lane stress map at 20 cells no furniture).
+	# 32 cells: five lanes (28 cells), so lane gaps stand furniture (Z1,
+	# 2026-10-27: 28 cells stand no top-wall plant; 32 planned 23 before).
 	var rules := _real_rules(32)
 	var plan := OfficeFloorLayout.plan(MapModel.of(_stress_floor()), null, rules, OfficeDecorPlanner.new(_pen())).plan
 	_check(plan != null and not plan.decorations.is_empty(), "a furnished stress floor to walk")
@@ -1495,9 +1566,9 @@ func test_the_validator_walks_in_from_the_door_not_the_entry_band() -> void:
 	_check(open * 2 > lobby.entry_cells.size.x, "though %d of the entry band's cells are open" % open)
 
 
-## Every approach of the stress fixture's floor, 20 and 32 cells wide, is walked
-## to from the door's threshold, and still is after two tables grow and the
-## floor moves them.
+## Every approach of the stress fixture's floor, asked 20 and 32 cells (18 and
+## 28 wide, three and five lanes), is walked to from the door's threshold, and
+## still is after two tables grow and the floor moves them.
 func test_every_approach_is_walked_to_on_the_stress_floor_and_after_growth() -> void:
 	for width: int in [20, 32]:
 		var rules := _real_rules(width)

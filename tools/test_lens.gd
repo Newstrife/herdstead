@@ -347,9 +347,11 @@ func test_only_furnishing_dims_while_held() -> void:
 ## keep every piece's key, kind, place and picture; and under the lens both
 ## kinds dim as every piece does.
 func test_both_plants_are_drawn_where_planned_and_ignore_herdr() -> void:
-	# Two lanes (a first plan 23 cells wide): the top wall's run and the free
-	# lane's gap stand plants; one lane has room for none.
-	var office := await _live_office(fixture, Vector2(880, 480))
+	# Six lanes (a first plan 33 cells wide): the top wall's run and the free
+	# lanes' gap stand plants. Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new
+	# zone takes lanes until it stands one row; the map replans: at 880 (four
+	# lanes, 23 cells) the zones stand two even rows and leave no lane gap.
+	var office := await _live_office(fixture, Vector2(1280, 720))
 	office.settle()
 	await _frames(2)
 	var planned: Dictionary[Vector2, StringName] = {}

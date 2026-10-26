@@ -771,13 +771,14 @@ func test_the_stress_fit_at_2x_4x_and_min() -> void:
 			_check(fit.size.x <= room.x and fit.size.y <= room.y, "fits: %s in %s" % [fit.size, room])
 		else:
 			_check(fit.size.x <= room.x and fit.size.y > room.y, "as wide as fits and taller: " + str(fit.size))
-	# The stress map as the office plans it at 2x: two lanes, its zone as wide
-	# as both (18 inner cells), three pods of four desks (5 cells) to a row, four
-	# rows (the long tables took a row each, ten rows: the pure fits above keep
-	# that shape of input).
+	# The stress map as the office plans it at 2x: four lanes of 4 (two of 9
+	# before Z1, 2026-10-27: the same 23 cells), its zone as wide as all four (18
+	# inner cells), three pods of four desks (5 cells) to a row, four rows (the
+	# long tables took a row each, ten rows: the pure fits above keep that shape
+	# of input).
 	var office := await _live_office(_stress(), WIDE)
 	var laid := office.layout_plan()
-	_eq([laid.lanes, laid.zones[0].lanes], [2, 2], "a zone of the map's two lanes")
+	_eq([laid.lanes, laid.zones[0].lanes], [4, 4], "a zone of the map's four lanes")
 	var per_row: Array[int] = []
 	for band in laid.zones[0].rows:
 		per_row.append(band.desks.size())

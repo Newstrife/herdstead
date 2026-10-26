@@ -625,7 +625,7 @@ func test_a_low_frame_rate_stays_on_the_route() -> void:
 
 
 ## Every arrival on the stress fixture's floor (ten tabs of eight agents), 20 and
-## 32 cells asked (two lanes either way), either walks all its route within six seconds at 8 frames a
+## 32 cells asked (three and five lanes of 4), either walks all its route within six seconds at 8 frames a
 ## second, never faster than TOP_SPEED and never off its route, or, when even
 ## TOP_SPEED would take longer, is placed at once, seated: no route is cut
 ## short or jumped.
@@ -637,12 +637,11 @@ func test_no_walk_on_the_stress_floor_needs_a_teleport() -> void:
 		var plans := FloorPlanCache.new()
 		var empty := MapModel.of(_stress_model(false))
 		var plan := plans.prepare(empty, pen, width * 32.0)
-		# Its four-column pods (5 cells) fit one lane: the map is the one the
-		# width asked holds, one lane (13 cells) at 20, two (23) at 32.
-		var lanes := 1 if width == 20 else 2
-		_eq(
-			plan.floor_cells.size.x, 10 * lanes + 3, "the stress map, %d cells asked, is %d lanes wide" % [width, lanes]
-		)
+		# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+		# Its four-column pods (5 cells) take two lanes: the map is the one the
+		# width asked holds, three lanes (18 cells) at 20, five (28) at 32.
+		var lanes := 3 if width == 20 else 5
+		_eq(plan.floor_cells.size.x, 5 * lanes + 3, "the stress map, %d cells asked, is %d lanes wide" % [width, lanes])
 		var holder := Node2D.new()
 		root.add_child(holder)
 		var view := OfficeFloorView.new()
@@ -876,13 +875,17 @@ func test_a_plan_change_keeps_the_walks_it_does_not_touch() -> void:
 
 ## A worker whose place the floor moves is routed again with one search, from
 ## their goal, whichever of their ways back onto the graph they take: api:t1
-## moves as it grows (into api:t2 beside it, in a zone of four tabs, two
-## lanes), and its three workers, one of them still walking in, walk to their
-## new seats on one search each; the three newcomers need none.
+## moves as it grows (out of its pod row, in a zone of four tabs, three lanes),
+## and its three workers, one of them still walking in, walk to their new seats
+## on one search each; the three newcomers need none.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it
+## stands one row; the map replans. The api workspace alone: with the others
+## on the eight-lane map, data stands under api, so api moved whole as it grew
+## and api:p2 was placed rather than walked (measured).
 func test_a_rerouted_walker_takes_one_search() -> void:
-	var office := await _wide_office(_four_tabs(fixture))
+	var office := await _wide_office(_only(_four_tabs(fixture), "api"))
 	var arriving := _with(fixture, "api:p3", {"agent": "codex"})
-	_feed(office, _four_tabs(arriving))
+	_feed(office, _only(_four_tabs(arriving), "api"))
 	# Off the walking lane, into the zone: a walker still on the lane is routed
 	# on off the door's field (the lane route), which takes no search at all.
 	var newcomer := _station(office, _pane("api:p3")).actor()
@@ -892,7 +895,7 @@ func test_a_rerouted_walker_takes_one_search() -> void:
 			break
 	_check(_walkers(office).has(newcomer), "api:p3 is still walking in, inside the zone")
 	var origin := office.layout_plan().desk(JSON.stringify([LOCAL, "api", "api:t1"])).origin
-	_feed(office, _four_tabs(_grown(arriving, 3)))
+	_feed(office, _only(_four_tabs(_grown(arriving, 3)), "api"))
 	var plan := office.layout_plan()
 	_check(plan.desk(JSON.stringify([LOCAL, "api", "api:t1"])).origin != origin, "api:t1 moved as it grew")
 	for pane_id: String in ["api:p1", "api:p2", "api:p3"]:
@@ -1010,10 +1013,13 @@ func test_a_reconnect_with_a_layout_problem_keeps_walkers_frozen() -> void:
 ## another agent, is seated at the family's own pace, like any seated worker
 ## and like a rebuild.
 func test_a_stale_provider_swap_leaves_no_walk_pace() -> void:
-	# api:t2 on the second row (_stacked()), 880 wide: two lanes, the lift door
-	# ten cells further right than PLAN_SCREEN's one lane puts it, a walk long
-	# enough to be paced up (one lane's is not, with pod rows 6 cells deep).
-	var office := await _live_office(_with(_stacked(fixture), "api:p4", {"agent": null}), Vector2(880, 480))
+	# api:t2 on the second row (_stacked()), 1280 wide: six lanes of 4, the lift
+	# door twenty cells further right than PLAN_SCREEN's two lanes put it, a walk
+	# long enough to be paced up. Z1 (2026-10-27): a lane is 4 cells, pitch 5, a
+	# new zone takes lanes until it stands one row; the map replans: 880 wide
+	# (four lanes, 23 cells, the door where two lanes of 9 put it) no longer
+	# paces api:p4 up: measured 1.0.
+	var office := await _live_office(_with(_stacked(fixture), "api:p4", {"agent": null}), Vector2(1280, 480))
 	_feed(office, _stacked(fixture))
 	var body := _station(office, _pane("api:p4")).actor()
 	_check(body.paced() > 1.0, "api:p4 walks in faster than the walk's own pace: %s" % body.paced())

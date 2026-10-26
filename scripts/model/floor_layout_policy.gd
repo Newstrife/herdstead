@@ -6,14 +6,17 @@ extends RefCounted
 ## (entry_cells), then the zones in lanes, the main corridor on the right and
 ## a side wall at each end. Across: a side wall, `lanes` lanes of
 ## zone_width_cells with an aisle column (lane_aisle_cells) between two of
-## them, the main corridor and the other side wall; 10L + 3 cells for L lanes
-## at the shipped values. A zone stands in one or more adjacent lanes, one
-## aisle row (zone_aisle_cells) above it, and is 10k - 1 cells wide for k
-## lanes: the aisle columns between its lanes are its own. Its pod rows are
-## as deep as a table's measured reservation (OfficeZoneLayout.pod_row_cells()).
+## them, the main corridor and the other side wall; 5L + 3 cells for L lanes
+## at the shipped values. A lane holds the narrowest pod (2 columns, 3 cells)
+## right of its zone's pad. A zone stands in one or more adjacent lanes, one
+## aisle row (zone_aisle_cells) above it, and is 5k - 1 cells wide for k lanes:
+## the aisle columns between its lanes are its own. A new zone takes as many
+## lanes as its pods need to stand in one row (zone_tall_rows). Its pod rows
+## are as deep as a table's measured reservation
+## (OfficeZoneLayout.pod_row_cells()).
 
 const GRID := 32
-var version := 2
+var version := 3
 var width_cells := 32
 var wall_cells := 2
 ## Three: the top wall's drawing clearance takes the first row, the fixture row
@@ -22,8 +25,9 @@ var entry_cells := 3
 var main_corridor_cells := 2
 var outer_side_cells := 1
 ## One lane of zones, the partition's pad inside a zone's left edge, and the
-## aisle column between two lanes.
-var zone_width_cells := 9
+## aisle column between two lanes. Four: a pod of c columns reserves c + 1
+## cells (OfficeTable.measure()), so the narrowest (2 columns) and the pad.
+var zone_width_cells := 4
 var zone_pad_left_cells := 1
 var lane_aisle_cells := 1
 ## The aisle row above each zone, where its sign hangs; the first zones' aisle
@@ -32,7 +36,7 @@ var zone_aisle_cells := 1
 var map_top_aisle_cells := 1
 ## A new zone takes more lanes, up to the map's, rather than stand taller than
 ## this many pod rows (never fewer lanes than its widest table needs).
-var zone_tall_rows := 3
+var zone_tall_rows := 1
 var min_height_cells := 12
 var max_width_cells := 512
 var max_height_cells := 1024
@@ -98,7 +102,7 @@ func problems() -> PackedStringArray:
 	return found
 
 
-## One lane and the aisle column after it: 10 cells.
+## One lane and the aisle column after it: 5 cells.
 func lane_pitch() -> int:
 	return zone_width_cells + lane_aisle_cells
 
@@ -113,7 +117,7 @@ func lane_of(column: int) -> int:
 	return floori(float(column - outer_side_cells) / lane_pitch())
 
 
-## A zone `lanes` lanes wide, in cells: 10k - 1.
+## A zone `lanes` lanes wide, in cells: 5k - 1.
 func zone_width(lanes: int) -> int:
 	return lanes * lane_pitch() - lane_aisle_cells
 
@@ -124,19 +128,21 @@ func lanes_for_width(width: int) -> int:
 
 
 ## The fewest lanes (at least one) whose zone holds a table `width` cells wide
-## right of its pad: for a pod of c columns, ceil((c + 3) / 10).
+## right of its pad: for a pod of c columns, ceil((c + 3) / 5).
 func lanes_for_inner(width: int) -> int:
 	return lanes_for_width(width + zone_pad_left_cells)
 
 
-## A map of `lanes` lanes, in cells: 10L + 3.
+## A map of `lanes` lanes, in cells: 5L + 3.
 func map_width(lanes: int) -> int:
 	return 2 * outer_side_cells + zone_width(lanes) + main_corridor_cells
 
 
-## How many lanes a first plan `width` cells wide gets: as many as fit, at least one.
+## How many lanes a first plan `width` cells wide gets: as many as fit, at least
+## two. Z1 (2026-10-27): the narrowest plan stays two lanes, so the smallest
+## window keeps a window, a picture and the pantry; FRAME-Q2.
 func lanes_for(width: int) -> int:
-	return maxi(1, floori(float(width - 2 * outer_side_cells - main_corridor_cells + lane_aisle_cells) / lane_pitch()))
+	return maxi(2, floori(float(width - 2 * outer_side_cells - main_corridor_cells + lane_aisle_cells) / lane_pitch()))
 
 
 ## The widest zone the width budget allows.

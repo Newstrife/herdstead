@@ -970,8 +970,8 @@ func test_a_new_floor_is_validated_once_decor_included() -> void:
 
 
 ## Two workspaces are two zones of one map (before maps: two floors): A (one
-## tab of 40 panes, a pod of 20 columns, 21 cells: three lanes, the map widened
-## for them) and B (2 panes) planned together, once. PageUp/PageDown between
+## tab of 40 panes, a pod of 20 columns, 21 cells: five lanes of 4, the map
+## widened for them; three of 9 before Z1) and B (2 panes) planned together, once. PageUp/PageDown between
 ## them pan: the same plan object, the same zone rectangles, the same world,
 ## nobody made to walk, and no replan. A drag moves the one map's pan, which
 ## the next zone pick replaces (its aisle row at the top).
@@ -993,9 +993,10 @@ func test_zones_on_one_map_keep_their_rectangles_and_the_world_when_paged() -> v
 	var a := HerdrFleet.pane_key(LOCAL, "a")
 	var b := HerdrFleet.pane_key(LOCAL, "b")
 	var plan := office.layout_plan()
-	_eq([plan.floor_key, plan.lanes], [LOCAL, 3], "one map, the machine's, three lanes for A's pod")
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	_eq([plan.floor_key, plan.lanes], [LOCAL, 5], "one map, the machine's, five lanes for A's pod")
 	var rects := [plan.zone(a).cells, plan.zone(b).cells]
-	_eq(rects[0].size, Vector2i(29, 6), "A spans the three lanes")
+	_eq(rects[0].size, Vector2i(24, 6), "A spans the five lanes")
 	var middle := office.hud.world_rect().get_center()
 	await _drag(middle, middle + Vector2(-160, -60))
 	var attempts := office.layout_attempt_count()
@@ -1030,10 +1031,11 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 ## PLAN_R2 §1.10, density: 1920×960 at 2x (the 960×480 view), the drawer
 ## closed, the staff card one line; a real click on the first zone's FLOORS
 ## row; the seats whose click rect (target_rect(), no chip) is wholly inside
-## world_rect() are counted. Two workspaces, one to a lane, each of four tabs of
-## 8, 4, 8 and 4 working agents (pods of 4, 2, 4 and 2 columns: two pod rows),
-## and again with the first two tabs only (one pod row). The floors before one
-## map per machine showed 12 in the same rect.
+## world_rect() are counted. Two workspaces, each of four tabs of 8, 4, 8 and 4
+## working agents (pods of 4, 2, 4 and 2 columns: two pod rows in a lane of 9
+## before Z1, one row of four 4-cell lanes now), and again with the first two
+## tabs only (one pod row). The floors before one map per machine showed 12 in
+## the same rect.
 func test_a_zone_call_shows_the_planned_density() -> void:
 	for rows: int in [2, 1]:
 		var office := await _live_office(_density(rows), Vector2(960, 480))
@@ -1043,8 +1045,12 @@ func test_a_zone_call_shows_the_planned_density() -> void:
 		var plan := office.layout_plan()
 		var a := plan.zone(HerdrFleet.pane_key(LOCAL, "a"))
 		var b := plan.zone(HerdrFleet.pane_key(LOCAL, "b"))
-		_eq([a.first_lane, a.lanes, b.first_lane, b.lanes], [0, 1, 1, 1], "%d: one zone to a lane" % rows)
-		_eq([a.rows.size(), b.rows.size()], [rows, rows], "%d pod rows each" % rows)
+		# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+		# Four tabs (16 cells of pods) stand one row in four lanes, so b stands under a; two
+		# tabs (8 cells) one row in two lanes, side by side.
+		var lanes := [0, 4, 0, 4] if rows == 2 else [0, 2, 2, 2]
+		_eq([a.first_lane, a.lanes, b.first_lane, b.lanes], lanes, "%d: each zone one row wide" % rows)
+		_eq([a.rows.size(), b.rows.size()], [1, 1], "%d: one pod row each" % rows)
 		await _visit_zone(office, HerdrFleet.pane_key(LOCAL, "a"))
 		await _frames(3)
 		var room := office.hud.world_rect()
@@ -1053,7 +1059,10 @@ func test_a_zone_call_shows_the_planned_density() -> void:
 			var rect := office.floor_view.seats[key].node.target_rect()
 			if room.encloses(Rect2(rect.position - office.camera.position, rect.size)):
 				seen += 1
-		var wanted := 36 if rows == 2 else 24
+		# Z1 (2026-10-27): a four-tab workspace stands its pods in one row across the map,
+		# so the second workspace stands under it; 36 was the two-lane era's target; FRAME-Q3,
+		# ruled by the orchestrator.
+		var wanted := 24
 		print("DENSITY %d pod row(s): %d seats wholly in %s (plan: %d)" % [rows, seen, room, wanted])
 		_check(seen >= wanted, "%d pod row(s): at least %d seats wholly in view, %d" % [rows, wanted, seen])
 		_done(office)

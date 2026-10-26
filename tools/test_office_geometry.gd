@@ -153,20 +153,26 @@ func test_side_table_items_survive_growth_state_updates_and_theme_rebuilds() -> 
 	policy.width_cells = 32
 	policy.actor_footprint = PixelPerson.footprint()
 	policy.actor_draw_rect = PixelPerson.drawing_rect(art.people)
-	# Zone 1 (lane 0) is one pod row; zone 2 (lane 1) three rows of twelve-pane
-	# pods, so the map is deeper than zone 1 and lane 0 has a gap under it.
-	var room := _side_room("tab-a", 0, 0, 2)
-	var first_zone := _side_zone("side/1", 1, [room])
-	var second_zone := _side_zone(
-		"side/2", 2, [_side_room("tab-b", 0, 100, 12), _side_room("tab-c", 1, 200, 12), _side_room("tab-d", 2, 300, 12)]
-	)
+	# Zone 1 (lanes 0 and 1, two 2-pane pods in one row) is one pod row; zone 2
+	# (lanes 2 and 3) three rows of twelve-pane pods, so the map is deeper than
+	# zone 1 and lane 0 has a gap under it. Z1 (2026-10-27): a lane is 4 cells,
+	# pitch 5, a new zone takes lanes until it stands one row; the map replans:
+	# zone 2 grows into its three pods (a new zone of them would take every
+	# lane and stand under zone 1), and zone 1's other pod stands left of the
+	# room, which grows right, in place.
+	var room := _side_room("tab-a", 1, 0, 2)
+	var first_zone := _side_zone("side/1", 1, [_side_room("tab-f", 0, 500, 2), room])
+	var second_zone := _side_zone("side/2", 2, [_side_room("tab-b", 0, 100, 12)])
 	var zones: Array[ZoneModel] = [first_zone, second_zone]
 	var decor := OfficeDecorPlanner.new(pen)
-	var first := OfficeFloorLayout.plan(MapModel.of_zones("side", zones), null, policy, decor).plan
+	var start := OfficeFloorLayout.plan(MapModel.of_zones("side", zones), null, policy, decor).plan
+	second_zone.rooms.append_array([_side_room("tab-c", 1, 200, 12), _side_room("tab-d", 2, 300, 12)])
+	var first := OfficeFloorLayout.plan(MapModel.of_zones("side", zones), start, policy, decor).plan
 	_check(first != null, "the map is planned")
 	if first == null:
 		return
-	_eq(first.lanes, 2, "two lanes")
+	_eq(first.lanes, 5, "five lanes")
+	_eq([first.zones[0].lanes, first.zones[1].lanes, first.zones[1].rows.size()], [2, 2, 3], "zone 1 beside zone 2")
 	var bay := _gap_table_of(first)
 	_check(bay != null, "lane 0's gap stands a side table")
 	if bay == null:

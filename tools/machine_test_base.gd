@@ -339,14 +339,17 @@ func _until_stats(which: String, condition: Callable, what: String) -> Dictionar
 	return stats
 
 
-## Local and bee, both live on snapshot_basic, and no saved machines. Caller
-## removes and frees it, and unsets HERDR_BIN_PATH.
-func _two_machine_office() -> OfficeDouble:
+## Local and bee, both live on snapshot_basic (Local on `local` instead when it
+## is given), and no saved machines, in an 800x480 window unless `screen` says
+## otherwise. Caller removes and frees it, and unsets HERDR_BIN_PATH.
+func _two_machine_office(screen := Vector2(800, 480), local: Dictionary = {}) -> OfficeDouble:
 	_ctl("control-a", "reset", {"fixture": "snapshot_basic"})
+	if not local.is_empty():
+		_ctl("control-a", "set_snapshot", {"snapshot": local})
 	_ctl("control-b", "reset", {"fixture": "snapshot_basic"})
 	OS.set_environment("HERDR_BIN_PATH", args.work.path_join("no-such-herdr"))
 	OS.set_environment("HERDR_SOCKET_PATH", args["socket-a"])
-	var office := _office(Vector2(800, 480))
+	var office := _office(screen)
 	root.add_child(office)
 	office.fleet._roster.sockets = _debug_socket("bee", args["socket-b"])
 	office.fleet._sync_sites()
@@ -588,6 +591,23 @@ func _machine_plate_text(office: OfficeDouble) -> String:
 func _fixture(name: String) -> Dictionary:
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(FIXTURES + name + ".json"))
 	return data.snapshot
+
+
+## snapshot_basic with seven more shells on bravo:t1: a pod of 5 cells, so bravo
+## takes two lanes and, on the narrowest map (Z1, 2026-10-27: two lanes of 4,
+## FRAME-Q2), stands under alpha as one lane of 9 stacked them.
+func _wide_bravo() -> Dictionary:
+	var raw := _fixture("snapshot_basic")
+	var shell: Dictionary = {}
+	for pane: Dictionary in _list(raw, "panes"):
+		if pane.pane_id == "alpha:p2":
+			shell = pane
+	for index in range(2, 9):
+		var pane: Dictionary = shell.duplicate(true)
+		pane.merge({"pane_id": "bravo:s%d" % index, "terminal_id": "term-bravo-s%d" % index}, true)
+		pane.merge({"workspace_id": "bravo", "tab_id": "bravo:t1"}, true)
+		_list(raw, "panes").append(pane)
+	return raw
 
 
 ## A snapshot herdr might send, as the office reads it: through the one boundary.

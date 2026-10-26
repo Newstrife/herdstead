@@ -178,8 +178,8 @@ func _check_frames(plan: FloorPlan, what: String) -> int:
 ## Pictures hang on the top wall at every shipped width and on the stress map,
 ## each centred in a second gap between two windows, on the cream face, off the
 ## end cells, and never within FRAME_GAP of a window, the lift door or the
-## pantry. 13 cells (the narrowest map) has two windows, one gap: no second
-## gap, so its wall hangs none.
+## pantry. 8 cells (the narrowest map since Z1, 2026-10-27, one lane of 4) has
+## no window and 13 two, one gap: no second gap, so neither wall hangs one.
 func test_frames_hang_between_the_windows_clear_of_the_door_and_the_pantry() -> void:
 	var cases: Array[Array] = []
 	for width in WIDTHS:
@@ -312,7 +312,9 @@ func test_a_widened_map_moves_the_frames_with_its_door() -> void:
 	# A twelve-pane pod (7 cells) cannot share a's pod row: a new row.
 	var taller_model := _floor([_room("a", 2), _room("b", 12, 1)])
 	var taller := _planned(taller_model, width, first, false)
-	var wide_model := _floor([_room("a", 2), _room("b", 12, 1), _room("c", 40, 2)])
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	# 32 cells plan five lanes (28 cells): a 48-pane pod (24 columns, 25 cells) needs six; 40 panes no longer widen.
+	var wide_model := _floor([_room("a", 2), _room("b", 12, 1), _room("c", 48, 2)])
 	var wide := _planned(wide_model, width, taller, false)
 	if first == null or taller == null or wide == null:
 		return
