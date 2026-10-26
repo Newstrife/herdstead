@@ -400,6 +400,38 @@
       "blonde",
       "grey"
     ],
+    "top": [
+      "slate",
+      "cream",
+      "terra",
+      "teal",
+      "lilac"
+    ],
+    "legs": [
+      "charcoal",
+      "brown",
+      "taupe",
+      "denim",
+      "plum"
+    ],
+    "headwear": [
+      "none",
+      "none",
+      "none",
+      "none",
+      "none",
+      "none",
+      "cap",
+      "hood"
+    ],
+    "headwear_colour": [
+      "slate",
+      "cream",
+      "terra",
+      "teal",
+      "lilac",
+      "sea"
+    ],
     "glasses": [
       "none",
       "none",
