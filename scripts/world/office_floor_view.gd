@@ -24,6 +24,9 @@ class Seat:
 	## How hard this seat's task lamp burns now (OfficeTable.Lamp). Kept apart
 	## from `look`: which tab a workspace has open is not part of any one desk.
 	var lit := OfficeTable.Lamp.OFF
+	## What its plate says (OfficeStation.show_name()). Kept apart from `look`
+	## too: a new name (a new task summary) never seats the worker again.
+	var named := ""
 
 	func _init(station: OfficeStation) -> void:
 		node = station
@@ -94,6 +97,8 @@ var _asked: Callable
 var _hovered: Callable
 ## Connected to every zone sign's `hovered`: the pointer on or off a sign.
 var _sign_hovered: Callable
+## Connected to every station's `seat_hovered`: the pointer on or off a seat.
+var _seat_hovered: Callable
 
 
 func setup(
@@ -102,7 +107,8 @@ func setup(
 	picked := Callable(),
 	asked := Callable(),
 	hovered := Callable(),
-	sign_hovered := Callable()
+	sign_hovered := Callable(),
+	seat_hovered := Callable()
 ) -> void:
 	_pen = drawing
 	root = floor_root
@@ -110,6 +116,7 @@ func setup(
 	_asked = asked
 	_hovered = hovered
 	_sign_hovered = sign_hovered
+	_seat_hovered = seat_hovered
 	ground = Node2D.new()
 	ground.name = "Ground"
 	floor_root.add_child(ground)
@@ -161,6 +168,10 @@ func update_desks(model: MapModel, active_key: String, frozen: bool) -> void:
 			var level := lamp_of(pane, room)
 			desk.lit = level
 			desk.node.light(level)
+			# So does its name, which the plate says on its own channel.
+			if pane.name != desk.named:
+				desk.named = pane.name
+				desk.node.show_name(pane.name)
 			var look := pane.desk_signature()
 			if look == desk.look and is_selected == desk.selected:
 				continue
@@ -171,13 +182,7 @@ func update_desks(model: MapModel, active_key: String, frozen: bool) -> void:
 				desk.node.select(is_selected)
 				continue
 			desk.node.furnish(
-				pane.provider,
-				StringName(pane.state),
-				is_selected,
-				pane.launching(),
-				pane.pane_id,
-				pane.machine(),
-				pane.agent_name
+				pane.provider, StringName(pane.state), is_selected, pane.launching(), pane.pane_id, pane.machine()
 			)
 			var actor := desk.node.actor()
 			if frozen and actor != null:
@@ -439,6 +444,8 @@ func _index(model: MapModel) -> void:
 				station.asked.connect(_asked)
 			if _hovered.is_valid() and not station.chip_hovered.is_connected(_hovered):
 				station.chip_hovered.connect(_hovered)
+			if _seat_hovered.is_valid() and not station.seat_hovered.is_connected(_seat_hovered):
+				station.seat_hovered.connect(_seat_hovered)
 	seats = indexed
 
 

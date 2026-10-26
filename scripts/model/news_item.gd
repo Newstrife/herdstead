@@ -13,6 +13,9 @@ extends RefCounted
 ## office watched (at least that long).
 const TIP_PICK := "Show this pane"
 const TIP_GONE := "Pane gone"
+## The longest a name runs in a subject (TerminalText.clip()): the strip is
+## one line, and the tooltip says the whole name.
+const SUBJECT_CLUSTERS := 24
 ## What a REPLACED pane got (StateLog.Changed); `new terminal` when the log did not say.
 const _REPLACED: Dictionary[StateLog.Changed, String] = {
 	StateLog.Changed.NONE: "new terminal",
@@ -32,8 +35,9 @@ var tip := ""
 
 
 ## `event` as the strip says it, against `frame` (the office's latest):
-## `11:40 CODEX ui working 38m → done`, `11:31 bee offline`, `@ bee` after a pane's
-## when there is more than one machine.
+## `11:40 refactor the fleet · api working 38m → done`, `11:31 bee offline`,
+## `@ bee` after a pane's when there is more than one machine. A pane's tooltip
+## starts with its whole name, which the subject may have cut.
 static func of(event: StateLog.Event, frame: OfficeFrame) -> NewsItem:
 	var item := NewsItem.new()
 	item.id = event.id
@@ -45,7 +49,7 @@ static func of(event: StateLog.Event, frame: OfficeFrame) -> NewsItem:
 		item.tip = "%s · %s" % [event.machine_label, what(event)]
 	else:
 		item.pickable = frame.pane(event.pane_key) != null
-		item.tip = TIP_PICK if item.pickable else TIP_GONE
+		item.tip = called(event) + "\n" + (TIP_PICK if item.pickable else TIP_GONE)
 	return item
 
 
@@ -54,18 +58,25 @@ static func is_machine(event: StateLog.Event) -> bool:
 	return event.kind == StateLog.Kind.MACHINE_ONLINE or event.kind == StateLog.Kind.MACHINE_OFFLINE
 
 
-## Who the event is about: `CODEX ui` (the provider, as the agent list writes
-## it, and the workspace), `CLAUDE-2 web` for an agent herdr named and has not
-## recognised yet (the seconds after a start), `SHELL notes` for a pane without
-## an agent, or the machine's name.
+## Who the event is about: what the office called the pane and its workspace
+## (`refactor the fleet · api`, the name cut at SUBJECT_CLUSTERS), or the
+## machine's name.
 static func subject(event: StateLog.Event) -> String:
 	if is_machine(event):
 		return event.machine_label
-	var agent := event.agent.to_upper()
-	if event.agent.is_empty():
-		agent = "SHELL" if event.agent_name.is_empty() else event.agent_name.to_upper()
 	var space := OfficeTotals.UNNAMED_SPACE if event.space.is_empty() else event.space
-	return "%s %s" % [agent, space]
+	return "%s · %s" % [TerminalText.clip(called(event), SUBJECT_CLUSTERS), space]
+
+
+## What the office called the pane at `event` (StateLog.Event.name); an event
+## without a name says the kind: the provider in capitals, the name herdr gave
+## an agent it has not recognised yet (`CLAUDE-2`), or SHELL.
+static func called(event: StateLog.Event) -> String:
+	if not event.name.is_empty():
+		return event.name
+	if not event.agent.is_empty():
+		return event.agent.to_upper()
+	return "SHELL" if event.agent_name.is_empty() else event.agent_name.to_upper()
 
 
 ## What happened, in herdr's words: `working 38m → done`, `idle 2s+ →

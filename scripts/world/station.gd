@@ -12,8 +12,8 @@ extends Node2D
 ##
 ## Rows, 30 units wide and centred on the column, stacked away from the pod:
 ## the tag row (the badge, or the chip), the lens row (only while `L` is held)
-## and the plate row (the provider, only while the seat is hovered, selected or
-## `L` is held). Far workers face the viewer, so theirs rise above the head;
+## and the plate row (the pane's name, only while the seat is hovered, selected
+## or `L` is held). Far workers face the viewer, so theirs rise above the head;
 ## near workers show their back and sit over the desk's near plane, so theirs
 ## hang below the chair.
 ##
@@ -33,7 +33,8 @@ extends Node2D
 ## holding both sides' rectangles, the chip's and the pantry's, and the
 ## viewport picks it. A click on the seat's rectangle picks the pane (`picked`),
 ## one on the chip asks to answer it (`asked`). A vacant seat is not pickable
-## at all. The pointer over the seat's or the chip's rectangle shows the plate.
+## at all. The pointer over the seat's or the chip's rectangle shows the plate;
+## over the seat's, the office also shows the whole name in a tooltip.
 ##
 ## A worker rests where their state says (OfficeRests, set by the presentation
 ## with rest_at()): at the seat — blocked with a hand up and the chip, done
@@ -54,6 +55,10 @@ signal asked(key: String, at: Vector2)
 ## The pointer came onto this seat's chip (`inside`) or left it: the office
 ## shows the question's excerpt in a HUD tooltip meanwhile.
 signal chip_hovered(key: String, inside: bool)
+## The pointer came onto this seat's own rectangle (`inside`) or left it: the
+## office says the pane's whole name in a HUD tooltip meanwhile, the plate
+## having room for only its start.
+signal seat_hovered(key: String, inside: bool)
 
 const PERSON_SCENE := preload("res://scenes/people/pixel_person.tscn")
 ## The rows over a seat, relative to it (the far seat is at pod y -36, the near
@@ -83,12 +88,14 @@ const CHIP_BADGE_SHIFT := Vector2(-8.5, 0)
 ## (OfficeAttention.compact_duration(): 18 wide at most).
 const LENS_AT := {"far": Vector2(-15, -66), "near": Vector2(-15, 32)}
 const LENS_SIZE := Vector2(30, 12)
-## The plate, 30 by 12: the provider in upper case, in the display face at 8,
-## cut with a forced ellipsis when it is wider (the card and the list say the
-## whole name). While the lens is not held its row is empty, so the plate
-## takes the lens row's slot, next to the tag row (LENS_AT: pod [-102, -90)
-## far, [40, 52) near); while the lens is held it moves out to the outermost
-## row, PLATE_AT: pod [-114, -102) far and [52, 64) near.
+## The plate, 30 by 12: the pane's name (DisplayName) as it is, in the display
+## face at 8, cut with a forced ellipsis when it is wider (the seat's tooltip,
+## the card and the list say the whole name). Its text has its own channel,
+## show_name(): a new name never seats the worker again. While the lens is not
+## held its row is empty, so the plate takes the lens row's slot, next to the
+## tag row (LENS_AT: pod [-102, -90) far, [40, 52) near); while the lens is held
+## it moves out to the outermost row, PLATE_AT: pod [-114, -102) far and
+## [52, 64) near.
 const PLATE_SIZE := Vector2(30, 12)
 const PLATE_AT := {"far": Vector2(-15, -78), "near": Vector2(-15, 44)}
 ## The seat mark (ui `selection_seat`, 32 by 48 over its foot) frames the seated
@@ -187,6 +194,9 @@ func setup(drawing: OfficeDraw, at_table: OfficeTable, at_column: int, seat_side
 	art = drawing.art
 	var plate: Label = $Overlay/Plate
 	pen.style_display(plate, 8, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	# A name is any length: the plate keeps its box and cuts it with an ellipsis.
+	plate.clip_text = true
+	plate.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS_FORCE
 	# The box again once the face is on: a Label is 23 tall before it.
 	plate.size = PLATE_SIZE
 	var lens: Label = $Overlay/Lens
@@ -259,16 +269,9 @@ func _valid_binding(at_table: OfficeTable, at_column: int, seat_side: String) ->
 
 
 ## Seat a pane here. `provider` empty means a shell with nobody in the chair.
-## `agent_name` is herdr's name for the agent: the plate says it while a start
-## is launching and herdr has not detected the kind yet.
+## What the plate says is show_name()'s, not this.
 func furnish(
-	provider: String,
-	state: StringName,
-	selected := false,
-	starting := false,
-	pane_id := "",
-	machine := "",
-	agent_name := ""
+	provider: String, state: StringName, selected := false, starting := false, pane_id := "", machine := ""
 ) -> void:
 	vacant = false
 	# A pane is a terminal, so a seat with one has a screen on it, whether or not
@@ -318,10 +321,6 @@ func furnish(
 			_pose(seated)
 	_wear_mark()
 	_place()
-	var plate: Label = $Overlay/Plate
-	var named := starting and provider.is_empty() and not agent_name.is_empty()
-	plate.text = agent_name.to_upper() if named else "SHELL" if provider.is_empty() else provider.to_upper()
-	_show_plate()
 	var badge: StatusBadge = $Overlay/Badge
 	badge.stop_pulsing()
 	if starting or not provider.is_empty():
@@ -336,8 +335,24 @@ func furnish(
 	select(selected)
 
 
+## What the plate says: the pane's name (PaneModel.name), as it is; the plate
+## cuts it to its box. Only the text: the worker, the badge's pulse and the
+## chip's wait carry on, and an unchanged name is not written again.
+func show_name(text: String) -> void:
+	var plate: Label = $Overlay/Plate
+	if plate.text != text:
+		plate.text = text
+
+
+## The plate's text now (show_name()).
+func name_shown() -> String:
+	var plate: Label = $Overlay/Plate
+	return plate.text
+
+
 ## A seat nobody's pane uses: chair only.
 func vacate() -> void:
+	_unhover_seat()
 	vacant = true
 	pane_key = ""
 	table.equip(column, side, false)
@@ -540,14 +555,27 @@ func _on_target_mouse_shape_entered(shape_index: int) -> void:
 		_show_plate()
 	if shape == get_node(CHIP_TARGET):
 		chip_hovered.emit(pane_key, true)
+	elif shape == _target_of(side):
+		seat_hovered.emit(pane_key, true)
 
 
 func _on_target_mouse_shape_exited(shape_index: int) -> void:
 	var shape := _shape_at(shape_index)
+	var was_seat := _hovered.has(shape) and shape == _target_of(side)
 	if _hovered.erase(shape):
 		_show_plate()
 	if shape == get_node(CHIP_TARGET):
 		chip_hovered.emit(pane_key, false)
+	elif was_seat:
+		seat_hovered.emit(pane_key, false)
+
+
+## The seat's own rectangle stops answering while the pointer is over it (a
+## vacated seat, a click target switched off): the office's tooltip goes too.
+func _unhover_seat() -> void:
+	var own := _target_of(side)
+	if _hovered.has(own) and not pane_key.is_empty():
+		seat_hovered.emit(pane_key, false)
 
 
 func _shape_at(shape_index: int) -> Node:
@@ -559,6 +587,7 @@ func _pickable(can_pick: bool) -> void:
 	var target: Area2D = $Target
 	target.input_pickable = can_pick
 	if not can_pick:
+		_unhover_seat()
 		_hovered.clear()
 		_show_plate()
 
@@ -655,6 +684,8 @@ func _place() -> void:
 	for shape: Node in _hovered.keys():
 		var box := shape as CollisionShape2D
 		if box == null or box.disabled:
+			if box == _target_of(side) and not pane_key.is_empty():
+				seat_hovered.emit(pane_key, false)
 			_hovered.erase(shape)
 	_place_badge()
 	_show_plate()

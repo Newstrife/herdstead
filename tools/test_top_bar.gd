@@ -640,7 +640,7 @@ func test_read_only_next_says_no_verb_and_only_picks() -> void:
 	if next == null:
 		_done(office)
 		return
-	var said := "%s %s · %s" % [next.provider.to_upper(), next.workspace_label, next.state]
+	var said := "%s · %s" % [next.name, next.state]
 	_check(card.next_text().begins_with(said), "NEXT names whom and why, no verb: " + card.next_text())
 	_check(not card.next_text().begins_with("Answer") and not card.next_text().begins_with("Read"), "no verb")
 	_check(
@@ -673,6 +673,7 @@ func test_the_showroom_next_names_a_mock_pane_that_waits() -> void:
 	var source: Script = showroom.get_script()
 	var table: Array = source.get_script_constant_map()["MOCK_PANES"]
 	var who := ""
+	var space := ""
 	var state := ""
 	var since := 0
 	for wanted: String in ["blocked", "done"]:
@@ -682,7 +683,9 @@ func test_the_showroom_next_names_a_mock_pane_that_waits() -> void:
 			var minute: int = last[0]
 			var began := -1 if minute == 0 else minute
 			if pane[0] == "local" and str(last[1]) == wanted and (who.is_empty() or began < since):
-				who = "%s %s" % [str(pane[2]).to_upper(), str(pane[3])]
+				# A mock pane has no title: it is called by its tab (DisplayName).
+				who = str(pane[4])
+				space = str(pane[3])
 				state = wanted
 				since = began
 		if not who.is_empty():
@@ -708,7 +711,7 @@ func test_the_showroom_next_names_a_mock_pane_that_waits() -> void:
 	)
 	_check(not button.disabled, "and can be pressed")
 	_check(
-		("\nNext: %s · %s @ Local" % [who, state]) in button.tooltip_text,
+		("\nNext: %s · %s @ Local · %s" % [who, state, space]) in button.tooltip_text,
 		"its tooltip says the whole sentence: %s" % button.tooltip_text
 	)
 	showroom.free()
@@ -735,7 +738,7 @@ func test_panes_no_floor_seats_wait_in_the_same_order() -> void:
 	_feed(office, _with(first, "api:p1", {"agent_status": "blocked"}))
 	await _frames(2)
 	_check(
-		office.hud.inspector.next_text().begins_with("PI "),
+		office.hud.inspector.next_text().begins_with("tests · "),
 		"NEXT names api:p4, blocked longer: " + office.hud.inspector.next_text()
 	)
 	await _press(office.hud.bar.counter(&"blocked"))
@@ -797,7 +800,7 @@ func test_a_blocked_agent_still_launching_is_counted_and_next() -> void:
 	_feed(office, alone)
 	await _frames(1)
 	_check(
-		office.hud.inspector.next_text().begins_with("CLAUDE api · blocked"),
+		office.hud.inspector.next_text().begins_with("refactor the fleet · blocked"),
 		"NEXT names it: " + office.hud.inspector.next_text()
 	)
 	var since := office.fleet.state_since(LOCAL, "api:p1")

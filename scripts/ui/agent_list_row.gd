@@ -21,8 +21,8 @@ signal menu_requested(key: String, at: Vector2)
 
 ## Palette-driven looks for the row that is selected and the rest.
 const LOOKS := {
-	true: {"row": &"ListRowCurrent", "name": &"LabelPaper", "detail": &"LabelPaper", "note": &"LabelPaper"},
-	false: {"row": &"ListRow", "name": &"LabelWoodDark", "detail": &"LabelSlate", "note": &"LabelSlate"},
+	true: {"row": &"ListRowCurrent", "name": &"LabelPaper", "note": &"LabelPaper"},
+	false: {"row": &"ListRow", "name": &"LabelWoodDark", "note": &"LabelSlate"},
 }
 
 ## Presence -> the pack image the icon wears: a state (its badge), or one of
@@ -46,7 +46,6 @@ class Look:
 	extends RefCounted
 	var kind := AgentListModel.Kind.PANE
 	var title := ""
-	var detail := ""
 	var note := ""
 	var mark := &""
 	var presence := AgentListModel.Presence.UNKNOWN
@@ -68,7 +67,6 @@ class Look:
 			current == is_current
 			and kind == entry.kind
 			and title == entry.title
-			and detail == entry.detail
 			and note == entry.note
 			and depth == entry.depth
 			and presence == entry.presence
@@ -126,12 +124,9 @@ func show_entry(entry: AgentListModel.Entry, current: bool, now_msec: int) -> vo
 	var tones: Dictionary = LOOKS[current]
 	theme_type_variation = tones.row
 	var name_label: Label = %Name
-	var detail: Label = %Detail
 	var tail: Label = %Tail
 	name_label.text = next.title
 	name_label.theme_type_variation = tones.name if not next.grey or current else &"LabelMuted"
-	detail.text = next.detail
-	detail.theme_type_variation = tones.detail if not next.grey or current else &"LabelMuted"
 	var indent: PanelContainer = %Indent
 	indent.visible = next.depth > 0
 	indent.theme_type_variation = StringName("ListIndent%d" % next.depth)
@@ -186,7 +181,6 @@ static func look_of(entry: AgentListModel.Entry, current: bool) -> Look:
 	var look := Look.new()
 	look.kind = entry.kind
 	look.title = entry.title
-	look.detail = entry.detail
 	look.note = entry.note
 	look.mark = MARKS.get(entry.presence, ArtContract.STATE_UNKNOWN)
 	look.presence = entry.presence
@@ -249,19 +243,18 @@ static func has_actions(entry: AgentListModel.Entry) -> bool:
 ## Everything the row has no room for: where the pane is, and for a History
 ## line what became of it, how often it was blocked and for how long.
 static func _tooltip(entry: AgentListModel.Entry, now_msec: int) -> String:
-	var lines := PackedStringArray([entry.title + ("  " + entry.detail if not entry.detail.is_empty() else "")])
+	var lines := PackedStringArray([entry.title])
 	if entry.kind == AgentListModel.Kind.PANE:
-		var pane := entry.pane
-		var workspace := pane.workspace_label if not pane.workspace_label.is_empty() else "Unknown workspace"
-		var tab := pane.tab_label if not pane.tab_label.is_empty() else "Unknown tab"
-		lines.append("%s / %s" % [workspace, tab])
+		# The row says only the name: the kind and the place are here.
+		lines[0] += "  " + entry.pane.who()
+		lines.append(entry.pane.place())
 		if entry.presence == AgentListModel.Presence.OFFLINE:
 			lines.append("Offline · last state unknown")
 	if entry.history != null:
 		var line := entry.history
+		# The tab is what a place says for it: none for a workspace's lone default tab.
 		var workspace := line.space if not line.space.is_empty() else "Unknown workspace"
-		var tab := line.tab if not line.tab.is_empty() else "Unknown tab"
-		lines.append("%s / %s / %s" % [line.machine_label, workspace, tab])
+		lines.append("%s / %s" % [line.machine_label, workspace] + ("" if line.tab.is_empty() else " / " + line.tab))
 		lines.append(AgentHistory.tooltip_of(line))
 	var item := entry.item
 	if item != null:

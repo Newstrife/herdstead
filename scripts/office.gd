@@ -245,6 +245,7 @@ func _ready() -> void:
 	_update_light(true)
 	camera = OfficeCamera.new(hud, _screen)
 	_tips = OfficeQuestionTips.new(hud, camera, func() -> OfficeFrame: return frame, get_viewport().get_mouse_position)
+	_tips.art = art
 	world = Node2D.new()
 	world.position = camera.free_rect().position
 	add_child(world)
@@ -455,6 +456,7 @@ func switch_theme(path: String) -> void:
 		return
 	manifest_path = path
 	art = chosen
+	_tips.art = art
 	pen = OfficeDraw.new(art)
 	hud.dress(art, pen.font)
 	_update_light(true)
@@ -1143,7 +1145,15 @@ func _build(building: BuildingModel, map: MapModel, planned: FloorPlan, problems
 	rooms.position = Vector2(0, PLATE_HEIGHT)
 	world.add_child(rooms)
 	floor_view = OfficeFloorView.new()
-	floor_view.setup(pen, rooms, _on_desk_picked, _on_chip_picked, _tips.on_chip_hovered, _tips.on_sign_hovered)
+	floor_view.setup(
+		pen,
+		rooms,
+		_on_desk_picked,
+		_on_chip_picked,
+		_tips.on_chip_hovered,
+		_tips.on_sign_hovered,
+		_tips.on_seat_hovered
+	)
 	_marks.floor_view = floor_view
 	floor_view.set_night(night)
 	# A map whose current input cannot be planned keeps drawing the model its

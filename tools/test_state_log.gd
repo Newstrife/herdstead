@@ -335,7 +335,9 @@ func test_the_event_ring_and_segment_caps_drop_the_oldest() -> void:
 
 
 ## What the log holds is its own: a sighting changed afterwards changes no
-## event or track; and nothing it holds is terminal text (a title or a path).
+## event or track; and nothing it holds is terminal text (a title or a path),
+## but for the pane's name (DisplayName: a title, cut to its clusters), which
+## is what the office calls the pane, and never a path.
 func test_labels_are_copies_and_never_terminal_text() -> void:
 	var ledger := StateLog.new()
 	ledger.observe("local", "Local", true, [_sighting("local", "w:p1", "working")], 1000, 1e9)
@@ -347,7 +349,8 @@ func test_labels_are_copies_and_never_terminal_text() -> void:
 	_eq([event.agent, event.space], ["claude", "space"], "the event keeps what it was told")
 	var track := ledger.track(HerdrFleet.pane_key("local", "w:p1"))
 	_eq([track.agent, track.space], ["claude", "space"], "and so does the track")
-	# Every pane with a title and a path the ledger must never hold.
+	# Every pane with a title and a path the ledger must never hold, the title
+	# outside the pane's name.
 	var marked: Dictionary = fixture.duplicate(true)
 	for pane: Dictionary in _list(marked, "panes"):
 		pane.terminal_title_stripped = "TITLE-SECRET " + str(pane.pane_id)
@@ -371,7 +374,57 @@ func test_labels_are_copies_and_never_terminal_text() -> void:
 			texts.append(segment.state)
 	for text in texts:
 		_check(not "SECRET" in text, "no terminal title or path: %s" % text)
+	# D1/N2 2026-10-27: the pane's display name, which may come from its
+	# terminal title, is how the office names an agent everywhere, the log
+	# included; it is the title alone (stripped, capped), never a path or any
+	# other terminal text.
+	var names := PackedStringArray()
+	for each in fleet_log.events():
+		# A machine's own events name no pane.
+		if not each.pane_key.is_empty():
+			names.append(each.name)
+	for each in fleet_log.tracks():
+		names.append(each.name)
+	var titles: Array[String] = []
+	for pane: Dictionary in _list(marked, "panes"):
+		titles.append(str(pane.terminal_title_stripped))
+	for called in names:
+		_check(called in titles, "the name is a pane's title, nothing else: " + called)
 	_done(office)
+
+
+## The pane's name (Sighting.name, DisplayName's) rides from the sighting to
+## the track and onto every event recorded after; a new name alone (a new task
+## summary) is a change the log keeps (its version moves) but no event.
+func test_a_name_rides_on_the_track_and_its_events() -> void:
+	var ledger := StateLog.new()
+	var sighting := _sighting("local", "w:p1", "working")
+	sighting.name = "Add retry to fetch"
+	ledger.observe("local", "Local", true, [sighting], 1000, 1e9)
+	var key := HerdrFleet.pane_key("local", "w:p1")
+	_eq(ledger.track(key).name, "Add retry to fetch", "the track takes the name")
+	var events := ledger.events().size()
+	var version := ledger.version
+	var renamed := _sighting("local", "w:p1", "working")
+	renamed.name = "Retry with backoff"
+	ledger.observe("local", "Local", true, [renamed], 2000, 1e9)
+	_eq(ledger.track(key).name, "Retry with backoff", "a new name is kept")
+	_check(ledger.version > version, "the log moved: a model built from it is rebuilt")
+	_eq(ledger.events().size(), events, "and no event is written for a name")
+	var blocked := _sighting("local", "w:p1", "blocked", 1e9)
+	blocked.name = "Retry with backoff"
+	ledger.observe("local", "Local", true, [blocked], 3000, 1e9)
+	var last := ledger.events()[ledger.events().size() - 1]
+	_eq([last.state, last.name], ["blocked", "Retry with backoff"], "the event says the name it had")
+	renamed.name = "changed"
+	_eq(last.name, "Retry with backoff", "a copy: the sighting changed afterwards changes nothing")
+	var line := AgentHistory.Line.new()
+	_eq(line.name, "", "a History line starts with no name")
+	var model := OverviewModel.of(
+		_overview_frame(key), ledger, "", OverviewModel.Sort.STATE, false, OverviewModel.Filter.ALL, 3000
+	)
+	_eq(model.rows[0].name, "Retry with backoff", "the OVERVIEW's row is called the same")
+	_eq(OverviewLine.agent_text(model.rows[0]), "Retry with backoff", "and its AGENT column says it")
 
 
 ## Lengths come from the monotonic clock handed in, which never runs backwards
@@ -679,6 +732,20 @@ func _shape(ledger: StateLog) -> Array:
 
 
 ## One agent pane `pane_id` of `machine` in `status`, its start `since` (-1: unknown).
+## A frame with Local live and pane `key` in it, as the OVERVIEW reads one.
+func _overview_frame(key: String) -> OfficeFrame:
+	var frame := OfficeFrame.new()
+	var building := BuildingModel.new()
+	building.key = "local"
+	building.label = "Local"
+	building.panes = 1
+	var pane := PaneModel.new()
+	pane.key = key
+	frame.pane_by_key[key] = pane
+	frame.buildings.append(building)
+	return frame
+
+
 func _sighting(machine: String, pane_id: String, status: String, since := -1.0) -> StateLog.Sighting:
 	var sighting := StateLog.Sighting.new()
 	sighting.pane_key = HerdrFleet.pane_key(machine, pane_id)

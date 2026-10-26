@@ -583,6 +583,9 @@ func test_labels_clear_the_heads_they_hang_on() -> void:
 			ArtContract.STATE_WORKING, ArtContract.STATE_BLOCKED, ArtContract.STATE_IDLE, ArtContract.STATE_DONE
 		]:
 			station.furnish("claude", state, true)
+			# The plate's words are show_name()'s now (S1 names); a long name fills
+			# the plate's whole width, so its text is measured at its widest.
+			station.show_name("refactor the fleet")
 			if state == ArtContract.STATE_BLOCKED:
 				station.chip().show_wait(5999.0)
 			var where := "%s %s" % [side, state]

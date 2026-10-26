@@ -840,8 +840,8 @@ func _title() -> String:
 	if _pane == null:
 		parts.append("Pane gone")
 	else:
-		parts.append(_pane.provider.to_upper() if not _pane.provider.is_empty() else "SHELL")
-		var place := "%s / %s" % [_pane.workspace_label, _pane.tab_label]
+		parts.append(_pane.name)
+		var place := _pane.place()
 		if not _machine_label.is_empty():
 			place = _machine_label + " / " + place
 		parts.append(place)

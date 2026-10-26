@@ -1038,7 +1038,8 @@ func test_a_zone_call_shows_the_planned_density() -> void:
 	for rows: int in [2, 1]:
 		var office := await _live_office(_density(rows), Vector2(960, 480))
 		_check(not office.hud.drawer_open() and office.hud.card_compact(), "drawer closed, card one line")
-		_eq(office.hud.world_rect(), Rect2(96, 48, 820, 308), "the world's room at 1920×960, 2x")
+		# The SPACES column says the zones' names from 960 units on: 48 more are its.
+		_eq(office.hud.world_rect(), Rect2(144, 48, 772, 308), "the world's room at 1920×960, 2x")
 		var plan := office.layout_plan()
 		var a := plan.zone(HerdrFleet.pane_key(LOCAL, "a"))
 		var b := plan.zone(HerdrFleet.pane_key(LOCAL, "b"))

@@ -854,7 +854,7 @@ func test_worker_and_starting_flip() -> void:
 	_feed(office, snapshot)
 	_eq(_names(desk), ["Chair", "Actor", "Overlay", "Target"], "a worker comes to the seat")
 	_check(_sprite(desk, "Overlay/Badge").visible, "with a badge")
-	_eq(_plate(desk).text, "CODEX", "the name plate follows")
+	_eq(_plate(desk).text, "main", "the name plate keeps the pane's name")
 	_check(desk.get_node("Actor").is_in_group("office_actors"), "the new worker is an office actor")
 	_walked(office, "as the worker comes in")
 	_check(_feet(desk).disabled, "and sits: a seated worker does not collide")
@@ -864,7 +864,7 @@ func test_worker_and_starting_flip() -> void:
 	desk = office.floor_view.seats[shell].node
 	_eq(_names(desk), ["Chair", "Overlay", "Target"], "the worker leaves")
 	_check(not _badge(desk).visible and not _badge(desk).is_in_group(StatusBadge.GROUP), "with the badge")
-	_eq(_plate(desk).text, "SHELL", "the plate says shell again")
+	_eq(_plate(desk).text, "main", "and the shell is still called so")
 	world_id = office.world.get_instance_id()
 	snapshot = _with(snapshot, "api:p2", {"launch_pending": true})
 	_feed(office, snapshot)
@@ -1485,7 +1485,7 @@ func test_hud_updates_in_place() -> void:
 	var hud: OfficeHud = office.hud
 	var nodes := _hud_nodes(office)
 	_check(nodes.size() > 40, "the HUD is a real scene, not a handful of nodes: %d" % nodes.size())
-	_eq(_label(hud.inspector, "%Provider").text, "CLAUDE", "the inspector names the selected pane's agent")
+	_eq(_label(hud.inspector, "%CardName").text, "refactor the fleet", "the inspector names the selected pane")
 	var portrait: PixelPerson = hud.inspector.portrait()
 	_check(portrait != null and portrait.is_playing(), "and its portrait is animating")
 	_feed(office, fixture)

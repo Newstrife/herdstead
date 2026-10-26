@@ -1,14 +1,16 @@
 class_name NextModel
 extends RefCounted
 ## Whom `N` would pick next (OfficeNavigator.peek_next()), as the staff panel's
-## NEXT button says it: what a press does to them, provider, space and herdr's
-## word for the state. How long they have waited is not here: OfficeAttention
+## NEXT button says it: what a press does to them, what the office calls them,
+## their space and herdr's word for the state. How long they have waited is not here: OfficeAttention
 ## ticks it (attention.gd).
 
 ## HerdrFleet.pane_key() of the pane.
 var key := ""
 ## herdr's agent name; empty for a shell.
 var provider := ""
+## What the office calls the pane (PaneModel.name).
+var name := ""
 ## The pane's workspace label; `?` when the snapshot carries none.
 var space := ""
 ## herdr's word for the state: `blocked` or `done`.
@@ -27,6 +29,7 @@ static func of(pane: PaneModel, machine_label: String, may_write := false) -> Ne
 	var next := NextModel.new()
 	next.key = pane.key
 	next.provider = pane.provider
+	next.name = pane.name
 	next.space = pane.workspace_label if not pane.workspace_label.is_empty() else "?"
 	next.state = pane.state
 	next.machine = machine_label

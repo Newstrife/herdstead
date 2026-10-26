@@ -137,7 +137,11 @@ class Stack:
 ## Who sits at the desk shown, in what state and where: the header and the
 ## PANE list (CardDetails writes it).
 class Header:
+	## Who sits there in the words of a kind (PaneModel.who()): the seat line's
+	## first word.
 	var provider := ""
+	## What the office calls the pane (PaneModel.name): the card's title.
+	var name := ""
 	var caption := ""
 	var caption_tip := ""
 	## The pill the caption stands in and the caption's own look (HudTheme).
@@ -172,7 +176,7 @@ class Header:
 	var dimmed := false
 	var key := ""
 	var badge := &""
-	## The compact line: provider, caption and seat in the header's words.
+	## The compact line: name, caption and place in the header's words.
 	var summary := ""
 	var summary_tip := ""
 
@@ -298,11 +302,10 @@ static func header_of(facts: Facts) -> Header:
 	var made := Header.new()
 	var state := StringName(pane.state)
 	var starting := pane.launching()
-	# A start herdr took but whose kind it has not detected yet: the name it gave.
-	var named := starting and pane.provider.is_empty() and not pane.agent_name.is_empty()
-	made.provider = (
-		pane.agent_name.to_upper() if named else "SHELL" if pane.provider.is_empty() else pane.provider.to_upper()
-	)
+	# The title is the pane's name; the kind (or, for a start herdr took but
+	# whose kind it has not detected yet, the name herdr gave) leads the seat line.
+	made.name = pane.name
+	made.provider = pane.who()
 	# A shell has no agent, so no person and no agent state: herdr's idle for it is the terminal's.
 	var shell := pane.provider.is_empty() and not starting
 	made.caption = (
@@ -319,10 +322,8 @@ static func header_of(facts: Facts) -> Header:
 		)
 	made.machine_shown = not facts.machine.is_empty()
 	made.machine = "@ " + facts.machine
-	# A pane whose workspace or tab the snapshot does not carry still names its seat.
-	var space := pane.workspace_label if not pane.workspace_label.is_empty() else "?"
-	var tab := pane.tab_label if not pane.tab_label.is_empty() else "?"
-	made.seat = "%s / %s" % [space, tab]
+	# A pane whose workspace the snapshot does not carry still names its seat.
+	made.seat = "%s · %s" % [made.provider, pane.place()]
 	made.pane_id = pane.pane_id
 	made.pane_id_tip = "Pane: " + pane.pane_id + "\nTerminal: " + pane.terminal_id
 	made.label = pane.label
@@ -356,7 +357,7 @@ static func header_of(facts: Facts) -> Header:
 		ArtContract.UI_OFFLINE if facts.dimmed else ArtContract.UI_STARTING if starting else facts.state_badge
 	)
 	# The compact line says the same three things in the same words.
-	made.summary = "%s · %s · %s" % [made.provider, made.caption, made.seat]
+	made.summary = "%s · %s · %s" % [made.name, made.caption, pane.place()]
 	made.summary_tip = made.summary if facts.machine.is_empty() else made.summary + " @ " + facts.machine
 	return made
 
@@ -586,8 +587,7 @@ static func answer_of(facts: Facts) -> Answer:
 	made.title = not facts.answering and not (facts.compact and facts.card)
 	made.title_text = HEADING
 	if facts.answering and facts.pane != null:
-		var who := "SHELL" if facts.pane.provider.is_empty() else facts.pane.provider.to_upper()
-		made.title_text = "%s · %s" % [who, facts.state_caption]
+		made.title_text = "%s · %s" % [facts.pane.name, facts.state_caption]
 		if not facts.machine.is_empty():
 			made.title_text += " · " + facts.machine
 		made.title_tip = "Answering: " + made.title_text
@@ -628,12 +628,12 @@ static func key_words(key_name: String, on: String) -> String:
 
 
 ## NEXT's words. At full height `NEXT:` over what a press does and to whom
-## (`Answer CLAUDE web`, `Read CODEX api`; ` @ bee` with several machines) and
-## the wait; on a wide line the same three in a row. A narrow line has room
-## for provider and space only, whole, and no `NEXT:` before them; on either
-## line the button's tooltip says the whole sentence. An office that cannot
-## write has no verb, and says whom and herdr's state instead (`CLAUDE web ·
-## blocked`). `NEXT: All clear` fits every form.
+## (`Answer needs approval`, `Read refactor the fleet`; ` @ bee` with several
+## machines) and the wait; on a wide line the same three in a row. A narrow
+## line has room for the name only, and no `NEXT:` before it; on either line
+## the button's tooltip says the whole sentence and the space. An office that
+## cannot write has no verb, and says whom and herdr's state instead (`needs
+## approval · blocked`). `NEXT: All clear` fits every form.
 static func next_of(facts: Facts) -> Next:
 	var pill := Next.new()
 	var whom := facts.next
@@ -646,14 +646,14 @@ static func next_of(facts: Facts) -> Next:
 		pill.line = "All clear"
 		pill.muted = true
 		return pill
-	var who := "%s %s" % ["SHELL" if whom.provider.is_empty() else whom.provider.to_upper(), whom.space]
+	var who := whom.name
 	var whole := "%s · %s" % [who, whom.state] if whom.verb.is_empty() else "%s %s" % [whom.verb, who]
 	if not whom.machine.is_empty():
 		whole += " @ " + whom.machine
 	pill.line = who if short else whole
-	# The one line clips what does not fit (a long space, ` @ machine`): its
-	# tooltip says the whole sentence, at either width.
+	# The one line clips what does not fit (a long name, ` @ machine`): its
+	# tooltip says the whole sentence and the space, at either width.
 	if facts.compact:
-		pill.tip = tip + "\nNext: " + whole
+		pill.tip = tip + "\nNext: " + whole + " · " + whom.space
 	pill.muted = false
 	return pill

@@ -66,7 +66,8 @@ func reconcile(room: RoomModel, next: DeskPlacement) -> void:
 		_sync_stations(next)
 		_draw_background(next)
 	placement = next
-	title.text = room.label.to_upper()
+	# Nothing for the lone tab of a workspace while herdr calls it by its number.
+	title.text = room.label_shown.to_upper()
 
 
 func _sync_stations(next: DeskPlacement) -> void:

@@ -218,7 +218,7 @@ func test_conflicting_workspace_keeps_details_without_false_navigation() -> void
 	)
 	_eq(office.picked_key, key, "the unplaced pane is selected")
 	var seat: Label = office.hud.inspector.get_node("%Seat")
-	_eq(seat.text, "infra / ui", "the card keeps both declared names")
+	_eq(seat.text, "CLAUDE · infra / ui", "the card's seat line keeps both declared names")
 	# While anyone is blocked, N walks the blocked only: the conflict and
 	# infra:p1, not the done.
 	var visited: Array[String] = []
@@ -239,7 +239,7 @@ func test_conflicting_workspace_keeps_details_without_false_navigation() -> void
 		HerdrFleet.pane_key(LOCAL, "web"),
 		"once repaired, a click reaches it"
 	)
-	_eq(seat.text, "web / ui", "world, list and card agree")
+	_eq(seat.text, "CLAUDE · web / ui", "world, list and card agree")
 	_done(office)
 
 
@@ -351,7 +351,7 @@ func test_unverifiable_reconnect_keeps_old_history_navigation_disabled() -> void
 	if row == null:
 		_done(office)
 		return
-	var name_label: Label = row.get_node("%Detail")
+	var name_label: Label = row.get_node("%Name")
 	_check(not name_label.text.contains("New worker during gap"), "the line does not impersonate the replacement")
 	var selected := office.picked_key
 	await _row_action(office, line, "Details", true)

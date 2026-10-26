@@ -13,8 +13,11 @@ var key := ""
 var tab_id := ""
 var number := 0
 
-## The tab's label, on the room's sign.
+## herdr's label for the tab.
 var label := ""
+## What the floor under the pod says (DisplayName.tab_shown()): nothing for the
+## only tab of its workspace while herdr still calls it by its number.
+var label_shown := ""
 ## Whether this table is the open one (see Active). What the desk lamps of this
 ## room are dimmed by, and deliberately not part of its geometry signature: a
 ## tab opening must not re-plan the floor.

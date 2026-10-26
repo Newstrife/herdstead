@@ -64,6 +64,15 @@ var terminal_title := ""
 var workspace_label := ""
 ## Label of the tab this pane names; empty when the snapshot has no such tab.
 var tab_label := ""
+## What a place says for that tab (DisplayName.tab_shown()): empty for the only
+## tab of its workspace while herdr still calls it by its number.
+var tab_shown := ""
+## What every surface calls this pane (DisplayName.of_pane()): its task, its
+## label, its tab's or directory's name. Remote text, at most
+## DisplayName.MAX_CLUSTERS clusters; shown, never sent, never a key, and
+## deliberately not part of desk_signature(): the plate has its own channel
+## (OfficeStation.show_name()).
+var name := ""
 ## Unix time this pane's state began, as the fleet counted it (HerdrFleet.state_since);
 ## -1 when unknown: first seen already in it, after a reconnect, or a new session.
 ## Filled by the office's frame builder on the panes seated on a floor (the
@@ -107,6 +116,22 @@ func asks() -> bool:
 ## herdr is still launching the pane's agent and it has not asked anything yet.
 func launching() -> bool:
 	return starting and not asks()
+
+
+## Who sits here, in the words of a kind: the provider in capitals, the name
+## herdr gave an agent it is still launching and has not recognised yet
+## (`CLAUDE-2`), or SHELL for a pane without an agent.
+func who() -> String:
+	if launching() and provider.is_empty() and not agent_name.is_empty():
+		return agent_name.to_upper()
+	return "SHELL" if provider.is_empty() else provider.to_upper()
+
+
+## Where the pane is: its workspace (`?` when the snapshot carries none) and,
+## when there is one to say, its tab (`api / tests`, `notes`).
+func place() -> String:
+	var space := workspace_label if not workspace_label.is_empty() else "?"
+	return space if tab_shown.is_empty() else space + " / " + tab_shown
 
 
 ## The last path component of `cwd`, which is all the inspector has room for.

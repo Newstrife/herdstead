@@ -250,7 +250,7 @@ func test_two_clicks_close_a_shell_and_an_idle_agent_walks_out() -> void:
 	_ctl("control-a", "status", {"pane_id": "alpha:p1", "agent_status": "idle"})
 	var told := func() -> bool:
 		for text in office.hud.news.item_texts():
-			if "SHELL alpha lab pane closed" in text:
+			if "main · alpha lab pane closed" in text:
 				return true
 		return false
 	await _until(told, "NEWS says the shell's pane closed: %s" % [office.hud.news.item_texts()])

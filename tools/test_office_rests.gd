@@ -50,7 +50,7 @@ func test_a_blocked_agent_stays_seated_with_a_hand_up_and_a_bubble() -> void:
 	_eq([str(body.look.context), body.track], ["desk", &"desk_blocked"], "hand up at the desk")
 	# The plate names the seat only while it is hovered, selected or under the
 	# lens (it used to show always; a 30-wide plate row is transient now).
-	_eq(_plate(station).text, "CODEX", "the plate still names the seat")
+	_eq(_plate(station).text, "main", "the plate still names the seat: the pane's name (its tab)")
 	_check(not _plate(station).visible, "and shows only on hover, selection or the lens")
 	var bubble := station.chip()
 	_check(bubble.visible, "the bubble shows at once")
@@ -355,7 +355,8 @@ func test_the_bubble_wait_is_short_enough_to_read() -> void:
 ## was never seen: nothing of the chip is drawn, frame included, only the
 ## raised hand and the badge, and the chip's rectangle is where it always is,
 ## over the far badge, so the pointer on the badge shows the tooltip. The
-## pointer leaving takes it away; a drag over the chip shows none; switching
+## pointer leaving takes it away (onto the seat below, which says its own
+## name); a drag over the chip shows none; switching
 ## floors takes it away.
 func test_hovering_a_bubble_shows_a_tooltip() -> void:
 	var office := await _live_office(_with(whole, "api:p2", {"agent_status": "blocked"}))
@@ -382,14 +383,16 @@ func test_hovering_a_bubble_shows_a_tooltip() -> void:
 	_eq(office.hud.world_tip_text(), OfficeQuestionReader.READ_ONLY_TEXT, "saying read-only")
 	var at := station.chip_rect().get_center() - office.camera.position
 	await _parsed(_motion(at + Vector2(0, 70)))
-	_check(not office.hud.world_tip_shown(), "off it: none")
+	# 70 below the chip is the shell api:p3's seat, whose own tooltip names it now.
+	var shell_tip := "main\nSHELL\napi / main"
+	_eq(office.hud.world_tip_text(), shell_tip, "off it: not the bubble's, the seat under the pointer's")
 	await _parsed(_motion(at))
 	_check(office.hud.world_tip_shown(), "the pointer on the bubble: a tooltip")
 	_eq(office.hud.world_tip_text(), OfficeQuestionReader.READ_ONLY_TEXT, "read-only says so")
 	var tip: Control = office.hud.get_node("%WorldTip")
 	_check(office.hud.world_rect().encloses(tip.get_global_rect()), "inside the world's part of the screen")
 	await _parsed(_motion(at + Vector2(0, 70)))
-	_check(not office.hud.world_tip_shown(), "the pointer leaves: no tooltip")
+	_eq(office.hud.world_tip_text(), shell_tip, "the pointer leaves: the bubble's tooltip goes")
 	await _parsed(_mouse_button(at + Vector2(0, 70), MOUSE_BUTTON_LEFT, true))
 	await _parsed(_motion(at, true))
 	_check(not office.hud.world_tip_shown(), "a drag over the bubble shows none")
@@ -918,7 +921,7 @@ func test_the_papers_and_the_minimap_count_unread_alike() -> void:
 ## Blocked comes first: a shell whose start asks at once. herdr launches claude
 ## in api:p1 and it blocks before the launch is over: the desk drawn in place
 ## is the one a rebuild draws (hand up, chip, pulsing blocked badge), the
-## plate says the kind, and the chip says how long it has waited, from the
+## plate says the pane's name, and the chip says how long it has waited, from the
 ## moment the office saw it block, and keeps it when the launch is over.
 func test_a_start_that_asks_at_once_matches_a_rebuild() -> void:
 	var start := _with(fixture, "api:p1", {"agent": null})
@@ -934,7 +937,7 @@ func test_a_start_that_asks_at_once_matches_a_rebuild() -> void:
 	_eq(station.rest, OfficeRests.Rest.SEAT, "at its seat")
 	_check(station.chip().visible, "with the bubble over its head")
 	_eq(station.actor().track, &"desk_blocked", "and its hand up")
-	_eq(_plate(station).text, "CLAUDE", "the plate says the kind")
+	_eq(_plate(station).text, "refactor the fleet", "the plate says the pane's name")
 	await _text_tick()
 	_check(
 		not _wait_text(office, _pane("api:p1")).is_empty(),

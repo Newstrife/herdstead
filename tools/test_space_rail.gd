@@ -139,9 +139,11 @@ func test_windows_light_up_by_state_one_per_pane() -> void:
 	_eq(_looks(rail.row_for(_zone("hud"))), [&"WindowBlocked"], "a blocked agent's window")
 	_eq(_looks(rail.row_for(_zone("data"))), [&"WindowDone", &"WindowWorking"], "an UNREAD one, and one at work")
 	_eq(
-		_tips(rail.row_for(_zone("hs"))), ["claude · WORKING", "codex · IDLE", "shell"], "tooltips name agent and state"
+		_tips(rail.row_for(_zone("hs"))),
+		["claude session · WORKING", "codex session · IDLE", "main · shell"],
+		"tooltips name the pane (its title; the shell its tab) and its state"
 	)
-	_eq(_tips(rail.row_for(_zone("hud"))), ["claude · NEEDS INPUT"], "in the pack's words")
+	_eq(_tips(rail.row_for(_zone("hud"))), ["claude session · NEEDS INPUT"], "in the pack's words")
 	_check(_node(rail.row_for(_zone("hud")), "%BlockedIcon").visible, "the blocked count stays beside it")
 	# The 800-wide rail leaves the UNREAD count to the row's tooltip.
 	_check(not _node(rail.row_for(_zone("data")), "%DoneIcon").visible, "the rail shows no UNREAD icon")
@@ -174,7 +176,11 @@ func test_a_window_names_its_pane_and_a_click_on_it_pans_to_its_zone() -> void:
 	motion.global_position = at
 	await _parsed(motion)
 	_eq(root.gui_get_hovered_control(), window, "the pointer is over the window itself")
-	_eq(window.get_tooltip(window.get_local_mouse_position()), "codex · UNREAD", "which names its agent and state")
+	_eq(
+		window.get_tooltip(window.get_local_mouse_position()),
+		"codex session · UNREAD",
+		"which names its pane and state"
+	)
 	var revision := office.navigator.nav_revision
 	await _click_at(at)
 	_eq(office.navigator.current_zone(office.frame), _zone("data"), "a click on a window pans to its zone at once")
@@ -219,7 +225,7 @@ func test_a_stale_machine_section_is_dimmed_with_every_window_dark() -> void:
 		_eq(row.modulate, tint, key + ": dimmed")
 		_check(_looks(row).all(func(look: StringName) -> bool: return look == &"WindowDark"), key + ": no lit window")
 		_check(not _node(row, "%BlockedIcon").visible and not _node(row, "%DoneIcon").visible, key + ": no count")
-	_eq(_tips(rail.row_for(_zone("hs")))[0], "claude · OFFLINE", "a dark window says why")
+	_eq(_tips(rail.row_for(_zone("hs")))[0], "claude session · OFFLINE", "a dark window says why")
 	_set_online(office, true)
 	await _frames(1)
 	_eq(rail.row_for(_zone("hs")).modulate, Color.WHITE, "back online, back to full colour")
@@ -315,7 +321,7 @@ func test_a_blocked_start_lights_its_window_blocked_and_shows_an_arrow() -> void
 	_check(office.frame.pane(_pane("data:p2")).starting, "herdr still launches data:p2")
 	var row := rail.row_for(_zone("data"))
 	_eq(_looks(row), [&"WindowDone", &"WindowBlocked"], "its window is lit blocked, not plainly")
-	_eq(_tips(row).slice(1), ["pi · NEEDS INPUT"], "and names it so, in the pack's words")
+	_eq(_tips(row).slice(1), ["pi session · NEEDS INPUT"], "and names it so, in the pack's words")
 	_eq(office.frame.find_zone(_zone("data")).zone_model.blocked, 1, "the row counts it")
 	_check(_node(row, "%BlockedIcon").visible, "beside the blocked icon")
 	var keys := office.hud.edge_arrows.shown().map(func(arrow: OfficeEdgeArrow) -> String: return arrow.zone_key())
@@ -326,7 +332,7 @@ func test_a_blocked_start_lights_its_window_blocked_and_shows_an_arrow() -> void
 # --- the narrow rail and its names ----------------------------------------------
 
 
-## The SPACES column is a narrow rail below 1280 wide: each row keeps its
+## The SPACES column is a narrow rail below 960 wide: each row keeps its
 ## number chip, its blocked badge and count, and the windows directly under the
 ## chip; its name, indent and UNREAD count step out, and the row's tooltip,
 ## under a real pointer, says them. Every row fits the rail's 72 units, and a
@@ -382,17 +388,18 @@ func test_the_rail_says_number_windows_and_blocked_with_the_name_in_its_tooltip(
 	hud.free()
 
 
-## The zones' names come back from the scene's `spaces_named_from` (1280) on:
-## at 1279 wide the column is the 72-wide rail, at 1280 it is 120 wide with each
+## The zones' names come back from the scene's `spaces_named_from` (960: the
+## default 1920 x 960 window at zoom 2) on: at 959 wide the column is the
+## 72-wide rail, at 960 it is 120 wide with each
 ## zone's name and UNREAD count and the mezzanines indented, and the world
 ## starts right of it. The same row nodes throughout.
 func test_space_names_show_from_the_scenes_width() -> void:
 	var office := await _live_office()
 	var rail := office.hud.spaces
-	_eq(office.hud.spaces_named_from, 1280.0, "the scene's line")
+	_eq(office.hud.spaces_named_from, 960.0, "the scene's line")
 	var ids := rail.row_keys().map(func(key: String) -> int: return rail.row_for(key).get_instance_id())
 	var data := func() -> OfficeSpaceRow: return rail.row_for(_zone("data"))
-	for step: Array in [[1279.0, false, 72.0, 96.0], [1280.0, true, 120.0, 144.0], [1279.0, false, 72.0, 96.0]]:
+	for step: Array in [[959.0, false, 72.0, 96.0], [960.0, true, 120.0, 144.0], [959.0, false, 72.0, 96.0]]:
 		var width: float = step[0]
 		var screen := Vector2(width, 480)
 		office.test_screen = screen

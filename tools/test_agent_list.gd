@@ -468,8 +468,9 @@ func test_history_lines_show_what_became_of_each_record() -> void:
 	_eq(lines, PackedStringArray([ended, gone, offline]), "a line per pane that needed a human, newest first")
 	_eq(notes, ["", "GONE", "OFFLINE"], "each line says what became of its pane; an ENDED one needs no word")
 	_check(hud.agent_list.entry_for("history:" + _local("web:p1")) == null, "a pane still waiting is no History")
-	_eq(hud.agent_list.entry_for(ended).title, "PI", "the provider, in capitals")
-	_eq(hud.agent_list.entry_for(ended).detail, "deploy", "its tab: the space is its floor")
+	_eq(hud.agent_list.entry_for(ended).title, "deploy", "what the office called the pane (its tab: title `pi`)")
+	var ended_tip := hud.agent_list.row_for(ended).get_tooltip(Vector2.ZERO)
+	_check(ended_tip.contains("Local / infra / deploy"), "its place, in the tooltip: " + ended_tip)
 	_eq(hud.agent_list.entry_for(ended).presence, AgentListModel.Presence.BLOCKED, "its badge: it was blocked")
 	_eq(hud.agent_list.entry_for(gone).presence, AgentListModel.Presence.UNREAD, "this one's: it was done")
 	var ended_row := hud.agent_list.row_for(ended)
@@ -512,7 +513,11 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_check(holder.visible and hud.card_compact(), "the list is there, and the panel is compact")
 	_eq(hud.inspector.size, Vector2(448, 28), "the panel is one line along the bottom")
 	_check(line.is_visible_in_tree() and not detail.is_visible_in_tree(), "its compact line, not its details")
-	_eq(hud.inspector.get_node("%CompactLine").get("text"), "CLAUDE · WORKING · api / main", "who, state and seat")
+	_eq(
+		hud.inspector.get_node("%CompactLine").get("text"),
+		"refactor the fleet · WORKING · api / main",
+		"the pane's name, state and place"
+	)
 	_check(next.is_visible_in_tree(), "NEXT is on it")
 	_check(hud.inspector.get_global_rect().encloses(next.get_global_rect()), "inside the panel")
 	_check(not preview.is_visible_in_tree(), "the preview is out of it")
@@ -684,7 +689,7 @@ func test_the_card_holds_all_it_shows_for_a_state_with_a_note() -> void:
 	var open: Button = hud.inspector.get_node("%CompactOpen")
 	var fold: Button = hud.inspector.get_node("%FoldButton")
 	var shown: Array[Control] = [seat, open]
-	for unique: String in ["%Provider", "%CaptionPill"]:
+	for unique: String in ["%CardName", "%CaptionPill"]:
 		var part: Control = hud.inspector.get_node(unique)
 		shown.append(part)
 	for step: Array in [["web:p2", false, "done"], ["api:p1", true, "a dropped machine's"]]:
@@ -900,7 +905,7 @@ func test_the_next_button_says_who_n_would_pick() -> void:
 	var button: Button = hud.inspector.get_node("%NextButton")
 	var line: Label = hud.inspector.get_node("%NextLine")
 	var wait: Label = hud.inspector.get_node("%NextWait")
-	_eq(line.text, "Answer CLAUDE web", "what a press does, to whom, where")
+	_eq(line.text, "Answer needs approval", "what a press does, and to whom: the pane's name")
 	_eq(wait.text, "12m (N)", "how long, and the key")
 	_check(hud.card_compact() and wait.is_visible_in_tree(), "on the one line, the wait in the row")
 	var title: Control = hud.inspector.get_node("%NextTitle")
@@ -929,7 +934,7 @@ func test_the_next_button_says_who_n_would_pick() -> void:
 	)
 	_check(needed <= wait.size.x + 0.5, "the wait whole in the row: %.1f of %.1f" % [needed, wait.size.x])
 	await _open_staff()
-	_eq(line.text, "Answer CLAUDE web", "at full height the same words")
+	_eq(line.text, "Answer needs approval", "at full height the same words")
 	for label: Control in [line, wait]:
 		_check(button.get_global_rect().encloses(label.get_global_rect()), "%s inside the button" % label.name)
 	var asked: Array[bool] = []
@@ -937,12 +942,12 @@ func test_the_next_button_says_who_n_would_pick() -> void:
 	await _click(button)
 	_eq(asked.size(), 1, "a press asks for N")
 	hud.inspector.show_next(NextModel.of(blocked, "bee", true))
-	_eq(line.text, "Answer CLAUDE web @ bee", "with more than one machine, which one")
+	_eq(line.text, "Answer needs approval @ bee", "with more than one machine, which one")
 	var unread := frame.pane(_local("web:p2"))
 	hud.inspector.show_next(NextModel.of(unread, "", true))
-	_eq(line.text, "Read %s web" % unread.provider.to_upper(), "a done one is read")
+	_eq(line.text, "Read %s" % unread.name, "a done one is read")
 	hud.inspector.show_next(NextModel.of(blocked, ""))
-	_eq(line.text, "CLAUDE web · blocked", "no verb where the office cannot write: whom and why")
+	_eq(line.text, "needs approval · blocked", "no verb where the office cannot write: whom and why")
 	hud.inspector.show_next(null)
 	await _frames(1)
 	_eq(line.text, "All clear", "nobody next")
@@ -950,6 +955,31 @@ func test_the_next_button_says_who_n_would_pick() -> void:
 	_check(button.disabled, "and off")
 	await _click(button)
 	_eq(asked.size(), 1, "an off NEXT asks for nothing")
+
+
+## Nobody next, the NEXT pill is off but not hollow: the card form floats it
+## over the world, and a box with no fill showed the floor through `All
+## clear`. Its fill is the pill's own `deep`, opaque, inside a `slate` edge;
+## the other dark buttons switched off (a card action) stay hollow.
+func test_nobody_next_is_an_opaque_pill() -> void:
+	await _hud()
+	hud.inspector.show_next(null)
+	await _frames(1)
+	var button: Button = hud.inspector.get_node("%NextButton")
+	_check(button.disabled, "nobody next: the pill is off")
+	var off := button.get_theme_stylebox("disabled") as StyleBoxFlat
+	_check(off != null, "its box is a flat one")
+	if off == null:
+		return
+	_eq(off.bg_color, art.color(ArtContract.DEEP), "filled deep")
+	_eq(off.bg_color.a, 1.0, "opaque: the world does not show through it")
+	_eq(off.border_color, art.color(ArtContract.SLATE), "inside a slate edge")
+	_eq(off.get_border_width(SIDE_LEFT), 1, "one unit wide")
+	_eq(off.get_corner_radius(CORNER_TOP_LEFT), 6, "with the pill's corners")
+	var on := button.get_theme_stylebox("normal") as StyleBoxFlat
+	_eq(off.bg_color, on.bg_color, "the same fill as the pill when somebody is next")
+	var action := button.get_theme_stylebox("disabled", "CardAction") as StyleBoxFlat
+	_check(action != null and action.bg_color.a == 0.0, "a switched-off card action stays hollow")
 
 
 func test_world_rect_keeps_clear_of_the_column_and_the_list_takes_the_wheel() -> void:
@@ -1445,11 +1475,13 @@ func test_rows_that_fit_leave_the_bars_room_and_no_bar() -> void:
 
 
 ## The bar's room comes out of the drawer's right padding, not out of the
-## rows. A row keeps its width (126 units at every screen size, the tab 52
-## units on a blocked row and 16 on an UNREAD one, where `CODEX ui` / `CODEX rev`
-## fit whole), with the bar showing or not, at 800x480, 960x480 and 480x320.
+## rows. A row keeps its width (126 units at every screen size), with the bar
+## showing or not, at 800x480, 960x480 and 480x320: the pane's name has the
+## row to itself (cut there; the kind and place are in the tooltip), but for
+## an UNREAD row's note.
 func test_the_bars_room_leaves_the_rows_their_width() -> void:
-	var widths: Dictionary[String, float] = {"web:p1": 52.0, "web:p2": 16.0, "infra:p2": 16.0}
+	# A blocked row (`needs approval`), and two UNREAD ones whose note takes room.
+	var ids: Array[String] = ["web:p1", "web:p2", "infra:p2"]
 	for size: Vector2i in [Vector2i(800, 480), Vector2i(960, 480), Vector2i(480, 320)]:
 		for many: bool in [true, false]:
 			await _hud(size)
@@ -1462,14 +1494,17 @@ func test_the_bars_room_leaves_the_rows_their_width() -> void:
 			_eq(bar.visible, many, "%s: the bar shows only with many rows" % size)
 			if many:
 				_eq(bar.size.x, float(HudTheme.DRAWER_BAR), "%s: as wide as the theme says" % size)
-			for id: String in widths:
+			for id: String in ids:
 				var row := hud.agent_list.row_for(_local(id))
 				if row == null:
 					continue
-				var detail: Label = row.get_node("%Detail")
+				var named: Label = row.get_node("%Name")
 				var when := "%s %s, bar %s" % [size, id, "shown" if many else "hidden"]
 				_check(row.size.x >= 126.0, "%s: the row is 126 wide: %.1f" % [when, row.size.x])
-				_check(detail.size.x >= widths[id], "%s: its tab has %.0f: %.1f" % [when, widths[id], detail.size.x])
+				_check(row.size.x <= 128.0, "%s: and no wider for a long name: %.1f" % [when, row.size.x])
+				# The name has the row to itself, but for the note on an UNREAD one.
+				var room := 80.0 if id == "web:p1" else 40.0
+				_check(named.size.x >= room, "%s: the name has %.0f: %.1f" % [when, room, named.size.x])
 			hud.queue_free()
 			await _frames(1)
 
@@ -1642,7 +1677,9 @@ func _log(ledger: StateLog, frame: OfficeFrame, key: String, online: bool, now_m
 			sighting.starting = pane.starting
 			sighting.agent = pane.provider
 			sighting.space = pane.workspace_label
-			sighting.tab = pane.tab_label
+			# As the fleet does: the tab a place says, and the pane's name.
+			sighting.tab = pane.tab_shown
+			sighting.name = pane.name
 			sighting.terminal_id = pane.terminal_id
 			sighting.since_unix = now_msec / 1000.0
 			seen.append(sighting)

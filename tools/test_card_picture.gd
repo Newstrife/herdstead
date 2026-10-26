@@ -27,8 +27,9 @@ func _marker() -> String:
 # --- the facts the cases start from ---------------------------------------------
 
 
-## An agent's pane on machine `local`: claude, blocked, in space `web`, tab `main`.
-func _agent(state := "blocked", provider := "claude") -> PaneModel:
+## An agent's pane on machine `local`: claude, blocked, in space `web`, tab
+## `main`, called `fix the login` (its title, as DisplayName names it).
+func _agent(state := "blocked", provider := "claude", called := "fix the login") -> PaneModel:
 	var pane := PaneModel.new()
 	pane.pane_id = "w1:p1"
 	pane.key = HerdrFleet.pane_key("local", "w1:p1")
@@ -38,7 +39,9 @@ func _agent(state := "blocked", provider := "claude") -> PaneModel:
 	pane.starting_known = true
 	pane.workspace_label = "web"
 	pane.tab_label = "main"
+	pane.tab_shown = "main"
 	pane.cwd = "/home/u/repo"
+	pane.name = called
 	return pane
 
 
@@ -636,14 +639,14 @@ func test_answer_mode_opens_its_controls_and_names_who_is_answered() -> void:
 	)
 	_eq(
 		[answer.title, answer.title_text, answer.title_tip],
-		[false, "CLAUDE · BLOCKED", "Answering: CLAUDE · BLOCKED"],
-		"who is answered"
+		[false, "fix the login · BLOCKED", "Answering: fix the login · BLOCKED"],
+		"who is answered, by the pane's name"
 	)
 	facts.machine = "bee"
 	answer = CardPicture.answer_of(facts)
 	_eq(
 		[answer.title_text, answer.title_tip],
-		["CLAUDE · BLOCKED · bee", "Answering: CLAUDE · BLOCKED · bee"],
+		["fix the login · BLOCKED · bee", "Answering: fix the login · BLOCKED · bee"],
 		"and on which machine"
 	)
 	_check(not CardPicture.stack_of(facts).title, "the stack hides the heading too")
@@ -922,20 +925,24 @@ func test_next_says_what_a_press_does_and_to_whom() -> void:
 	var pill := CardPicture.next_of(facts)
 	_eq(
 		[pill.somebody, pill.title, pill.line, pill.muted, pill.tip],
-		[true, true, "Answer CLAUDE web", false, NEXT_TIP],
-		"a blocked agent is answered"
+		[true, true, "Answer fix the login", false, NEXT_TIP],
+		"a blocked agent is answered, called by its name"
 	)
-	facts.next = NextModel.of(_agent("done", "codex"), "bee", true)
-	_eq(CardPicture.next_of(facts).line, "Read CODEX web @ bee", "a done one is read; several machines name theirs")
+	facts.next = NextModel.of(_agent("done", "codex", "review the diff"), "bee", true)
+	_eq(
+		CardPicture.next_of(facts).line,
+		"Read review the diff @ bee",
+		"a done one is read; several machines name theirs"
+	)
 	facts.next = NextModel.of(_agent("blocked"), "", false)
 	pill = CardPicture.next_of(facts)
 	_eq(
 		[pill.line, pill.tip],
-		["CLAUDE web · blocked", OfficePaneInspector.NEXT_PICKS_TIP],
+		["fix the login · blocked", OfficePaneInspector.NEXT_PICKS_TIP],
 		"read-only: whom and herdr's state, and it only picks"
 	)
-	facts.next = NextModel.of(_agent("blocked", ""), "", false)
-	_eq(CardPicture.next_of(facts).line, "SHELL web · blocked", "a pane with no agent is a shell")
+	facts.next = NextModel.of(_agent("blocked", "", "notes"), "", false)
+	_eq(CardPicture.next_of(facts).line, "notes · blocked", "a pane with no agent is called by its name too")
 
 
 ## On the folded line NEXT's tooltip adds the whole sentence; a narrow line
@@ -947,19 +954,46 @@ func test_next_on_the_line_says_whom_alone_when_narrow() -> void:
 	var pill := CardPicture.next_of(facts)
 	_eq(
 		[pill.title, pill.line, pill.tip],
-		[true, "Answer CLAUDE web @ bee", NEXT_TIP + "\nNext: Answer CLAUDE web @ bee"],
-		"a wide line: the whole sentence, and again in the tooltip"
+		[true, "Answer fix the login @ bee", NEXT_TIP + "\nNext: Answer fix the login @ bee · web"],
+		"a wide line: the whole sentence, and again in the tooltip with the space"
 	)
 	facts.wide = false
 	pill = CardPicture.next_of(facts)
 	_eq(
 		[pill.title, pill.line, pill.tip],
-		[false, "CLAUDE web", NEXT_TIP + "\nNext: Answer CLAUDE web @ bee"],
-		"a narrow line: whom alone; the tooltip still says it all"
+		[false, "fix the login", NEXT_TIP + "\nNext: Answer fix the login @ bee · web"],
+		"a narrow line: the name alone; the tooltip still says it all"
 	)
 	facts.compact = false
 	pill = CardPicture.next_of(facts)
-	_eq([pill.title, pill.line, pill.tip], [true, "Answer CLAUDE web @ bee", NEXT_TIP], "full height is never short")
+	_eq([pill.title, pill.line, pill.tip], [true, "Answer fix the login @ bee", NEXT_TIP], "full height is never short")
+
+
+## NEXT calls whom it names by the pane's name (DisplayName), never by the
+## provider word: two claudes are two names. The space is in the tooltip
+## only; a start herdr is still launching is called what the office calls
+## the pane too, and a workspace's lone default tab is not said.
+func test_next_calls_whom_by_the_pane_name() -> void:
+	var facts := _facts()
+	var one := _agent("blocked", "claude", "Add retry to fetch")
+	var two := _agent("blocked", "claude", "修复登录重定向")
+	two.tab_shown = ""
+	facts.next = NextModel.of(one, "", true)
+	_eq(CardPicture.next_of(facts).line, "Answer Add retry to fetch", "one claude by its task")
+	facts.next = NextModel.of(two, "", true)
+	_eq(CardPicture.next_of(facts).line, "Answer 修复登录重定向", "another claude by its own")
+	_eq(NextModel.of(two, "", true).name, "修复登录重定向", "the model carries the name")
+	facts.compact = true
+	facts.wide = false
+	var pill := CardPicture.next_of(facts)
+	_eq(
+		[pill.line, pill.tip],
+		["修复登录重定向", NEXT_TIP + "\nNext: Answer 修复登录重定向 · web"],
+		"narrow: the name alone; the space only in the tooltip"
+	)
+	facts.next = NextModel.of(_agent("done", "codex", "review the diff"), "", false)
+	facts.compact = false
+	_eq(CardPicture.next_of(facts).line, "review the diff · done", "read-only: the name and herdr's state")
 
 
 ## Nobody next: `All clear`, muted, in every form, and the button is off.
@@ -979,18 +1013,24 @@ func test_nobody_next_is_all_clear_in_every_form() -> void:
 # --- the header ---------------------------------------------------------------------
 
 
-## The header says who, in what state (the pack's word for it, in the state's
-## pill) and where; the compact line says the same three in the same words.
+## The header says what the pane is called (its title), who sits there and in
+## what state (the pack's word for it, in the state's pill) and where (the
+## seat line: the kind, then the place); the compact line says the name, the
+## state and the place in the same words.
 func test_the_header_says_who_in_what_state_and_where() -> void:
 	var pane := _agent("blocked")
 	var facts := _facts(pane)
 	var header := CardPicture.header_of(facts)
 	_eq(
-		[header.provider, header.caption, header.pill, header.caption_look, header.caption_tip],
-		["CLAUDE", "BLOCKED", &"StatePillBlocked", &"LabelInk", "Not launching"],
-		"who and in what state"
+		[header.name, header.provider, header.caption, header.pill, header.caption_look, header.caption_tip],
+		["fix the login", "CLAUDE", "BLOCKED", &"StatePillBlocked", &"LabelInk", "Not launching"],
+		"what it is called, who and in what state"
 	)
-	_eq([header.seat, header.machine_shown, header.machine], ["web / main", false, "@ "], "where, on one machine")
+	_eq(
+		[header.seat, header.machine_shown, header.machine],
+		["CLAUDE · web / main", false, "@ "],
+		"who and where, on one machine"
+	)
 	_eq([header.pane_id, header.pane_id_tip], ["w1:p1", "Pane: w1:p1\nTerminal: term-1"], "the pane and its terminal")
 	_eq([header.cwd, header.cwd_tip], ["repo", "Working directory: /home/u/repo"], "its directory, by its last name")
 	_eq(
@@ -1001,13 +1041,13 @@ func test_the_header_says_who_in_what_state_and_where() -> void:
 	_eq(header.badge, &"blocked", "under the state's own badge")
 	_eq(
 		[header.summary, header.summary_tip],
-		["CLAUDE · BLOCKED · web / main", "CLAUDE · BLOCKED · web / main"],
+		["fix the login · BLOCKED · web / main", "fix the login · BLOCKED · web / main"],
 		"the line"
 	)
 	facts.machine = "bee"
 	header = CardPicture.header_of(facts)
 	_eq([header.machine_shown, header.machine], [true, "@ bee"], "several machines: which one")
-	_eq(header.summary_tip, "CLAUDE · BLOCKED · web / main @ bee", "and the line's tooltip names it")
+	_eq(header.summary_tip, "fix the login · BLOCKED · web / main @ bee", "and the line's tooltip names it")
 	pane.starting_known = false
 	_eq(CardPicture.header_of(facts).caption_tip, "Launch status not reported", "herdr said nothing of a launch")
 	var pills: Dictionary[String, StringName] = {
@@ -1021,6 +1061,31 @@ func test_the_header_says_who_in_what_state_and_where() -> void:
 		var shown := CardPicture.header_of(_facts(_agent(state)))
 		var look := &"LabelPaper" if state == "unknown" else &"LabelInk"
 		_eq([shown.caption, shown.pill, shown.caption_look], [state.to_upper(), pills[state], look], state)
+
+
+## The card is called by the pane's name: its title, the compact line and
+## answer mode's title; the seat line says who in a kind's words (a start
+## herdr took: the name it gave) and where, without a workspace's lone
+## default tab. The name is never upper-cased, and a CJK one stays whole.
+func test_the_card_is_called_by_the_pane_name() -> void:
+	var pane := _agent("working", "claude", "修复登录重定向")
+	pane.tab_shown = ""
+	var facts := _facts(pane)
+	var header := CardPicture.header_of(facts)
+	_eq([header.name, header.seat], ["修复登录重定向", "CLAUDE · web"], "the name; a lone default tab unsaid")
+	_eq(header.summary, "修复登录重定向 · WORKING · web", "the line: name, state, place")
+	var launching := _agent("unknown", "", "api")
+	launching.starting = true
+	launching.agent_name = "claude-2"
+	var start := CardPicture.header_of(_facts(launching))
+	_eq([start.name, start.seat], ["api", "CLAUDE-2 · web / main"], "a start: its name, and the name herdr gave")
+	facts.answering = true
+	pane.state = "blocked"
+	facts.state_caption = "BLOCKED"
+	var answer := CardPicture.answer_of(facts)
+	_eq(answer.title_text, "修复登录重定向 · BLOCKED", "answer mode names whom it answers")
+	var shell := CardPicture.header_of(_facts(_agent("idle", "", "notes")))
+	_eq([shell.name, shell.seat], ["notes", "SHELL · web / main"], "a shell: its name, and SHELL")
 
 
 ## A shell, a start and a dropped machine are quiet: no state colour, and
@@ -1073,7 +1138,7 @@ func test_a_shell_a_start_and_a_dropped_machine_are_quiet() -> void:
 		],
 		"a dropped machine: stale, never idle"
 	)
-	_eq(stale.summary, "CLAUDE · STALE / OFFLINE · web / main", "and so says the line")
+	_eq(stale.summary, "fix the login · STALE / OFFLINE · web / main", "and so says the line")
 	var done := CardPicture.header_of(_facts(_agent("done")))
 	_eq([done.has_note, done.note], [true, "UNREAD = not yet seen\nNot task success."], "done explains UNREAD")
 	_check(not CardPicture.header_of(_facts(_agent("working"))).has_note, "no other state has a note")
@@ -1085,9 +1150,10 @@ func test_the_pane_list_shows_only_what_the_pane_has() -> void:
 	var bare := _agent("idle")
 	bare.workspace_label = ""
 	bare.tab_label = ""
+	bare.tab_shown = ""
 	bare.cwd = ""
 	var header := CardPicture.header_of(_facts(bare))
-	_eq([header.seat, header.cwd, header.cwd_tip], ["? / ?", "-", "Working directory: "], "nothing known of where")
+	_eq([header.seat, header.cwd, header.cwd_tip], ["CLAUDE · ?", "-", "Working directory: "], "nothing known of where")
 	_eq(
 		[header.label_shown, header.foreground_shown, header.session_shown, header.session, header.title],
 		[false, false, false, "", ""],

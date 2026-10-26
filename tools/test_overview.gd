@@ -41,6 +41,8 @@ func test_the_model_sorts_by_attention_and_filters_live_states() -> void:
 		_sighting("local", "w:done", "done", "pi"),
 		_sighting("local", "w:working", "working", "claude"),
 	]
+	# One pane the office names (DisplayName); the others say their kind.
+	local[3].name = "add retry"
 	ledger.observe("local", "Local", true, local, 1000, 1e9)
 	ledger.observe("bee", "bee", true, [_sighting("bee", "w:gone", "blocked", "claude")], 1000, 1e9)
 	# One more blocked pane, seen blocking later: shorter in its state.
@@ -96,7 +98,13 @@ func test_the_model_sorts_by_attention_and_filters_live_states() -> void:
 	var by_agent := OverviewModel.of(
 		frame, ledger, "", OverviewModel.Sort.AGENT, false, OverviewModel.Filter.ALL, 11000
 	)
-	_eq(by_agent.keys()[0], _pane("local", "w:shell"), "AGENT ascending: the shell's empty name first")
+	# The AGENT column shows names (Row.called()), so it sorts by them, ties by key.
+	_eq(by_agent.keys()[0], _pane("local", "w:done"), "AGENT ascending: `add retry` first")
+	_eq(by_agent.keys()[by_agent.rows.size() - 1], _pane("local", "w:shell"), "and `shell` after `PI`")
+	var called := by_agent.rows.map(func(row: OverviewModel.Row) -> String: return row.called().to_lower())
+	var sorted := called.duplicate()
+	sorted.sort()
+	_eq(called, sorted, "every row in the order of what it shows")
 
 
 ## A pane there from the start opens in its state at the timeline's left edge,
@@ -602,7 +610,7 @@ func test_a_launching_pane_reads_starting_in_the_state_column() -> void:
 	await _tap(KEY_O)
 	var overview := office.hud.overview
 	await _until(func() -> bool: return _state_text(office, key) == "STARTING", "STATE says STARTING")
-	_eq(_text(office, key, "%AgentName"), "CLAUDE-1", "under herdr's name for it")
+	_eq(_text(office, key, "%AgentName"), "main", "under the pane's name (its tab), as before the start")
 	_eq(office.hud.overview.line_for(key).badge_mark(), ArtContract.UI_STARTING, "the starting badge, not unknown's")
 	var starting_mark := AgentListRow.MARKS[AgentListModel.Presence.STARTING]
 	_eq(office.hud.overview.line_for(key).badge_mark(), starting_mark, "the one the agent list wears for a start")
@@ -613,7 +621,8 @@ func test_a_launching_pane_reads_starting_in_the_state_column() -> void:
 			pane["agent"] = "claude"
 	_ctl("control-a", "set_snapshot", {"snapshot": detected})
 	_ctl("control-a", "emit", {"fixture_event": "pane_updated"})
-	await _until(func() -> bool: return _text(office, key, "%AgentName") == "CLAUDE", "herdr detects claude")
+	await _until(func() -> bool: return office.frame.pane(key).provider == "claude", "herdr detects claude")
+	_eq(_text(office, key, "%AgentName"), "main", "the pane keeps its name")
 	_eq(_state_text(office, key), "STARTING", "still launching: STARTING")
 	_eq(office.hud.overview.line_for(key).badge_mark(), starting_mark, "and the starting badge, not unknown's `?`")
 	_eq(office.hud.overview.line_for(local_p3).badge_mark(), ArtContract.STATE_IDLE, "an idle agent still wears idle's")

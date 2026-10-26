@@ -35,8 +35,10 @@ class Line:
 	var key := ""
 	var machine := ""
 	var machine_label := ""
-	## The track's agent (the row writes it in capitals).
+	## The track's agent (the row writes it in capitals when it has no name).
 	var provider := ""
+	## What the office called the pane (StateLog.Track.name): the row's title.
+	var name := ""
 	## herdr's workspace and tab labels. The row shows the tab: the space is the
 	## zone it stands in, which the tooltip names.
 	var space := ""
@@ -164,6 +166,7 @@ static func _line(ledger: StateLog, kept: StateLog.Track, frame: OfficeFrame, on
 	line.machine = kept.machine
 	line.machine_label = kept.machine_label
 	line.provider = kept.agent
+	line.name = kept.name
 	line.space = kept.space
 	line.tab = kept.tab
 	line.was = asked.state

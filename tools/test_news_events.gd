@@ -59,14 +59,19 @@ func _marker() -> String:
 ## Three changes are three entries, the newest on the left, in herdr's words:
 ## a blocked one says no duration, a done or working one how long the state
 ## before it lasted (`+`: it began before this office watched). The fourth is
-## Local coming online; the other four items are hidden. No terminal title
-## ever shows.
+## Local coming online; the other four items are hidden. A pane is called by
+## its name (DisplayName: here its title) and its space; no path ever shows.
 func test_news_shows_the_newest_first_in_herdr_words() -> void:
-	# Every pane with a title and a path no entry may ever show.
+	# Every pane with a title, a raw title and paths. D1/N2 2026-10-27: the
+	# pane's display name, which may come from its terminal title, is how the
+	# office names an agent everywhere, so the stripped title may show, as the
+	# name and only there; no other terminal text and no path ever does.
 	var marked: Dictionary = fixture.duplicate(true)
 	for pane: Dictionary in _list(marked, "panes"):
 		pane.terminal_title_stripped = "TITLE-SECRET " + str(pane.pane_id)
+		pane.terminal_title = "RAW-SECRET " + str(pane.pane_id)
 		pane.cwd = "/SECRET/" + str(pane.pane_id)
+		pane.foreground_cwd = "/SECRET-FG/" + str(pane.pane_id)
 	var office := await _live_office(marked)
 	var ledger := office.fleet.state_log()
 	var one := _with(marked, "api:p1", {"agent_status": "blocked"})
@@ -85,9 +90,9 @@ func test_news_shows_the_newest_first_in_herdr_words() -> void:
 		news.item_texts(),
 		PackedStringArray(
 			[
-				"%s PI api working %s → done" % [_clock(events[3]), _lasted(events[3])],
-				"%s CODEX web done %s → working" % [_clock(events[2]), _lasted(events[2])],
-				"%s CLAUDE api working %s → blocked" % [_clock(events[1]), _lasted(events[1])],
+				"%s TITLE-SECRET api:p4 · api working %s → done" % [_clock(events[3]), _lasted(events[3])],
+				"%s TITLE-SECRET web:p2 · web done %s → working" % [_clock(events[2]), _lasted(events[2])],
+				"%s TITLE-SECRET api:p1 · api working %s → blocked" % [_clock(events[1]), _lasted(events[1])],
 				"%s Local online" % _clock(events[0]),
 			]
 		),
@@ -98,9 +103,44 @@ func test_news_shows_the_newest_first_in_herdr_words() -> void:
 		_check(news.item(index).visible, "item %d shows" % index)
 	for index in range(4, OfficeNews.ITEMS):
 		_check(not news.item(index).visible, "item %d is hidden" % index)
-	for text in news.item_texts():
-		for word: String in ["back to", "went", "UNREAD", "unknown", "SECRET"]:
+	for index in 4:
+		var text := news.item(index).text
+		for word: String in ["back to", "went", "UNREAD", "unknown"]:
 			_check(not word in text, "no %s: %s" % [word, text])
+		# Outside the name it carries, an entry and its tooltip hold no terminal text and no path.
+		var outside := text + "\n" + news.item(index).tooltip_text
+		outside = outside.replace("TITLE-SECRET api:p4", "").replace("TITLE-SECRET web:p2", "")
+		outside = outside.replace("TITLE-SECRET api:p1", "")
+		_check(not "SECRET" in outside, "no other terminal text, no path: %s" % outside)
+	_done(office)
+
+
+## A pane's entry calls it by its name, cut to NewsItem.SUBJECT_CLUSTERS whole
+## clusters (a long task summary, a CJK one), then its space; the entry's
+## tooltip says the whole name. Two claudes in one space are two names.
+func test_news_calls_a_pane_by_its_cut_name() -> void:
+	var long_title := "✳ Add retry with exponential backoff to every fetch call"
+	var titled := _with(fixture, "api:p1", {"terminal_title_stripped": long_title})
+	titled = _with(titled, "web:p1", {"terminal_title_stripped": "修复登录重定向并补上回归测试用例以及文档说明和更多更多"})
+	var office := await _live_office(titled)
+	var one := _with(titled, "api:p1", {"agent_status": "blocked"})
+	_feed(office, one)
+	_feed(office, _with(one, "web:p1", {"agent_status": "working"}))
+	await _frames(2)
+	var news := office.hud.news
+	var whole := "Add retry with exponential backoff to every fetch call"
+	var cut := TerminalText.clip(whole, NewsItem.SUBJECT_CLUSTERS)
+	_eq(cut, "Add retry with exponent…", "cut at whole clusters, the ellipsis one of them")
+	_check(
+		news.item(1).text.substr(6).begins_with(cut + " · api working "),
+		"the name cut, then the space: " + news.item(1).text
+	)
+	_check(news.item(1).tooltip_text.begins_with(whole + "\n"), "the tooltip says the whole name")
+	var cjk := "修复登录重定向并补上回归测试用例以及文档说明和更多更多"
+	var cjk_cut := TerminalText.clip(cjk, NewsItem.SUBJECT_CLUSTERS)
+	_eq(cjk_cut.length(), NewsItem.SUBJECT_CLUSTERS, "a CJK name keeps as many glyphs")
+	_check(news.item(0).text.substr(6).begins_with(cjk_cut + " · web "), "whole glyphs: " + news.item(0).text)
+	_check(news.item(0).tooltip_text.begins_with(cjk + "\n"), "and its tooltip the whole of it")
 	_done(office)
 
 
@@ -115,7 +155,7 @@ func test_a_news_click_picks_the_pane_like_the_list() -> void:
 	var start_zone := office.navigator.current_zone(office.frame)
 	var item := office.hud.news.item(0)
 	_check(item.visible and not item.disabled, "the newest entry can be clicked")
-	_eq(item.tooltip_text, NewsItem.TIP_PICK, "and says what a click does")
+	_eq(item.tooltip_text, "ui\n" + NewsItem.TIP_PICK, "and says whom, whole, and what a click does")
 	await _press(item)
 	await _frames(3)
 	_eq(office.picked_key, key, "the click picks web:p2")
@@ -140,12 +180,12 @@ func test_a_news_item_for_a_gone_pane_is_disabled_not_silent() -> void:
 	var news := office.hud.news
 	var closed := news.item(0)
 	var changed := news.item(1)
-	_eq(closed.text.substr(6), "CODEX web pane closed", "the newest says the pane closed")
+	_eq(closed.text.substr(6), "ui · web pane closed", "the newest says the pane closed")
 	var working_event := office.fleet.state_log().events()[1]
-	_eq(changed.text.substr(6), "CODEX web done %s → working" % _lasted(working_event), "the one before, its change")
+	_eq(changed.text.substr(6), "ui · web done %s → working" % _lasted(working_event), "the one before, its change")
 	for item: Button in [closed, changed]:
 		_check(item.disabled, "%s is disabled" % item.text)
-		_eq(item.tooltip_text, NewsItem.TIP_GONE, "and says why")
+		_eq(item.tooltip_text, "ui\n" + NewsItem.TIP_GONE, "and says why")
 	var picked := office.picked_key
 	await _press(changed)
 	await _frames(2)
@@ -288,12 +328,12 @@ func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	_eq(_row_label(blocked, "%Time").text, _clock(events[1]), "the time, HH:MM")
 	_eq(
 		blocked.shown_text(),
-		"CLAUDE api\nworking %s → blocked" % _lasted(events[1]),
+		"refactor the fleet · api\nworking %s → blocked" % _lasted(events[1]),
 		"who, then the state that ended, how long, and the one that began"
 	)
 	_eq(blocked.mark(), art.state(ArtContract.STATE_BLOCKED).badge, "the blocked badge")
 	var done := office.hud.event_list.row_for(events[2].id)
-	_eq(done.shown_text(), "PI api\nworking %s → done" % _lasted(events[2]), "how long it worked, then done")
+	_eq(done.shown_text(), "tests · api\nworking %s → done" % _lasted(events[2]), "how long it worked, then done")
 	_check(_lasted(events[2]).ends_with("s+"), "seconds, at least: %s" % _lasted(events[2]))
 	_eq(done.mark(), art.state(ArtContract.STATE_DONE).badge, "the done badge")
 	var offline := office.hud.event_list.row_for(events[3].id)
@@ -320,8 +360,8 @@ func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	var log_now := office.fleet.state_log().events()
 	var launched := log_now[log_now.size() - 1]
 	_eq([launched.previous_state, launched.state], [StateLog.UNKNOWN, "idle"], "from unknown to idle")
-	_eq(office.hud.event_list.row_for(launched.id).shown_text(), "CODEX 数据 pipeline\nidle", "only idle")
-	_eq(office.hud.news.item(0).text.substr(6), "CODEX 数据 pipeline idle", "and NEWS says the same")
+	_eq(office.hud.event_list.row_for(launched.id).shown_text(), "etl · 数据 pipeline\nidle", "only idle")
+	_eq(office.hud.news.item(0).text.substr(6), "etl · 数据 pipeline idle", "and NEWS says the same")
 	# An hour-long segment in the drawer's width: the ended part is cut short,
 	# never the state the change went to, and the tooltip keeps all of it.
 	var long := StateLog.Event.new()
@@ -551,9 +591,9 @@ func test_read_only_news_and_events_send_nothing() -> void:
 	_done(office)
 
 
-## A start in a shell is news in herdr's words: the name herdr gave the agent
-## while its kind is not recognised (`CLAUDE-1 api starting`), then the new
-## agent, still starting, then its state; another terminal says so.
+## A start in a shell is news in herdr's words, the pane called by its name
+## throughout (`main · api starting`: its tab, its title being `zsh`), then
+## the new agent, still starting, then its state; another terminal says so.
 func test_news_says_starting_new_agent_and_new_session() -> void:
 	var office := await _live_office()
 	var ledger := office.fleet.state_log()
@@ -575,10 +615,10 @@ func test_news_says_starting_new_agent_and_new_session() -> void:
 		texts.slice(0, 4),
 		PackedStringArray(
 			[
-				"%s CLAUDE api idle · new terminal" % _clock(events[3]),
-				"%s CLAUDE api idle" % _clock(events[2]),
-				"%s CLAUDE api new agent · starting" % _clock(events[1]),
-				"%s CLAUDE-1 api starting" % _clock(events[0]),
+				"%s main · api idle · new terminal" % _clock(events[3]),
+				"%s main · api idle" % _clock(events[2]),
+				"%s main · api new agent · starting" % _clock(events[1]),
+				"%s main · api starting" % _clock(events[0]),
 			]
 		),
 		"newest first, in herdr's words"

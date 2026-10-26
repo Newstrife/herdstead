@@ -60,13 +60,17 @@ class Seat:
 	var look: StringName = &"WindowDark"
 	## The agent kind; empty for a shell.
 	var provider := ""
+	## What the office calls the pane (PaneModel.name), and who sits there in
+	## the words of a kind (PaneModel.who()).
+	var name := ""
+	var who := ""
 	## herdr's state, for the pack's word for it (ArtPack.state()).
 	var state_word_key: StringName = &""
 	## herdr is still launching the agent and it asks nothing yet (PaneModel.launching()).
 	var starting := false
 	## How long it has waited, for an agent that asks on a live machine; else empty.
 	var wait := ""
-	## Where it sits: `space / tab · pane`.
+	## Where it sits: `space / tab · pane` (PaneModel.place(), then its label or id).
 	var place := ""
 	## The selected pane: the corners go round it.
 	var picked := false
@@ -234,11 +238,13 @@ static func _seat(
 	made.side = placed.side
 	made.look = OfficeSpaceRow.window_look(pane, not dropped)
 	made.provider = pane.provider
+	made.name = pane.name
+	made.who = pane.who()
 	made.state_word_key = StringName(pane.state)
 	made.starting = pane.launching()
 	made.picked = pane.key == active_key
 	var pane_name := pane.label if not pane.label.is_empty() else pane.pane_id
-	made.place = "%s / %s · %s" % [pane.workspace_label, pane.tab_label, pane_name]
+	made.place = "%s · %s" % [pane.place(), pane_name]
 	if not dropped and pane.asks() and ledger != null:
 		var track := ledger.track(pane.key)
 		if track != null:
