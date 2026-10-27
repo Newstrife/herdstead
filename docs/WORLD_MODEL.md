@@ -70,8 +70,9 @@ Floor assembly:
 
 ```text
 FloorRooms              the node dimmed as a whole when its machine disconnects
-├── Ground              floor TileMapLayer, shell, the lens's washes, corridors, contact shadows, tab labels,
-│                       framed pictures on the top wall (drawn first)
+├── Ground              in this order: the shell (floor TileMapLayer, corridors, walls, framed pictures on the top
+│                       wall), the zones' carpets (`Carpets`, one NinePatchRect per zone), then each pod's
+│                       background: the lens's wash, contact shadows, tab label (drawn first)
 └── Sorted (y-sort)     tables, stations, standing furniture, the entry band's pantry, each zone's partitions (a
                         y-sorted holder) and sign, and anything else that stands on the floor and can cover or be
                         covered by a person
@@ -102,8 +103,7 @@ the entry band (2), then the zones from row 5. A map's first plan picks L = max(
 viewport width available at that moment (the default 1920×960 window at 2x: 772 units, 24 cells: four lanes, 23 cells);
 after that, window or zoom changes only change how much is visible, and nothing reflows. L is raised only when a zone
 needs more lanes than the map has. Never fewer than two lanes (13 cells): the smallest window (480×320 units) keeps the
-top wall's window and its picture. Known gap until S3-CARPET re-grids the top-wall run: at 5L + 3 cells with L
-odd (18, 28, 38, 58) the run's grid meets the windows and the door and stands no plant.
+top wall's window and its picture.
 
 **A zone** (a workspace, `ZonePlacement`) stands in k adjacent lanes under an **aisle row** of its own
 (`zone_aisle_cells`, 1; the first zones' aisle row is row 4, right under the entry band): it is 5k − 1 cells wide
@@ -175,14 +175,20 @@ No trinket, cat or rug belongs to a pod: nothing stands on a desk but a seat's o
 #### Rows over a seat
 
 Every row is 30 units wide and centred on its column, so neighbours (32 apart) keep 2 units between them. Pod y,
-half-open; the badge's pulse (`OfficeAttention.PULSES`) lifts it by 0, −1 or −2:
+half-open; the badge's pulse (`OfficeAttention.PULSES`) lifts it by 0, −1 or −2. The lens line and the plate stand on
+a **paper tag** (S3 item 7, CARPET-B1: they hang over a zone's carpet, where `ink` alone reads at about 2:1, under the
+lens about 1:1): the Label's own `normal` stylebox (`OfficeDraw.back_label()`: `paper`, square, not anti-aliased, no
+margins; no node is added), the Label laid by `OfficeDraw.hug()` as wide as its text and `TAG_PAD` (1) either side,
+centred in its row, the row's height, at most the row's 30 (a longer name fills it and ends in its ellipsis); a label
+with no text wears no tag. `99m+`'s tag is 20 wide ([−9, 11) about the column), `12m`'s 16. `ink` on `paper` is
+11.5:1. It is resized only when its text or its row changes (a name, a lens text, the lens held or let go):
 
 | Row | Far (above the head; raised hand top −72) | Near (below the chair; chair bottom 14) |
 |---|---|---|
 | Tag (the badge, 15 opaque, centred) | [−88, −72); pulse envelope [−90, −72) | [16, 32); pulse envelope [14, 32) |
 | Chip (blocked with a known wait) | `panel` [−15, 15) × [−88, −72); the badge in x [−16, −1) (one unit over the chip's left edge), the wait's 14-wide label in [0, 14): the widest form inks 13 units, so daylight stays between it and the badge and before the frame's right border | the same, over [16, 32) |
-| Lens (held `L`), 30×12 | [−102, −90) | [40, 52), past the tab label |
-| Plate (hover, selection, held `L`), 30×12, display face at 8, upper case, forced ellipsis | the lens row's slot [−102, −90); while `L` is held, [−114, −102) | the lens row's slot [40, 52); while `L` is held, [52, 64) |
+| Lens (held `L`), a row of 30×12, its paper tag hugging the text | [−102, −90) | [40, 52), past the tab label |
+| Plate (hover, selection, held `L`), a row of 30×12, its paper tag hugging the name, display face at 8, upper case, forced ellipsis | the lens row's slot [−102, −90); while `L` is held, [−114, −102) | the lens row's slot [40, 52); while `L` is held, [52, 64) |
 | Seat click rectangle | [−90, −32); [−72, −32) while the chip shows | [−24, 32) (from the far seat mark's foot, a unit over the near head, to the tag row; only a raised hand's tip, −28..−24, is above it); [−24, 14) while the chip shows |
 | Chip click rectangle | [−90, −72) | [14, 32) |
 | Pod selection frame (2-unit bars, `FRAME_OUTSIDE` 2 outside `render_rect`) | top bar [−92, −90), sides x [−2, 0) and [w, w + 2) | bottom bar [32, 34) |
@@ -216,7 +222,9 @@ corridor on the right is 64 wide, and each side outer wall takes 32. A map of on
 2 + 2 + 1 + 6 = 11 cells deep (a pod row is 6); an empty map is 11 too, the least a map is.
 
 `FloorPlan.floor_cells` is the one half-open integer rectangle. The base floor covers every cell of it, including
-under walls, in lane gaps and in gaps left by deletions; walkways draw over that full floor. The total
+under walls, in lane gaps and in gaps left by deletions; walkways draw over that full floor. Each zone's carpet
+(`OfficeShell.carpet_rect()`) lies over the floor inside its partitions and under its pods; no carpet reaches an aisle
+row, an aisle column or a corridor. The total
 drawing extent comes from the plan and the machine plate together; the camera never guesses bounds with stray `ceil()`
 or margins.
 
@@ -253,7 +261,14 @@ each cell centre between them along the bottom edge; and `partition_post` (6 × 
 its foot `POST_FOOT` (6) below the zone's top, where it covers the side run's top end (the art lane's mock). They are
 Sorted sprites placed by id (`OfficeDraw.prop()`), in a y-sorted holder per zone (so each sorts by its own foot), made
 again only when the zone's rectangle changes; they have no collider and no item block: the walk graph's partitions are
-the obstacle (see "Collision and walking"). The bottom run draws at [y1 − 10, y1), 14 units under the last pod row's tab
+the obstacle (see "Collision and walking"). Inside them lies the zone's **carpet** (`OfficeShell.carpet_rect()`: the
+zone's `bounds()` inset by `PARTITION_THICKNESS` on the left, right and bottom, the top at the zone's top, so it runs
+under the posts and stops at the aisle row): one `NinePatchRect` per zone in `Ground/Carpets` (after `Shell`, before
+the pods' backgrounds), dressed like the panel (`OfficeDraw.dress_nine_patch()`: the art's own pixels at its margins,
+only the flat middle stretched), in its worktree group's family (`OfficeZoneSign.carpet_of()`, the sign's
+`accent_of()` index), made again with the partitions when the zone's rectangle changes, its texture set again only
+when the family changes. No collider, no footprint: the walk graph never sees it. The lens dims it with the
+furnishing; the pod's wash lies over it. A narrowest zone (4 cells) carries a 116-unit carpet, a two-lane zone 276. The bottom run draws at [y1 − 10, y1), 14 units under the last pod row's tab
 labels, which stand where the pod's drawing ends and end at y1 − 24: a tab label is `OfficeDraw.TAB_LABEL_HEIGHT` (8)
 deep (`tab_face` gives up the display
 face's lowest descent row; the labels are upper case).
@@ -282,7 +297,12 @@ zone or state:
 
 - **the top-wall run**: plants `top/%03d` at the top wall's foot (foot y `TOP_RUN_FOOT` 76, in the clearance row),
   `TOP_RUN_PITCH` (160) apart from `TOP_RUN_FROM` (72), the plant of its step (`plant_at(step)`); a step whose plant
-  would meet the door, a window, a picture or the pantry counter stands empty (at 23 cells one stands, at 232);
+  would meet the door, a window, a picture or the pantry counter stands empty (at 23 cells one stands, at 232). The
+  grid meets a window gap only at some widths (it does at 23, 33, 43, 53 and 63 cells, never at 5L + 3 with L odd, nor
+  at 13): where no step stands a plant, one stands in the first window gap that takes it (`OfficeShell.window_gaps()`:
+  the middle of every gap between neighbouring windows that hangs no picture), keyed `top/w%02d` by the gap, the plant
+  `plant_at(gap)`; placed by the width alone, so every map's top wall stands at least one plant (13 cells: at 200; 18,
+  38, 58: 216; 28, 48: 248);
 - **lane gaps**: every run of at least `LANE_GAP_MIN_CELLS` (3) free cell rows inside a lane, outside every zone's
   slot and down to the map's bottom (`OfficeDecorPlanner.lane_gaps()`), stands a piece every `LANE_GAP_STEP_CELLS` (2)
   rows from its second row, in the lane's middle column, foot `LANE_GAP_FOOT` (8) above its row's bottom, keyed
@@ -578,7 +598,7 @@ Besides the client / machine / incremental-update tests, `tools/run_tests.sh` ch
 - The pod's near edge hangs one bracket under each desk and nothing else (no legs); near lamp light never passes the
   working surface. The real opaque pixels of every piece a side table carries are read and stay on its top; a
   fixed-identity rebuild, growth, state updates and theme rebuilds leave existing placements unchanged.
-- Shell bricks are all under `Ground`, standing furniture, partition pieces and zone signs all under `Sorted` (the
+- Shell bricks and the zones' carpets are all under `Ground`, standing furniture, partition pieces and zone signs all under `Sorted` (the
   partitions in a y-sorted holder per zone, each piece sorting by its own foot); each piece's position is unchanged
   across state changes and intersects no seat's click area, table footprint, walkway or aisle. No row wall and no row
   wall joint is laid; the top wall's courses are drawn once per cell.

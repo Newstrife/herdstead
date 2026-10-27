@@ -182,6 +182,9 @@ func setup(drawing: OfficeDraw, at_table: OfficeTable, at_column: int, seat_side
 	var lens: Label = $Overlay/Lens
 	pen.style_figures(lens, 8, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
 	lens.size = LENS_SIZE
+	# Ink words on a paper tag (S3 item 7: they stand on a zone's carpet, CARPET-B1).
+	pen.back_label(plate)
+	pen.back_label(lens)
 	var mark := art.selection_mark()
 	var selection: Sprite2D = $Overlay/Selection
 	art.dress(selection, art.sprite_texture(mark), mark.pivot)
@@ -319,6 +322,7 @@ func show_name(text: String) -> void:
 	var plate: Label = $Overlay/Plate
 	if plate.text != text:
 		plate.text = text
+		_lay_plate()
 
 
 ## The plate's text now (show_name()).
@@ -360,11 +364,11 @@ func show_lens(held: bool, text: String) -> void:
 	var line: Label = $Overlay/Lens
 	if held and line.text != text:
 		line.text = text
+		_lay_lens()
 	line.visible = held and not vacant and not text.is_empty()
 	_lens_held = held
 	chip().set_lensed(held)
-	var plate: Label = $Overlay/Plate
-	plate.position = _plate_at()
+	_lay_plate()
 	_show_plate()
 
 
@@ -385,6 +389,21 @@ func plate_shown() -> bool:
 ## is held (and the lens line has that row) the outermost row.
 func _plate_at() -> Vector2:
 	return PLATE_AT[side] if _lens_held else LENS_AT[side]
+
+
+## The plate's tag in its row (_plate_at(), PLATE_SIZE), hugging its text (OfficeDraw.hug()).
+func _lay_plate() -> void:
+	var plate: Label = $Overlay/Plate
+	if pen != null:
+		pen.hug(plate, Rect2(_plate_at(), PLATE_SIZE))
+
+
+## The lens line's tag in its row (LENS_AT, LENS_SIZE), hugging its text.
+func _lay_lens() -> void:
+	var lens: Label = $Overlay/Lens
+	if pen != null:
+		var row: Vector2 = LENS_AT[side]
+		pen.hug(lens, Rect2(row, LENS_SIZE))
 
 
 func _show_plate() -> void:
@@ -579,16 +598,12 @@ func _play(worker: PixelPerson) -> void:
 ## side's seat rectangle always (the other side's never) and the chip's while it
 ## shows.
 func _place() -> void:
-	var plate: Label = $Overlay/Plate
-	plate.position = _plate_at()
 	# Out of the tree the face is not on yet and a Label keeps the default
 	# font's 23-unit height; in it, the row is its own height again.
-	plate.size = PLATE_SIZE
+	_lay_plate()
 	var selection: Sprite2D = $Overlay/Selection
-	var lens: Label = $Overlay/Lens
-	lens.size = LENS_SIZE
+	_lay_lens()
 	selection.position = SELECTION_AT[side]
-	lens.position = LENS_AT[side]
 	var shown := chip()
 	var chip_at: Vector2 = CHIP_AT[side]
 	shown.position = chip_at

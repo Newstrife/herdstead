@@ -42,6 +42,16 @@ const TERRA := &"terra"
 const TEAL := &"teal"
 const LILAC := &"lilac"
 const ACCENTS: Array[StringName] = [SAGE, SKY, TERRA, TEAL, LILAC]
+## A zone's carpet (OfficeFloorView, OfficeZoneSign.carpet_of()): one family
+## per accent, index for index with ACCENTS, so a worktree group lies on the
+## carpet of the stripe it wears. Each is a UI nine-patch (a flat fill inside a
+## one-unit edge) and names its two palette colours: the fill under its own
+## id, the edge under `<id>_edge` (CARPET_EDGES), for anything that draws the
+## family flat. Structure, never state.
+const CARPETS: Array[StringName] = [&"carpet_sage", &"carpet_sky", &"carpet_terra", &"carpet_teal", &"carpet_lilac"]
+const CARPET_EDGES: Array[StringName] = [
+	&"carpet_sage_edge", &"carpet_sky_edge", &"carpet_terra_edge", &"carpet_teal_edge", &"carpet_lilac_edge"
+]
 ## Several of these carry a broad surface and text or an icon at once (`ink` is
 ## outline and body text, `cream` is wall and top-bar text, `paper` is panel and
 ## heading, `blocked` is badge and selection frame, `muted` is the top bar's
@@ -68,6 +78,16 @@ const PALETTE_KEYS: Array[StringName] = [
 	TERRA,
 	TEAL,
 	LILAC,
+	&"carpet_sage",
+	&"carpet_sage_edge",
+	&"carpet_sky",
+	&"carpet_sky_edge",
+	&"carpet_terra",
+	&"carpet_terra_edge",
+	&"carpet_teal",
+	&"carpet_teal_edge",
+	&"carpet_lilac",
+	&"carpet_lilac_edge",
 ]
 
 # --- tiles ----------------------------------------------------------------------
@@ -80,7 +100,8 @@ const FLOOR_WOOD: Array[StringName] = [&"floor.wood_a", &"floor.wood_b", &"floor
 ## the face below it, and the two side walls run the whole depth of the map.
 ## `wall.front_*` and `wall.threshold` stay unused — see docs/WORLD_MODEL.md
 ## for why there is no front wall; nor do the row walls' joints (`*_t_left`,
-## `*_end_right`): a zone is bounded by low partitions, not walls.
+## `*_end_right`): a zone is bounded by low partitions, not walls, and lies on
+## a carpet that is a UI nine-patch (CARPETS), not a tile.
 const WALL_CAP := &"cap"
 const WALL_FACE := &"face"
 const WALL_COURSES: Array[StringName] = [WALL_CAP, WALL_FACE]
@@ -267,7 +288,10 @@ static func problems(pack: ArtPack) -> PackedStringArray:
 	for mark in mark_ids():
 		if pack.ui_sprite(mark) == null:
 			found.append("ui: no provider mark named " + mark)
-	for framed: ArtSprite in [pack.panel(), pack.hud_panel()]:
+	var nine_patches: Array[StringName] = [UI_PANEL, UI_HUD_PANEL]
+	nine_patches.append_array(CARPETS)
+	for image in nine_patches:
+		var framed := pack.ui_sprite(image)
 		if framed != null and not framed.nine_patched():
 			found.append("ui: %s carries no nine_patch margins" % framed.id)
 	for name in STATES:
@@ -289,7 +313,8 @@ static func problems(pack: ArtPack) -> PackedStringArray:
 
 ## Every tile a map is laid out of: the wood variants, the walkway of the entry
 ## band and the main corridor, and the map's shell (the top wall's two courses
-## and the side walls). No rug: a pod stands on the floor itself.
+## and the side walls). No rug: a pod stands on the floor itself, and a zone's
+## carpet is a UI nine-patch (CARPETS), not a tile.
 static func tile_ids() -> Array[StringName]:
 	var result: Array[StringName] = [FLOOR_WALKWAY, WALL_SIDE_LEFT, WALL_SIDE_RIGHT]
 	result.append_array(FLOOR_WOOD)
@@ -306,9 +331,10 @@ static func wall_cell(course: StringName, end: StringName) -> StringName:
 	return StringName("wall.%s_%s" % [course, end])
 
 
-## Every UI image a scene draws: the fixed ones, plus every state's badge.
+## Every UI image a scene draws: the fixed ones, every state's badge and every
+## zone carpet.
 static func ui_ids() -> Array[StringName]:
-	return [
+	var result: Array[StringName] = [
 		UI_PANEL,
 		UI_HUD_PANEL,
 		UI_SELECTION_SEAT,
@@ -324,6 +350,8 @@ static func ui_ids() -> Array[StringName]:
 		&"idle",
 		&"unknown"
 	]
+	result.append_array(CARPETS)
+	return result
 
 
 ## The mark 's laptop wears, by its semantic ID.

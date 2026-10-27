@@ -6,7 +6,10 @@ extends RefCounted
 ##   drawing-clearance row, OfficeShell.TOP_RUN_PITCH apart from
 ##   TOP_RUN_FROM, keyed by their grid step ("top/%03d"), the plant of the step
 ##   (plant_at()); a step whose plant would come within WALL_RUN_GAP of the
-##   lift door, a window, a picture or the pantry counter stands empty;
+##   lift door, a window, a picture or the pantry counter stands empty; where
+##   no step stands one, the first window gap that takes a plant stands one
+##   (OfficeShell.window_gaps(), keyed by the gap, "top/w%02d", the plant of
+##   the gap);
 ## - lane gaps (lane_gaps()): in every run of at least LANE_GAP_MIN_CELLS free
 ##   cell rows inside a lane, outside every zone's slot and down to the map's
 ##   bottom, a piece every LANE_GAP_STEP_CELLS rows from the run's second row,
@@ -129,6 +132,14 @@ func furnish(next: FloorPlan) -> void:
 		if _fits(next, covers, walkways, placed, candidate):
 			placed.append(candidate)
 		step += 1
+	var openings := OfficeShell.window_gaps(next, _pen)
+	var opening := 0
+	while placed.is_empty() and opening < openings.size():
+		var beside := Vector2(openings[opening], OfficeShell.TOP_RUN_FOOT)
+		var stand_in := _candidate("top/w%02d" % opening, plant_at(_pen.art, opening), beside)
+		if _fits(next, covers, walkways, placed, stand_in):
+			placed.append(stand_in)
+		opening += 1
 	for gap in lane_gaps(next, rules):
 		var middle := (rules.lane_x(gap.lane) + floorf(rules.zone_width_cells / 2.0) + 0.5) * grid
 		var index := 0

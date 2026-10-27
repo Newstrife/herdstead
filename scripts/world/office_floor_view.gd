@@ -5,8 +5,10 @@ extends RefCounted
 ## worker, the selection or a task lamp changes only the seat it belongs to,
 ## and a dropped machine dims and freezes the map without rebuilding it. Each
 ## zone stands inside its low partitions (drawn pieces in a y-sorted holder of
-## their own, rebuilt only when the zone's rectangle changes) under its sign
-## (OfficeZoneSign, whose text follows the zone's model on every reconcile).
+## their own, rebuilt only when the zone's rectangle changes), on its carpet
+## (a NinePatchRect in Ground/Carpets, in its worktree group's family, resized
+## when the zone's rectangle changes) under its sign (OfficeZoneSign, whose
+## text follows the zone's model on every reconcile).
 ## Its people walk between one observation and the next (`presentation`): in
 ## at the lift door, out of it, and over to a new seat. Nobody walks to the
 ## pantry counter: an idle agent sits at their seat.
@@ -34,7 +36,8 @@ class Seat:
 
 ## What the lens (`L` held) multiplies the furnishing by: the shell (floor,
 ## walkways, walls, door, windows, pictures), the plants and side tables (and
-## what they carry), the pantry counter, and the zones' partitions and signs.
+## what they carry), the pantry counter, and the zones' carpets, partitions and
+## signs.
 ## Signals stay as bright as they are.
 const LENS_DIM := Color(0.55, 0.55, 0.55)
 ## How opaque the lens's wash over a pod's floor is (OfficeDeskView.wash).
@@ -84,6 +87,11 @@ var _fixtures: Dictionary[String, OfficeDecor] = {}
 ## key, and the rectangle they were drawn for.
 var _partitions: Dictionary[String, Node2D] = {}
 var _partitioned: Dictionary[String, Rect2i] = {}
+## Zone key -> its carpet, and the cells it was laid for; all of them in
+## `Ground/Carpets`, after the shell and before the pods' backgrounds.
+var _carpets: Dictionary[String, NinePatchRect] = {}
+var _carpeted: Dictionary[String, Rect2i] = {}
+var _carpet_holder: Node2D
 ## Each zone's sign, by zone key.
 var _signs: Dictionary[String, OfficeZoneSign] = {}
 var _shell_signature := ""
@@ -120,6 +128,10 @@ func setup(
 	ground = Node2D.new()
 	ground.name = "Ground"
 	floor_root.add_child(ground)
+	# The shell goes in front of it (_draw_shell()), the pods' backgrounds after it (_order()).
+	_carpet_holder = Node2D.new()
+	_carpet_holder.name = "Carpets"
+	ground.add_child(_carpet_holder)
 	sorted = Node2D.new()
 	sorted.name = "Sorted"
 	sorted.y_sort_enabled = true
@@ -223,11 +235,13 @@ func show_lens(held: bool, texts: Dictionary[String, String], tones: Dictionary[
 
 
 ## What the lens dims: the shell, every decor piece, the counter, and the zones'
-## partitions and signs. A pod carries no furnishing: nothing but signals stands on a desk.
+## carpets, partitions and signs. A pod carries no furnishing: nothing but signals stands on a desk.
 func furnishing() -> Array[CanvasItem]:
 	var found: Array[CanvasItem] = []
 	if _shell != null:
 		found.append(_shell)
+	for key: String in _carpets:
+		found.append(_carpets[key])
 	for key: String in _decor:
 		found.append(_decor[key])
 	for key: String in _fixtures:
@@ -399,6 +413,7 @@ func reconcile(next: FloorPlan, model: MapModel, frozen := false) -> void:
 			desks[placed.tab_key] = view
 		view.reconcile(wanted[placed.tab_key], placed)
 	_place_signs(next, model)
+	_place_carpets(next, model)
 	if not same:
 		_order(model, next.zones)
 		plan = next
@@ -451,7 +466,8 @@ func _index(model: MapModel) -> void:
 
 func _order(model: MapModel, plan_zones: Array[ZonePlacement]) -> void:
 	var index := 0
-	var ground_index := 1
+	# After the shell and the carpets: each pod's wash lies over its zone's carpet.
+	var ground_index := _carpet_holder.get_index() + 1
 	for room in model.rooms:
 		var view: OfficeDeskView = desks.get(room.key)
 		if view == null:
@@ -731,6 +747,50 @@ func _place_signs(next: FloorPlan, model: MapModel) -> void:
 		var shown: ZoneModel = zones.get(zone.zone_key)
 		if shown != null:
 			board.show_zone(shown, _sign_limit(zone))
+
+
+## Every zone's carpet (OfficeShell.carpet_rect()) in `Ground/Carpets`, gone
+## with its zone: resized in place when the zone's rectangle changed, and
+## dressed again only when its worktree group's family (OfficeZoneSign.carpet_of(),
+## from `model`'s zone: a mezzanine its source's key) is another one, so a
+## refresh that changes neither sets nothing. Furniture: no state, focus,
+## selection or connection reaches it, and it takes no pointer.
+func _place_carpets(next: FloorPlan, model: MapModel) -> void:
+	var groups: Dictionary[String, String] = {}
+	for zone in model.zones:
+		groups[zone.key] = zone.key if zone.mezzanine_of.is_empty() else zone.mezzanine_of
+	var wanted: Dictionary[String, ZonePlacement] = {}
+	for zone in next.zones:
+		wanted[zone.zone_key] = zone
+	for key: String in _carpets.keys():
+		if not wanted.has(key):
+			_carpet_holder.remove_child(_carpets[key])
+			_carpets[key].queue_free()
+			_carpets.erase(key)
+			_carpeted.erase(key)
+	for key: String in wanted:
+		var zone := wanted[key]
+		var group: String = groups.get(key, key)
+		var spec := _pen.art.ui_sprite(OfficeZoneSign.carpet_of(group))
+		var laid: NinePatchRect = _carpets.get(key)
+		if laid == null:
+			laid = NinePatchRect.new()
+			laid.name = "Carpet_" + key.sha256_text().left(16)
+			laid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			laid.modulate = _furnishing_tint()
+			_carpet_holder.add_child(laid)
+			_carpets[key] = laid
+		elif _carpeted[key] == zone.cells and laid.texture == _pen.art.sprite_texture(spec):
+			continue
+		var area := OfficeShell.carpet_rect(zone)
+		_pen.dress_nine_patch(laid, spec, area.size)
+		laid.position = area.position
+		_carpeted[key] = zone.cells
+
+
+## The carpet of zone `key` (a NinePatchRect in `Ground/Carpets`), or null.
+func carpet(key: String) -> NinePatchRect:
+	return _carpets.get(key)
 
 
 ## How far right, in its own coordinates, the sign of `zone` may reach: to the

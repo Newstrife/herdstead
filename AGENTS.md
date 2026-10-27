@@ -69,7 +69,7 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
                           │                         │
                           ▼                         ▼
         OfficeFloorView + OfficeMachinePlate (scenes/world):   OfficeHud (scenes/ui):
-        Ground + Sorted (y-sort), zones (partitions, OfficeZoneSign), pod / station (a blocked seat's chip: OfficeChip) / person   top bar counters (OfficeTotals) / left SPACES rail (OfficeSpaces, SpaceRows in: a heading shows its machine's map, a row pans to its zone; a narrow rail under 1280) + edge arrows on the world's edges toward blocked desks off screen (OfficeEdgeArrows, EdgeArrowModel in) /
+        Ground + Sorted (y-sort), zones (a carpet in its worktree group's family, partitions, OfficeZoneSign), pod / station (a blocked seat's chip: OfficeChip) / person   top bar counters (OfficeTotals) / left SPACES rail (OfficeSpaces, SpaceRows in: a heading shows its machine's map, a row pans to its zone; a narrow rail under 1280) + edge arrows on the world's edges toward blocked desks off screen (OfficeEdgeArrows, EdgeArrowModel in) /
                                                              right drawer (closed at start): the AGENTS tab's agent list (AgentListModel; its History group comes from StateLog via AgentHistory) and the EVENTS tab /
                                                              bottom staff panel (agent card, `inspector`; compact by default: a card on tall screens, one row below; what it shows is CardPicture, pure, written into the scene's nodes) + NEXT (NextModel's verbs) / bottom row NEWS (NewsItem) /
                                                              OVERVIEW, opened by PANES or O (OverviewModel; the timeline is a Control drawn in _draw())

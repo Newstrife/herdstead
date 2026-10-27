@@ -664,10 +664,8 @@ func test_labels_clear_the_heads_they_hang_on() -> void:
 ## pod [-102, -90), near [40, 52), past the tab label), its text clears the
 ## badge at the top of its pulse and the plate's text.
 ## While it shows the chip draws nothing and the badge is back in the middle of
-## its row; let go, the line is gone and the chip is drawn again. (The line
-## used to be inside the pod's render_rect, beside the badge; at the 32-unit
-## pitch it is a transient row of its own, outside the stationary drawing, see
-## test_rows_at_the_pod_pitch_never_meet().)
+## its row; let go, the line is gone and the chip is drawn again (a transient
+## row of its own, see test_rows_at_the_pod_pitch_never_meet()).
 func test_the_lens_line_stays_inside_the_desk_and_off_the_badge() -> void:
 	var table := _table()
 	for side: String in OfficeTable.SIDES:
@@ -681,8 +679,8 @@ func test_the_lens_line_stays_inside_the_desk_and_off_the_badge() -> void:
 		_check(line.is_visible_in_tree(), "%s: the line shows" % side)
 		var in_table := table.global_transform.affine_inverse() * line.get_global_transform()
 		var drawn := in_table * Rect2(Vector2.ZERO, line.size)
-		var row := Rect2(1, -102, 30, 12) if side == "far" else Rect2(1, 40, 30, 12)
-		_eq(drawn, row, "%s: the lens row" % side)
+		var row := Rect2(6, -102, 20, 12) if side == "far" else Rect2(6, 40, 20, 12)
+		_eq(drawn, row, "%s: the lens row (S3 item 7, CARPET-B1: `99m+`'s paper tag, 18 + 2, centred)" % side)
 		_eq(badge_node.position, OfficeStation.BADGE_AT[side], "%s: the badge is back in the middle" % side)
 		_check(badge_node.position != chipped, "%s: it was in the chip before" % side)
 		badge_node.lift(-2)
@@ -706,7 +704,7 @@ func test_the_lens_line_stays_inside_the_desk_and_off_the_badge() -> void:
 	idle.show_lens(true, "12m")
 	var idle_line: Label = idle.get_node("Overlay/Lens")
 	var idle_drawn := table.global_transform.affine_inverse() * idle_line.get_global_transform()
-	_eq(idle_drawn * Rect2(Vector2.ZERO, idle_line.size), Rect2(33, -102, 30, 12), "idle: its own seat's lens row")
+	_eq(idle_drawn * Rect2(Vector2.ZERO, idle_line.size), Rect2(40, -102, 16, 12), "idle: its tag (S3 item 7, B1)")
 	_check(_plate_of(idle).visible, "idle: and its plate under the lens, at the desk")
 	idle.free()
 
@@ -1019,6 +1017,7 @@ func test_rows_at_the_pod_pitch_never_meet() -> void:
 				var names: Array[String] = []
 				for station in stations:
 					station.furnish("claude", ArtContract.STATE_BLOCKED, true)
+					station.show_name("S3 item 7, CARPET-B1: a plate's tag hugs its name; a long one fills its row")
 					station.chip().show_wait(5999.0 if known else -1.0)
 					station.show_lens(held, "99m+")
 					var badge: StatusBadge = station.get_node("Overlay/Badge")
@@ -1158,7 +1157,7 @@ func _check_row_literals(
 			_eq(to_pod * rows["chip"], Rect2(1, tag_top, 30, 16), "%s: the chip" % where)
 		_eq(rows.has("lens"), held, "%s: the lens row only under the lens" % where)
 		if held:
-			_eq(to_pod * rows["lens"], Rect2(1, -102.0 if far else 40.0, 30, 12), "%s: the lens row" % where)
+			_eq(to_pod * rows["lens"], Rect2(6, -102.0 if far else 40.0, 20, 12), "%s: lens tag (S3 item 7)" % where)
 		# Held, the plate is the outermost row; unheld, it takes the lens row's slot.
 		var plate_top := (-114.0 if far else 52.0) if held else (-102.0 if far else 40.0)
 		_eq(to_pod * rows["plate"], Rect2(1, plate_top, 30, 12), "%s: the plate row" % where)
@@ -1803,11 +1802,13 @@ func test_the_compact_duration_is_bounded_and_fits_its_rows() -> void:
 	_eq(chip_widest, 14.0, "the widest chip form (`99m`) is 14 wide")
 	_eq(lens_widest, 18.0, "the widest lens form (`99m+`) is 18 wide")
 	_check(chip_widest <= wait.size.x, "it fits the chip's slot, %s" % wait.size.x)
-	_check(lens_widest <= lens.size.x, "and the lens row, %s" % lens.size.x)
+	_eq([OfficeStation.LENS_SIZE, OfficeStation.PLATE_SIZE], [Vector2(30, 12), Vector2(30, 12)], "rows (S3 item 7)")
 	_eq(wait.size, Vector2(14, 12), "the chip's slot, measured after the face is on")
-	_eq(lens.size, Vector2(30, 12), "the lens row")
+	station.show_lens(true, "99m+")
+	_eq(lens.size, Vector2(lens_widest + 2.0 * OfficeDraw.TAG_PAD, 12), "the widest lens form's tag, in its row")
 	var plate: Label = station.get_node("Overlay/Plate")
-	_eq(plate.size, Vector2(30, 12), "the plate row")
+	station.show_name("a pane name longer than its row")
+	_eq(plate.size, Vector2(30, 12), "a long name's tag fills the plate row")
 	_eq(plate.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS_FORCE, "a long name ends in an ellipsis")
 	_eq(plate.get_theme_font_size("font_size"), 8, "the display face at its native 8")
 	station.free()

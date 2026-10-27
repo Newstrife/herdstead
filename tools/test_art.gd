@@ -1097,6 +1097,69 @@ func test_every_provider_wears_a_laptop_mark() -> void:
 		)
 
 
+## S3 item 7 (2026-10-27): one carpet per zone, in its group's family. Every
+## family (ArtContract.CARPETS, one per accent) ships as a 32x32-unit
+## nine-patch on a zero pivot with one-unit margins, drawn at the pack's
+## density: fully opaque, its outermost unit its `_edge` colour and every
+## texel inside it its one flat fill (a NinePatchRect stretches the middle),
+## both palette keys, and no texel within 48 of a state colour or of the idle
+## pill's cream and paper. A pack that loses one is refused by name; none is
+## called unused.
+func test_every_zone_carpet_family_is_a_flat_nine_patch_clear_of_state_colours() -> void:
+	var shipped := ArtPack.from_manifest(MANIFEST)
+	_eq(ArtContract.CARPETS.size(), ArtContract.ACCENTS.size(), "one carpet family per accent")
+	var states: Array[Color] = []
+	for name: StringName in [&"working", &"blocked", &"unread", &"muted", &"task_light", &"cream", &"paper"]:
+		states.append(shipped.color(name))
+	for id in ArtContract.CARPETS:
+		var spec := shipped.ui_sprite(id)
+		_check(spec != null, "%s ships" % id)
+		if spec == null:
+			continue
+		var edge_key := StringName(str(id) + "_edge")
+		_check(
+			shipped.palette.has(id) and shipped.palette.has(edge_key), "%s: its fill and its edge are palette keys" % id
+		)
+		_eq(spec.size, Vector2i(32, 32), "%s: 32x32 units" % id)
+		_eq(spec.pivot, Vector2.ZERO, "%s: pivot at its top-left corner" % id)
+		_check(spec.nine_patched(), "%s: a nine-patch" % id)
+		_eq(
+			[spec.patch_left, spec.patch_top, spec.patch_right, spec.patch_bottom],
+			[2, 2, 2, 2],
+			"%s: margins of 2 units on each side" % id
+		)
+		var fill := shipped.color(id)
+		var edge := shipped.color(edge_key)
+		var image := shipped.sprite_texture(spec).get_image()
+		_eq(image.get_size(), spec.size * shipped.density, "%s: drawn at the pack's density" % id)
+		var ring := shipped.density
+		var wrong := 0
+		var near := 0
+		for y in image.get_height():
+			for x in image.get_width():
+				var pixel := image.get_pixel(x, y)
+				var inside := x >= ring and y >= ring and x < image.get_width() - ring and y < image.get_height() - ring
+				wrong += int(not pixel.is_equal_approx(fill if inside else edge))
+				for state in states:
+					var apart := Vector3(pixel.r - state.r, pixel.g - state.g, pixel.b - state.b).length() * 255.0
+					near += int(apart < 48.0)
+		_eq(wrong, 0, "%s: opaque, its edge round the outermost unit and one flat fill inside it" % id)
+		_eq(near, 0, "%s: no texel within 48 of a state colour, cream or paper" % id)
+	for unused in ArtContract.unused(shipped)[&"ui"]:
+		_check(not unused.begins_with("carpet_"), "a carpet is never called unused: " + unused)
+	var drop_teal := func(m: Dictionary) -> void:
+		var images: Dictionary = m["ui"]
+		images.erase("carpet_teal")
+	var missing := ArtPack.from_manifest(_mutated_pack("no teal carpet", drop_teal))
+	_check(missing != null, "a pack without the teal carpet still loads")
+	if missing != null:
+		var problems := ArtContract.problems(missing)
+		_check(
+			Array(problems).any(func(line: String) -> bool: return "carpet_teal" in line),
+			"and is refused by name: %s" % [problems]
+		)
+
+
 ## Textures are handed out exactly as built: for a res:// pack the very object
 ## load() returns, with whatever mipmaps its family's import rule gave it, so
 ## nothing here depends on the screen. The shipped pack, its table (density 2)

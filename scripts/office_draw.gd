@@ -23,6 +23,8 @@ const FIGURES_PIXELS := 8
 ## What tab_cut() measures a face's capitals by: upper case and digits, the
 ## letters a tab's name is written in.
 const CAPITALS := "ABCXYZ09"
+## How far a seat's tag (back_label()) reaches past its text on either side, in units.
+const TAG_PAD := 1.0
 
 var art: ArtPack
 ## The pack's text cut (ArtPack.font, a pixel font at its native 10) over its
@@ -56,6 +58,10 @@ var figures: Font
 var tab_face: Font
 ## `font` at TEXT_PIXELS, its row no taller than the text cut's own.
 var _body: Font
+## The `paper` tag behind a seat's plate and lens line (back_label()), shared,
+## and what an empty one wears instead (hug()), so no sliver of paper shows.
+var _tag: StyleBoxFlat
+var _no_tag := StyleBoxEmpty.new()
 
 
 func _init(pack: ArtPack) -> void:
@@ -289,6 +295,52 @@ func style_figures(
 	target.add_theme_font_override("font", figures)
 
 
+## Put a `paper` tag behind `target`'s ink words (its theme `normal`
+## stylebox, so no node is added), so they read over any floor: the wood, a
+## zone's carpet, a partition. Square, not anti-aliased, no margins of its
+## own: hug() sizes the Label to its text. For the seat's plate and lens line
+## (OfficeStation); the world's other labels keep no backing. An empty
+## label wears no tag (hug()).
+func back_label(target: Label) -> void:
+	target.add_theme_stylebox_override("normal", _tag_for(target))
+
+
+## The tag `target` wears for its text now: paper, or none when it says nothing.
+func _tag_for(target: Label) -> StyleBox:
+	if target.text.is_empty():
+		return _no_tag
+	return _paper_tag()
+
+
+func _paper_tag() -> StyleBoxFlat:
+	if _tag == null:
+		_tag = StyleBoxFlat.new()
+		_tag.bg_color = art.color(ArtContract.PAPER)
+		_tag.anti_aliasing = false
+	return _tag
+
+
+## Lay `target` in its `row` hugging its text: centred in the row, as tall as
+## the row, as wide as its text and TAG_PAD either side (none for no text), at
+## most the row's width (a longer text is cut as the Label cuts it). Only what
+## changed is written; the caller asks when the text or the row changes.
+func hug(target: Label, row: Rect2) -> void:
+	var width := 0.0
+	var tagged := _tag_for(target)
+	if target.get_theme_stylebox("normal") != tagged:
+		target.add_theme_stylebox_override("normal", tagged)
+	if not target.text.is_empty():
+		var face := target.get_theme_font("font")
+		var pixels := target.get_theme_font_size("font_size")
+		var wide := face.get_string_size(target.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x
+		width = minf(row.size.x, ceilf(wide) + 2.0 * TAG_PAD)
+	var at := Vector2(row.position.x + (row.size.x - width) / 2.0, row.position.y)
+	if target.position != at:
+		target.position = at
+	if target.size != Vector2(width, row.size.y):
+		target.size = Vector2(width, row.size.y)
+
+
 func label(
 	parent: Node,
 	text: String,
@@ -327,14 +379,20 @@ func clipped(
 	return result
 
 
-## A tab's name under its table: the pack's display face (a pixel font) at
+## A tab's name under its table, in `paper` on its zone's carpet: the pack's display face (a pixel font) at
 ## TAB_LABEL_PIXELS, its line cut to TAB_LABEL_HEIGHT (tab_face), centred in `width` from `at` (the left end of the line it
 ## stands on, on the floor), TAB_LABEL_HEIGHT deep, cut with a forced ellipsis:
 ## even a narrow table signals truncation (Godot's ordinary ellipsis mode
 ## suppresses the mark when fewer than six characters fit).
 func tab_label(parent: Node, at: Vector2, width: float) -> Label:
 	var result := clipped(
-		parent, "", at, Vector2(width, TAB_LABEL_HEIGHT), TAB_LABEL_PIXELS, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER
+		parent,
+		"",
+		at,
+		Vector2(width, TAB_LABEL_HEIGHT),
+		TAB_LABEL_PIXELS,
+		ArtContract.PAPER,
+		HORIZONTAL_ALIGNMENT_CENTER
 	)
 	result.add_theme_font_override("font", tab_face)
 	result.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS_FORCE
@@ -371,7 +429,13 @@ func panel(parent: Node, bounds: Rect2) -> void:
 ## Dress `target` as the pack's panel, `size` units big, the same way panel()
 ## draws a new one: for a panel a scene already has (the chip's frame).
 func dress_panel(target: NinePatchRect, size: Vector2) -> void:
-	var spec := art.panel()
+	dress_nine_patch(target, art.panel(), size)
+
+
+## Dress `target` as the nine-patch UI image `spec`, `size` units big: laid
+## out in texture pixels and scaled back, its margins the art's own pixels and
+## only its middle stretched (the panel, a zone's carpet).
+func dress_nine_patch(target: NinePatchRect, spec: ArtSprite, size: Vector2) -> void:
 	target.texture = art.sprite_texture(spec)
 	target.texture_filter = art.filter
 	target.size = size * art.density

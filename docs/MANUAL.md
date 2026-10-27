@@ -81,7 +81,7 @@ The four scenes (office, showroom, pixel people showroom, Avatar Studio) read th
 | herdr | Office |
 |---|---|
 | machine | one open-plan map (the only one when there is just Local); one machine's map is shown at a time |
-| workspace (**space** in the UI) | a **zone** on that map: its pods inside low partitions, under a sign with herdr's `number` and its label |
+| workspace (**space** in the UI) | a **zone** on that map: its pods on a carpet inside low partitions, under a sign with herdr's `number` and its label; a worktree group shares the carpet's colour and the sign's stripe |
 | linked worktree | a **mezzanine**: a zone of its own, placed right under its source zone the first time, numbered `3A`, `3B` |
 | tab | a pod of desks; its label is written small right under it |
 | pane | a seat at that pod |
@@ -90,8 +90,8 @@ The four scenes (office, showroom, pixel people showroom, Avatar Studio) read th
 **One map per machine.** A map is one rectangular floor: an outer wall on top, an entry band under it with the pantry
 counter in its corner,
 side walls, and a main aisle down the right. Windows, pictures and the lift door hang only on the outer wall. Below the
-entry band the zones stand in lanes, each inside low partitions open at the top, its sign hanging from the top-left
-post. Plants and side tables (each carrying a mug, a notebook, now and then a white cat) are y-sorted with everything
+entry band the zones stand in lanes, each on a carpet inside low partitions open at the top, its sign hanging from the
+top-left post. Plants and side tables (each carrying a mug, a notebook, now and then a white cat) are y-sorted with everything
 else.
 
 **Stable layout.** A 32-unit grid. The map is lanes four cells wide (the narrowest pod) with a one-cell aisle between
@@ -121,7 +121,7 @@ no zone, and the plate's note says why.
   never "task passed".
 - **idle**: seated, a mug beside the laptop.
 - **working**: seated at the desk. `launch_pending` shows the starting badge. Unknown states fall back to `unknown`.
-- The pantry counter, plants, side tables and partitions are furniture only: nobody walks to the pantry, and a state
+- The pantry counter, plants, side tables, partitions and carpets are furniture only: nobody walks to the pantry, and a state
   never makes anyone get up.
 
 **People walk.** When a pane gets an agent, a person walks in from the lift door to the seat; when a pane goes, they

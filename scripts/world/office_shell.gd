@@ -25,7 +25,10 @@ const WINDOW_SPACING := 128.0
 ## grid of the wall itself: TOP_RUN_PITCH apart from TOP_RUN_FROM (a cell and
 ## 40 in from the left wall), keyed by the step, never placed by anything the
 ## map holds. A step whose plant would come within WALL_RUN_GAP of the lift
-## door, a window, a picture or the pantry counter stands empty.
+## door, a window, a picture or the pantry counter stands empty. The grid and
+## the windows (WINDOW_SPACING) line up only at some widths: where no step
+## stands a plant, one stands in the first window gap that takes it
+## (window_gaps()), so every top wall carries one.
 const TOP_RUN_FROM := 72.0
 const TOP_RUN_FOOT := 76.0
 const TOP_RUN_PITCH := 160.0
@@ -151,6 +154,19 @@ static func frames(plan: FloorPlan, pen: OfficeDraw) -> Array[Vector2]:
 	return found
 
 
+## Where the top-wall run stands its one plant when its grid stands none: the
+## middle of every gap between two neighbouring windows (window_xs()) that
+## hangs no picture (the first, the third, ...; frames() uses the second, the
+## fourth), left to right. Placed by the windows alone, so by the map's width
+## alone. Pure: the decor planner tries them in order.
+static func window_gaps(plan: FloorPlan, pen: OfficeDraw) -> Array[float]:
+	var found: Array[float] = []
+	var windows := window_xs(plan, pen)
+	for gap in range(0, windows.size() - 1, 2):
+		found.append((windows[gap] + windows[gap + 1]) / 2.0)
+	return found
+
+
 ## What stands on or against the top wall before any picture or plant: the
 ## lift door's drawing, every window's and the pantry counter's.
 static func wall_covers(plan: FloorPlan, pen: OfficeDraw) -> Array[Rect2]:
@@ -166,6 +182,22 @@ static func wall_covers(plan: FloorPlan, pen: OfficeDraw) -> Array[Rect2]:
 static func drawn(pen: OfficeDraw, id: StringName, at: Vector2) -> Rect2:
 	var sprite := pen.art.prop_sprite(id)
 	return Rect2(at - sprite.pivot, Vector2(sprite.size))
+
+
+## Where `zone`'s carpet lies, in map units: inside its partitions (its
+## bounds() inset by PARTITION_THICKNESS on the left, the right and the
+## bottom), from the zone's top, open like the U, so it runs under the posts
+## and every pod and never reaches the aisle row its sign hangs over, an aisle
+## column or a corridor. Furniture: the floor view lays one there, in the
+## zone's worktree group's family (OfficeZoneSign.carpet_of()).
+static func carpet_rect(zone: ZonePlacement) -> Rect2:
+	var area := zone.bounds()
+	return Rect2(
+		area.position.x + PARTITION_THICKNESS,
+		area.position.y,
+		area.size.x - 2.0 * PARTITION_THICKNESS,
+		area.size.y - PARTITION_THICKNESS
+	)
 
 
 ## The foot of `zone`'s top-right post (the zone sign stops short of its drawing).

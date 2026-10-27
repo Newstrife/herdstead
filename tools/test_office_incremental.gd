@@ -236,7 +236,12 @@ func test_labels_follow_the_pose() -> void:
 			seated,
 			[
 				# Without the lens the plate hangs in the lens row's slot.
-				station.seat.global_position + OfficeStation.LENS_AT[side],
+				# S3 item 7 (2026-10-27), CARPET-B1: its paper tag hugs the name, centred in the row.
+				(
+					station.seat.global_position
+					+ OfficeStation.LENS_AT[side]
+					+ Vector2((OfficeStation.PLATE_SIZE.x - _plate(station).size.x) / 2.0, 0)
+				),
 				station.seat.global_position + OfficeStation.BADGE_AT[side],
 				station.seat.global_position + OfficeStation.SELECTION_AT[side]
 			],

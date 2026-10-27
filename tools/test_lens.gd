@@ -558,7 +558,12 @@ func test_an_idle_worker_gets_the_line_at_the_seat() -> void:
 	var line := _lens(station)
 	_check(line.visible, "the idle worker has a line")
 	_check(not line.text.is_empty(), "saying how long: " + line.text)
-	_eq(line.position, OfficeStation.LENS_AT[station.side], "on the seat's lens row")
+	# S3 item 7 (2026-10-27): the line's paper tag hugs its text (CARPET-B1): centred in the seat's lens row.
+	var lens_at: Vector2 = OfficeStation.LENS_AT[station.side]
+	var row := Rect2(lens_at, OfficeStation.LENS_SIZE)
+	var tag := Rect2(line.position, line.size)
+	_check(row.encloses(tag), "on the seat's lens row: %s in %s" % [tag, row])
+	_eq([tag.position.y, tag.get_center().x], [row.position.y, row.get_center().x], "centred in it")
 	var drawn := _line_text(line)
 	_check(absf(drawn.get_center().x - station.global_position.x) <= 1.0, "centred on the seat's column")
 	var badge: Sprite2D = station.get_node("Overlay/Badge")
@@ -940,6 +945,126 @@ func _l_key(down: bool) -> InputEventKey:
 
 ## `L` down (or up) through the window's input, then the frames the lens needs
 ## to see it.
+## S3 item 7 (2026-10-27): one carpet per zone, in its group's family. The
+## carpet is furnishing: held, every carpet is LENS_DIM, and every pod's
+## background, later in Ground than the carpets, still washes its floor at
+## LENS_WASH_ALPHA of its tone; let go, the carpets are as painted. At night
+## the carpet's own modulate stays WHITE: the night tint is the world
+## canvas's (NightLight), over carpets and badges alike.
+func test_the_carpet_dims_as_furnishing_and_the_wash_lies_over_it() -> void:
+	var office := await _live_office()
+	office.settle()
+	await _frames(2)
+	var holder := office.floor_view.ground.get_node_or_null("Carpets")
+	_check(holder != null, "the floor lays its carpets in Ground/Carpets")
+	if holder == null:
+		_done(office)
+		return
+	var carpets := holder.get_children()
+	_eq(carpets.size(), office.layout_plan().zones.size(), "one carpet per zone")
+	await _hold()
+	for carpet: Node in carpets:
+		_eq((carpet as CanvasItem).modulate, OfficeFloorView.LENS_DIM, "held: %s dims" % carpet.name)
+	var washed := 0
+	for tab: String in office.floor_view.desks:
+		var desk := office.floor_view.desks[tab]
+		_check(desk.background.get_index() > holder.get_index(), tab + ": its background lies over the carpets")
+		if desk.wash.visible:
+			washed += 1
+			_eq(desk.wash.color.a, OfficeFloorView.LENS_WASH_ALPHA, tab + ": its wash as opaque as ever")
+			_eq(desk.wash.modulate, Color.WHITE, tab + ": and not dimmed")
+	_check(washed > 0, "the pods are washed: %d" % washed)
+	await _let_go()
+	for carpet: Node in carpets:
+		_eq((carpet as CanvasItem).modulate, Color.WHITE, "let go: %s as painted" % carpet.name)
+	office.toggle_light()
+	await _frames(2)
+	_eq(office.night, 1.0, "the light turned over to night")
+	_eq(
+		(office.get_node("NightLight") as CanvasModulate).color,
+		DayLight.NIGHT_TINT,
+		"the world's canvas takes the tint"
+	)
+	for carpet: Node in carpets:
+		_eq((carpet as CanvasItem).modulate, Color.WHITE, "at night: %s keeps no tint of its own" % carpet.name)
+	_done(office)
+
+
+## S3 item 7 (2026-10-27): one carpet per zone, in its group's family; CARPET-B1
+## (ruling 1): a seat's words stand on a paper tag. Held, every shown lens line
+## and plate wears the pack's `paper` as a square, unshaded tag with no margins
+## of its own (OfficeDraw.back_label()), hugging its text in its row: centred,
+## the row's height, its text and TAG_PAD either side (a longer text fills the
+## row). The tag is the Label's own stylebox, a signal like its words: nothing
+## dims it. `ink` on `paper` keeps at least 4.5:1 (WCAG). A label with no text
+## wears no tag.
+func test_a_seats_words_stand_on_a_paper_tag() -> void:
+	var office := await _live_office()
+	office.settle()
+	await _frames(2)
+	await _hold()
+	var paper := office.art.color(ArtContract.PAPER)
+	var tagged := 0
+	for station in _seats(office):
+		var lens_at: Vector2 = OfficeStation.LENS_AT[station.side]
+		var plate_at: Vector2 = OfficeStation.PLATE_AT[station.side]
+		var rows: Dictionary[String, Rect2] = {
+			"Lens": Rect2(lens_at, OfficeStation.LENS_SIZE),
+			"Plate": Rect2(plate_at, OfficeStation.PLATE_SIZE),
+		}
+		for row: String in rows:
+			var words: Label = station.get_node("Overlay/" + row)
+			if not words.is_visible_in_tree() or words.text.is_empty():
+				continue
+			tagged += 1
+			var name := "%s %s" % [station.pane_key, row]
+			var tag := words.get_theme_stylebox("normal") as StyleBoxFlat
+			_check(tag != null, name + ": a flat tag")
+			if tag == null:
+				continue
+			_eq(tag.bg_color, paper, name + ": paper")
+			_check(not tag.anti_aliasing and tag.draw_center, name + ": drawn square, unshaded")
+			_eq(
+				[tag.corner_radius_top_left, tag.corner_radius_bottom_right, tag.border_width_top],
+				[0, 0, 0],
+				name + ": no corner, no border"
+			)
+			_eq(tag.get_minimum_size(), Vector2.ZERO, name + ": no margins of its own")
+			var face := words.get_theme_font("font")
+			var wide := face.get_string_size(words.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+			var hugged := minf(rows[row].size.x, ceilf(wide) + 2.0 * OfficeDraw.TAG_PAD)
+			var drawn := Rect2(words.position, words.size)
+			_eq(drawn.size, Vector2(hugged, rows[row].size.y), name + ": hugs its text, the row's height")
+			_eq(drawn.get_center().x, rows[row].get_center().x, name + ": centred in its row")
+			_eq(drawn.position.y, rows[row].position.y, name + ": in its row")
+			_eq([words.modulate, words.self_modulate], [Color.WHITE, Color.WHITE], name + ": not dimmed")
+	_check(tagged > 4, "the held lens shows tagged words: %d" % tagged)
+	var ink := office.art.color(ArtContract.INK)
+	_check(_contrast(ink, paper) >= 4.5, "ink on paper reads: %.2f" % _contrast(ink, paper))
+	var bare := Label.new()
+	office.pen.back_label(bare)
+	_check(bare.get_theme_stylebox("normal") is StyleBoxEmpty, "a label with no text wears no tag")
+	bare.free()
+	await _let_go()
+	_done(office)
+
+
+## The WCAG contrast ratio of two opaque colours.
+static func _contrast(a: Color, b: Color) -> float:
+	var lighter := maxf(_luminance(a), _luminance(b))
+	var darker := minf(_luminance(a), _luminance(b))
+	return (lighter + 0.05) / (darker + 0.05)
+
+
+## WCAG relative luminance of an sRGB colour.
+static func _luminance(colour: Color) -> float:
+	var linear := Vector3.ZERO
+	for channel in 3:
+		var value: float = colour[channel]
+		linear[channel] = value / 12.92 if value <= 0.03928 else pow((value + 0.055) / 1.055, 2.4)
+	return 0.2126 * linear.x + 0.7152 * linear.y + 0.0722 * linear.z
+
+
 func _hold() -> void:
 	await _parsed(_l_key(true))
 	await _frames(2)
@@ -1048,12 +1173,17 @@ func _marks(office: OfficeDouble) -> Dictionary:
 	return shown
 
 
-## The furnishing the lens dims: the shell, the decor and the counters.
+## The furnishing the lens dims: the shell, the zones' carpets, the decor and the counters.
 func _furnishing(office: OfficeDouble) -> Array[CanvasItem]:
 	var found: Array[CanvasItem] = []
 	var shell := office.floor_view.ground.get_node_or_null("Shell") as CanvasItem
 	if shell != null:
 		found.append(shell)
+	# S3 item 7 (2026-10-27): one carpet per zone, in its group's family.
+	var carpets := office.floor_view.ground.get_node_or_null("Carpets")
+	if carpets != null:
+		for carpet in carpets.get_children():
+			found.append(carpet as CanvasItem)
 	for decor in _decor(office):
 		found.append(decor)
 	for fixture_node in _fixtures(office):

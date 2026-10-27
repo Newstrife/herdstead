@@ -1220,3 +1220,113 @@ func test_one_workspace_is_drawn_as_a_zone() -> void:
 		_eq(_entity_of(view.sorted, body), body, "the walker sorts by their own feet")
 		_check(body.global_position.y < piece.global_position.y, "above the partition's foot: drawn before it")
 	_done(office)
+
+
+## S3 item 7 (2026-10-27): one carpet per zone, in its group's family. A
+## carpet follows its zone's rectangle on the same node: a zone that grows in
+## place keeps its carpet, resized to the new carpet_rect(); a zone that moves
+## alone keeps its one carpet, laid at its new place; a removed zone's carpet
+## is freed. A status change, a selection and a refresh of an unchanged map
+## change no carpet node, place, size or texture, and lay nothing out again.
+func test_a_carpet_follows_its_zone_and_a_quiet_refresh_keeps_it() -> void:
+	var office := await _live_office()
+	var view := office.floor_view
+	var before := _carpet_marks(office)
+	_eq(before.size(), office.layout_plan().zones.size(), "one carpet per zone")
+	var structures := view.structures
+	var blocked := _with(fixture, "api:p1", {"agent_status": "blocked"})
+	_feed(office, blocked)
+	await _frames(2)
+	_eq(_carpet_marks(office), before, "a status change touches no carpet")
+	await _click_desk(office, HerdrFleet.pane_key(LOCAL, "data:p1"))
+	await _frames(2)
+	_eq(office.picked_key, HerdrFleet.pane_key(LOCAL, "data:p1"), "a click picks data:p1")
+	_eq(_carpet_marks(office), before, "nor does a selection")
+	_feed(office, blocked)
+	await _frames(2)
+	_eq(_carpet_marks(office), before, "nor a refresh of the same snapshot")
+	_eq(view.structures, structures, "none of them lays the floor out again")
+	# infra, in the bottom zone row, takes a third tab: its pods take another
+	# row, and it grows down in place.
+	var infra := HerdrFleet.pane_key(LOCAL, "infra")
+	var api := HerdrFleet.pane_key(LOCAL, "api")
+	var notes := HerdrFleet.pane_key(LOCAL, "notes")
+	var grown := _with_tab(blocked, "infra", "infra:t3", ["infra:p4", "infra:p5"])
+	var was: Rect2i = office.layout_plan().zone(infra).cells
+	_feed(office, grown)
+	await _frames(2)
+	var now: Rect2i = office.layout_plan().zone(infra).cells
+	print("CARPET_GROWTH infra %s -> %s" % [was, now])
+	_check(now.position == was.position and now.size.y > was.size.y, "infra grew down in place: %s -> %s" % [was, now])
+	var after := _carpet_marks(office)
+	_eq(after[infra][0], before[infra][0], "infra keeps its carpet node")
+	_eq(after[infra].slice(1, 3), _laid(office, infra), "laid at its new carpet_rect")
+	var resized: Vector2 = after[infra][2]
+	var sized: Vector2 = before[infra][2]
+	_check(resized != sized, "and resized: %s -> %s" % [sized, resized])
+	for key: String in before:
+		if key != infra:
+			_eq(after[key], before[key], key + ": its carpet untouched")
+	# api, in the top row with infra under it, takes a third tab: it cannot
+	# grow in place and moves alone.
+	var moved := _with_tab(grown, "api", "api:t3", ["api:p5", "api:p6"])
+	was = office.layout_plan().zone(api).cells
+	_feed(office, moved)
+	await _frames(2)
+	now = office.layout_plan().zone(api).cells
+	print("CARPET_MOVE api %s -> %s" % [was, now])
+	_check(now.position != was.position, "api moved: %s -> %s" % [was, now])
+	var shifted := _carpet_marks(office)
+	_eq(shifted.size(), office.layout_plan().zones.size(), "still one carpet per zone")
+	_eq(shifted[api][0], before[api][0], "api keeps its one carpet node")
+	_eq(shifted[api].slice(1, 3), _laid(office, api), "laid at its new place")
+	# notes closes: its carpet goes with it.
+	var gone: Node = view.carpet(notes)
+	var closed := _without_workspace(moved, "notes")
+	_feed(office, closed)
+	await _frames(2)
+	_check(office.layout_plan().zone(notes) == null, "notes is no longer placed")
+	_check(view.carpet(notes) == null, "and has no carpet")
+	_check(not is_instance_valid(gone) or not gone.is_inside_tree(), "its carpet left the tree")
+	_eq(_carpet_marks(office).size(), office.layout_plan().zones.size(), "one carpet per zone left")
+	_done(office)
+
+
+## Zone key -> [its carpet's instance id, position, drawn size, texture].
+func _carpet_marks(office: OfficeDouble) -> Dictionary[String, Array]:
+	var found: Dictionary[String, Array] = {}
+	for zone in office.layout_plan().zones:
+		var carpet := office.floor_view.carpet(zone.zone_key)
+		if carpet != null:
+			found[zone.zone_key] = [
+				carpet.get_instance_id(), carpet.position, carpet.size * carpet.scale, carpet.texture
+			]
+	return found
+
+
+## Where zone `key`'s carpet is planned: [position, size].
+func _laid(office: OfficeDouble, key: String) -> Array:
+	var lies := OfficeShell.carpet_rect(office.layout_plan().zone(key))
+	return [lies.position, lies.size]
+
+
+## `snapshot` with workspace `space` given one more tab `tab`, of shells `panes`.
+func _with_tab(snapshot: Dictionary, space: String, tab: String, panes: Array[String]) -> Dictionary:
+	var result := snapshot.duplicate(true)
+	_list(result, "tabs").append({"workspace_id": space, "tab_id": tab, "number": 3, "label": tab})
+	for pane in panes:
+		_list(result, "panes").append({"pane_id": pane, "tab_id": tab, "workspace_id": space})
+	return result
+
+
+## `snapshot` without workspace `space`, its tabs and its panes.
+func _without_workspace(snapshot: Dictionary, space: String) -> Dictionary:
+	var result := snapshot.duplicate(true)
+	for list: String in ["workspaces", "tabs", "panes"]:
+		var kept: Array = []
+		for item: Variant in _list(result, list):
+			var record: Dictionary = item
+			if record.get("workspace_id", "") != space:
+				kept.append(record)
+		result[list] = kept
+	return result
