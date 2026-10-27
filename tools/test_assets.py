@@ -1189,8 +1189,8 @@ class PixelSourceTests(unittest.TestCase):
     def test_the_carpets_ship_as_drawn(self):
         """S3 item 7 (2026-10-27): one carpet per zone, in its group's family.
 
-        art/daylight ships exactly the five zone carpets the tool draws, byte
-        for byte, each declared a 32x32-unit nine-patch on a zero pivot with
+        art/daylight ships exactly the five zone carpets the tool draws, pixel
+        for pixel, each declared a 32x32-unit nine-patch on a zero pivot with
         margins of 2 units on each side (a one-unit edge and a unit of fill).
         """
         drawn = self.draw("drawn")
@@ -1201,8 +1201,11 @@ class PixelSourceTests(unittest.TestCase):
             name = f"carpet_{family}"
             self.assertEqual(manifest["ui"].get(name), {"path": f"ui/{name}.png", "size": [32, 32], "pivot": [0, 0],
                                                         "nine_patch": [2, 2, 2, 2]}, name)
-            self.assertEqual((drawn / f"ui/{name}.png").read_bytes(), (ROOT / f"art/daylight/ui/{name}.png").read_bytes(),
-                             f"{name}: art/daylight ships what the tool draws")
+            # Pixels, not bytes: zlib on another platform encodes the same picture differently.
+            with Image.open(drawn / f"ui/{name}.png") as carpet, Image.open(ROOT / f"art/daylight/ui/{name}.png") as shipped:
+                self.assertEqual(carpet.size, shipped.size, name)
+                self.assertEqual(list(carpet.convert("RGBA").getdata()), list(shipped.convert("RGBA").getdata()),
+                                 f"{name}: art/daylight ships what the tool draws")
         self.assertEqual(sorted(path.name for path in (ROOT / "art/daylight/ui").glob("carpet_*.png")),
                          sorted(f"carpet_{family}.png" for family in draw_pixel_sources.CARPET_FAMILIES),
                          "no stray carpet ships")
