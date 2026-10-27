@@ -15,7 +15,8 @@ nothing else):
   pod desk), the idle mug `idle_mug` (a state signal, the idle seat's mug on a
   pod desk: the painted `desk_mug`'s pixels, texel for texel), the seat selection mark `selection_seat` (ui), the zone
   partition kit (`partition_*`, props), the provider marks a laptop
-  wears (`mark_<provider>`, ui) and the zone carpets (`carpet_<family>`, ui).
+  wears (`mark_<provider>`, ui), the zone carpets (`carpet_<family>`, ui)
+  and the portrait tiles' state dots (`badge_<badge>_small`, ui).
 
 It writes a complete tree into an empty directory: `props/`, `ui/` and `table/`, laid
 out exactly as `art/daylight/` is. Nothing here ever writes into `art/`, and
@@ -88,6 +89,18 @@ every texel inside it `carpet_<family>`, and nothing else: a NinePatchRect
 stretches the middle, so the middle is one flat colour (no pattern to smear).
 No texel within 48 (RGB distance) of a state colour or of the idle pill's
 paper and cream (CARPET_STATE_COLOURS), so a carpet never reads as a signal.
+
+What a tile dot keeps (`badge_<badge>_small`, one per TILE_DOTS, named by the
+badge the pack's state wears: blocked, unread for done, working, idle): an
+8x8-unit canvas (16x16 texels) on the pivot [0, 0], its top-left corner, with
+hard alpha and only the pack's palette: `deep` for its outline and marks, and
+its state's colour (`paper` for idle's white) for its fill. The two that say
+"look at me" (blocked's `!`, done's envelope) fill the canvas but for its four
+corner texels, so on the tile they cover the face frame's corner as B2 draws
+them; the two that only say what is going on (working, idle) are a round dot
+12 texels across in the canvas's middle, inside the frame. The portrait strip's
+tall tiles wear them (PortraitCard); the world, the lists and the chips keep the
+16-unit badges.
 
 Deterministic: the same palette always gives the same bytes.
 """
@@ -477,6 +490,120 @@ def selection_seat(palette: dict[str, str]) -> Image.Image:
         for y in (0, height - arm):
             result.paste(mark, (x, y, x + line, y + arm))
     return result
+
+
+## The portrait tiles' state dots (ui `badge_<badge>_small`, see the module
+## docstring), drawn texel by texel at DENSE on a TILE_DOT_SIZE canvas with its
+## pivot at the top-left corner. `F` is the state's own colour (TILE_DOT_FILLS).
+TILE_DOT_SIZE = (8, 8)
+TILE_DOT_SQUARE = (
+    ".KKKKKKKKKKKKKK.",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    "KFFFFFFFFFFFFFFK",
+    ".KKKKKKKKKKKKKK.",
+)
+TILE_DOT_ROUND = (
+    "................",
+    "................",
+    "......KKKK......",
+    "....KKFFFFKK....",
+    "...KFFFFFFFFK...",
+    "...KFFFFFFFFK...",
+    "..KFFFFFFFFFFK..",
+    "..KFFFFFFFFFFK..",
+    "..KFFFFFFFFFFK..",
+    "..KFFFFFFFFFFK..",
+    "...KFFFFFFFFK...",
+    "...KFFFFFFFFK...",
+    "....KKFFFFKK....",
+    "......KKKK......",
+    "................",
+    "................",
+)
+## What each square carries, texel by texel over its fill: blocked's `!` and
+## done's envelope, both `deep`, centred.
+TILE_DOT_MARKS = {
+    "badge_blocked_small": (
+        "................",
+        "................",
+        "................",
+        ".......KK.......",
+        ".......KK.......",
+        ".......KK.......",
+        ".......KK.......",
+        ".......KK.......",
+        ".......KK.......",
+        ".......KK.......",
+        "................",
+        ".......KK.......",
+        ".......KK.......",
+        "................",
+        "................",
+        "................",
+    ),
+    "badge_unread_small": (
+        "................",
+        "................",
+        "................",
+        "................",
+        "...KKKKKKKKKK...",
+        "...KK......KK...",
+        "...K.K....K.K...",
+        "...K..K..K..K...",
+        "...K...KK...K...",
+        "...K........K...",
+        "...K........K...",
+        "...KKKKKKKKKK...",
+        "................",
+        "................",
+        "................",
+        "................",
+    ),
+}
+TILE_DOTS = {
+    "badge_blocked_small": TILE_DOT_SQUARE,
+    "badge_unread_small": TILE_DOT_SQUARE,
+    "badge_working_small": TILE_DOT_ROUND,
+    "badge_idle_small": TILE_DOT_ROUND,
+}
+TILE_DOT_FILLS = {
+    "badge_blocked_small": "blocked",
+    "badge_unread_small": "unread",
+    "badge_working_small": "working",
+    "badge_idle_small": "paper",
+}
+
+
+def tile_dot_rows(name: str) -> tuple[str, ...]:
+    """One tile dot as legend rows: its shape, with its mark (if any) laid over the fill."""
+    rows = [list(row) for row in TILE_DOTS[name]]
+    for y, line in enumerate(TILE_DOT_MARKS.get(name, ())):
+        for x, cell in enumerate(line):
+            if cell != ".":
+                require(rows[y][x] == "F", f"{name}: its mark at ({x}, {y}) leaves the fill")
+                rows[y][x] = cell
+    return tuple("".join(row) for row in rows)
+
+
+def tile_dot(name: str, palette: dict[str, str]) -> Image.Image:
+    """A portrait tile's state dot (see the module docstring), checked against its canvas."""
+    rows = tile_dot_rows(name)
+    width, height = (value * DENSE for value in TILE_DOT_SIZE)
+    require(len(rows) == height and all(len(row) == width for row in rows),
+            f"{name}: not {width}x{height} texels")
+    return pixel_map(image((width, height)), rows, {"K": "deep", "F": TILE_DOT_FILLS[name]}, palette)
 
 
 ## The provider marks (ui `mark_<provider>`): one per provider the agent
@@ -938,6 +1065,10 @@ def draw(source: Path, output: Path) -> list[Path]:
         target = output / f"ui/carpet_{family}.png"
         carpet_piece(family, palette).save(target)
         written.append(target)
+    for name in TILE_DOTS:
+        target = output / f"ui/{name}.png"
+        tile_dot(name, palette).save(target)
+        written.append(target)
     generate_templates(source, output / "table")
     written.extend(sorted((output / "table").iterdir()))
     return written
@@ -955,7 +1086,8 @@ def main() -> None:
         parser.exit(1, f"draw_pixel_sources: {error}\n")
     print(f"PIXEL_SOURCES_OK: {args.output} ({len(written)} files: {len(DESK_PIECES)} desk props, "
           f"{len(FIXTURE_SIZES)} fixture props, {len(DENSE_SIZES) + len(PARTITION_SIZES)} density-{DENSE} pieces, "
-          f"{len(MARK_PROVIDERS)} provider marks, {len(CARPET_FAMILIES)} zone carpets, the table family)")
+          f"{len(MARK_PROVIDERS)} provider marks, {len(CARPET_FAMILIES)} zone carpets, {len(TILE_DOTS)} tile dots, "
+          f"the table family)")
 
 
 if __name__ == "__main__":

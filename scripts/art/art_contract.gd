@@ -201,6 +201,12 @@ const UI_EXPAND := &"expand"
 ## agent sits there. A provider the catalog does not list has none, and its
 ## laptop keeps the plain lid.
 const MARK_PREFIX := "mark_"
+## A portrait tile's state mark in the top bar (B2's small marks, 8 units):
+## `badge_<badge>_small` for the badge a state wears (tile_dot()). Only the
+## tall tiles wear them; everything else keeps the state's badge.
+const TILE_DOTS: Array[StringName] = [
+	&"badge_blocked_small", &"badge_unread_small", &"badge_working_small", &"badge_idle_small"
+]
 
 # --- states and animations ------------------------------------------------------
 
@@ -331,8 +337,8 @@ static func wall_cell(course: StringName, end: StringName) -> StringName:
 	return StringName("wall.%s_%s" % [course, end])
 
 
-## Every UI image a scene draws: the fixed ones, every state's badge and every
-## zone carpet.
+## Every UI image a scene draws: the fixed ones, every state's badge, every
+## zone carpet and every portrait tile's small mark.
 static func ui_ids() -> Array[StringName]:
 	var result: Array[StringName] = [
 		UI_PANEL,
@@ -351,7 +357,13 @@ static func ui_ids() -> Array[StringName]:
 		&"unknown"
 	]
 	result.append_array(CARPETS)
+	result.append_array(TILE_DOTS)
 	return result
+
+
+## The small mark a portrait tile wears for a state whose badge is `badge`.
+static func tile_dot(badge: StringName) -> StringName:
+	return StringName("badge_%s_small" % badge)
 
 
 ## The mark 's laptop wears, by its semantic ID.

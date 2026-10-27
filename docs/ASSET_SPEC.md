@@ -425,6 +425,13 @@ the provider is the pack's own few-texel mark at the seat.
 - `selection_seat`: 32×48 transparent corner marks round a seated figure, pivot 16,46.
 - `mark_<provider>`: the provider's mark at a seat, one per agent in `data/agent_catalog.json` (see "Provider marks").
 - `carpet_<family>`: a zone's carpet, five families (see "Zone carpets").
+- `badge_<badge>_small`: a portrait tile's state mark in the top bar (B2's small marks), one per badge a drawn state
+  wears: `badge_blocked_small` (`!`), `badge_unread_small` (done's envelope), `badge_working_small` (a `working` dot),
+  `badge_idle_small` (a `paper` dot). **8×8 units (16×16 texels at density 2) on the pivot `[0, 0]`**, `deep` and the
+  state's colour only, hard alpha; the `!` and the envelope fill the canvas but for its corner texels (they cover the
+  face frame's corner), the dots are 12 texels across in its middle (inside the frame). Drawn texel by texel by
+  `tools/draw_pixel_sources.py` (`TILE_DOTS`, `tile_dot()`; `make pixel-sources`), shipped exactly as drawn. Only the
+  tall portrait tiles wear them; the world, the lists, EVENTS and the chips keep the 16-unit badges.
 
 ### Zone carpets
 
