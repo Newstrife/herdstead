@@ -90,7 +90,7 @@ func test_status_change_redraws_one_desk() -> void:
 func test_same_look_keeps_the_worker() -> void:
 	# Three idle agents on api and three residents, all first seen idle (so in projection order, the
 	# residents' tab first), and the pantry of this narrow map has room for five: api:p4 sits. 628 wide:
-	# the map is planned 488 units wide, one lane.
+	# the map is planned 488 units wide, 15 cells: two lanes of 4 (one of 9 before Z1), 13 cells either way.
 	var idle := _with(
 		_with(_with_residents(fixture), "api:p1", {"agent_status": "idle"}), "api:p2", {"agent_status": "idle"}
 	)
@@ -1258,8 +1258,9 @@ func test_the_first_plan_uses_the_window_the_refresh_is_for() -> void:
 	_eq(office.navigator.shown_key, LOCAL, "Local's map is shown")
 	_eq(office.plans.plan(BEE), null, "bee's has not been planned yet")
 	_eq(office.hud.world_rect().size.x, 660.0, "the HUD is laid out for the 800-wide window")
-	# 880 wide leaves the world 740 units (drawer closed), 23 cells: two lanes,
-	# a map 23 wide, not the one lane (13 cells) the 800-wide window's 20 hold.
+	# 880 wide leaves the world 740 units (drawer closed), 23 cells: four lanes,
+	# a map 23 wide, not the three lanes (18 cells) the 800-wide window's 20 hold.
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
 	office.test_screen = Vector2(880, 480)
 	var unfocused: Dictionary = fixture.duplicate(true)
 	unfocused.erase("focused_pane_id")
@@ -1267,7 +1268,7 @@ func test_the_first_plan_uses_the_window_the_refresh_is_for() -> void:
 	_eq(office.navigator.shown_key, BEE, "herdr's focus, now only bee's, shows bee's map, planned for the first time")
 	_eq(office.hud.world_rect().size.x, 740.0, "the HUD is laid out for the 880-wide window")
 	_eq(office.hud.plan_width(), 740.0, "which is the width a first plan asks for")
-	_eq([office.layout_plan().lanes, office.layout_plan().initial_width_cells], [2, 23], "and the plan is made for it")
+	_eq([office.layout_plan().lanes, office.layout_plan().initial_width_cells], [4, 23], "and the plan is made for it")
 	_done(office)
 
 
@@ -1625,11 +1626,14 @@ func test_the_shell_is_furniture() -> void:
 	_done(office)
 
 
-## The top-wall run and the lane gaps' pieces (two lanes, 880) are planned furniture: the sorted root
+## The top-wall run and the lane gaps' pieces (six lanes, 1280x720) are planned furniture: the sorted root
 ## draws exactly the plan, each piece where the plan put it, and neither the plan's pieces, their keys nor
 ## where they are drawn change when an agent's status or herdr's focus does.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## At 880 (four lanes) the fixture's zones stand two even rows: no lane gap; at 1280x720 notes and data
+## stand under api and web, leaving the other four lanes a gap, and the 33-cell top wall a plant.
 func test_the_new_furniture_keeps_its_keys_through_status_and_focus() -> void:
-	var office := await _live_office(fixture, Vector2(880, 480))
+	var office := await _live_office(fixture, Vector2(1280, 720))
 	var planned := _decor_signatures(office.layout_plan())
 	var keys := "; ".join(planned)
 	_check("top/" in keys and "/gap/" in keys, "the shown map has a top-wall run and a lane gap's pieces: " + keys)
@@ -1646,8 +1650,10 @@ func test_the_new_furniture_keeps_its_keys_through_status_and_focus() -> void:
 
 ## A map wide enough for lane gaps draws its standing pieces in the plan's own order, the gaps' pieces
 ## included: the sorted root keeps them by key, and so does the plan.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## At 1600x800 (eight lanes) the fixture stands in one row and leaves no gap; 1280x720 leaves one.
 func test_a_spare_bay_is_drawn_in_the_plans_order() -> void:
-	var office := await _live_office(fixture, Vector2(1600, 800))
+	var office := await _live_office(fixture, Vector2(1280, 720))
 	var plan := office.layout_plan()
 	var keys := plan.decorations.map(func(piece: DecorPlacement) -> String: return piece.key)
 	_check(keys.any(func(key: String) -> bool: return "/gap/" in key), "a map with lane gaps: %s" % [keys])

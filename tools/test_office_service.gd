@@ -43,7 +43,9 @@ func test_the_entry_band_is_three_cells_deep() -> void:
 	var rules := _real_rules(20)
 	_eq(rules.entry_cells, 3, "the policy's entry band")
 	var plan := _serviced(_floor([_room("a", 2)]), 20)
-	_eq(plan.entry_cells, Rect2i(1, 2, 11, 3), "under the top wall, between the side walls")
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	# 20 cells plan three lanes, 18 cells (one lane, 13, before).
+	_eq(plan.entry_cells, Rect2i(1, 2, 16, 3), "under the top wall, between the side walls")
 	var pod := OfficeZoneLayout.pod_row_cells()
 	_eq(plan.floor_cells.size.y, 2 + 3 + 1 + pod, "one pod row: 2 + 3 + 1 + %d cells" % pod)
 	_eq(plan.zones[0].cells.position.y, 6, "the first zone starts under the band and its aisle row")
@@ -69,7 +71,7 @@ func test_fixtures_stand_where_the_plan_puts_them() -> void:
 	var model := _floor([_room("a", 4), _room("b", 2, 1)])
 	var plan := _serviced(model, 20)
 	var pantry := plan.pantry
-	_check(pantry != null, "a 13-cell map has a pantry")
+	_check(pantry != null, "an 18-cell map has a pantry")
 	if pantry == null:
 		return
 	_eq(plan.fixtures().size(), 1, "and no other fixture")
@@ -97,7 +99,8 @@ func test_fixtures_stand_where_the_plan_puts_them() -> void:
 	var widened := _serviced(wide, 20, narrow)
 	_check(widened.lanes > narrow.lanes, "the map widened by lanes: %d -> %d" % [narrow.lanes, widened.lanes])
 	var moved := widened.main_corridor_cells.position.x - narrow.main_corridor_cells.position.x
-	_eq(moved, 10 * (widened.lanes - narrow.lanes), "the main corridor moves ten cells a lane")
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	_eq(moved, 5 * (widened.lanes - narrow.lanes), "the main corridor moves five cells a lane")
 	_eq(OfficeShell.door(widened) - OfficeShell.door(narrow), Vector2(moved * 32, 0), "and the lift door with it")
 	_eq(widened.pantry.position, narrow.pantry.position, "the pantry stays at the left end")
 	_eq(widened.pantry.spots.slice(0, narrow.pantry.spots.size()), narrow.pantry.spots, "its spots where they were")
@@ -123,7 +126,9 @@ func test_no_fixtures_without_tables() -> void:
 ## its spots from the left wall to FIXTURE_GAP short of the main corridor, 48
 ## apart, at most MAX_PANTRY. Printed for the record.
 func test_fixture_capacities_by_floor_width() -> void:
-	var expected := {11: [13, 5], 20: [13, 5], 32: [23, 12], 60: [53, 24]}
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	# 11 cells plan the narrowest map, two lanes (13 cells), as on the base (FRAME-Q2).
+	var expected := {11: [13, 5], 20: [18, 9], 32: [28, 15], 60: [58, 24]}
 	for width: int in expected:
 		var plan := _serviced(_floor([_room("a", 2)]), width)
 		var held := [plan.floor_cells.size.x, plan.pantry.spots.size() if plan.pantry != null else 0]
@@ -496,12 +501,13 @@ func test_to_lane_reaches_the_walking_lane_from_every_approach() -> void:
 		_check(count >= 30, "every approach: %d" % count)
 
 
-## At the shipped plan width (820 units, 25 cells: two lanes, a map 23 cells
-## wide) the pantry holds twelve: from the left wall at 32 to 16 short of the
-## main corridor at 640, 48 apart.
+## At the shipped plan width (the default window's 772 units, 24 cells, and
+## 25: four lanes, a map 23 cells wide) the pantry holds twelve: from the left
+## wall at 32 to 16 short of the main corridor at 640, 48 apart.
 func test_twelve_pantry_spots_at_twenty_three_cells() -> void:
 	var plan := _serviced(_floor([_room("a", 2)]), 25)
-	_eq([plan.lanes, plan.floor_cells.size.x, plan.main_corridor_cells.position.x], [2, 23, 20], "two lanes, 23 cells")
+	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+	_eq([plan.lanes, plan.floor_cells.size.x, plan.main_corridor_cells.position.x], [4, 23, 20], "four lanes, 23 cells")
 	_eq(plan.pantry.spots.size(), 12, "twelve spots")
 	_eq(plan.pantry.spots[11].x + OfficeShell.SPOT_PITCH / 2.0, 608.0, "the last ends at 608")
 	_check(640.0 - 608.0 >= OfficeShell.FIXTURE_GAP, "FIXTURE_GAP short of the main corridor")

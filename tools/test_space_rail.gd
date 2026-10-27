@@ -313,10 +313,14 @@ func test_rows_use_the_signs_words_and_tooltips() -> void:
 ## blocked agent to the rail and the arrows. data:p2 (1B) blocks before its
 ## launch is over: its window is lit blocked and names it so, its row counts it
 ## beside the blocked icon, and an arrow points to 1B.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In the 480x320 window with herdr's focus on 5 (ops, the third row): 1B stands
+## beside 1 in the first row of any map of two lanes or more (FRAME-Q2).
 func test_a_blocked_start_lights_its_window_blocked_and_shows_an_arrow() -> void:
-	var office := await _live_office()
+	var focused := _focused_on(fixture, "ops:p1")
+	var office := await _live_office(focused, Vector2(480, 320))
 	var rail := office.hud.spaces
-	_feed(office, _with(fixture, "data:p2", {"agent_status": "blocked", "launch_pending": true}))
+	_feed(office, _with(focused, "data:p2", {"agent_status": "blocked", "launch_pending": true}))
 	await _frames(2)
 	_check(office.frame.pane(_pane("data:p2")).starting, "herdr still launches data:p2")
 	var row := rail.row_for(_zone("data"))
@@ -474,9 +478,11 @@ func test_rail_heading_and_arrow_gestures_count_and_panning_does_not() -> void:
 ## Once herdr closes that pane the selection is herdr's focus again, and every
 ## move of the focus to a zone out of sight pans its desk into the world's room:
 ## the map is one world, so nothing else would bring it into view.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In the 480x320 window: at 800x480 the six zones stand three abreast, w2 beside w0.
 func test_focus_is_revealed_again_once_the_picked_pane_is_gone() -> void:
 	var zones := _six_zones()
-	var office := await _live_office(zones)
+	var office := await _live_office(zones, Vector2(480, 320))
 	var picked := _pane("w0:t0:p1")
 	await _click_desk(office, picked)
 	_eq(office.picked_key, picked, "a real click picks the desk")
@@ -693,8 +699,12 @@ func test_the_plate_problem_stays_inside_the_band() -> void:
 
 ## A SPACES row click marks that zone, and the zones that share the view with
 ## it, and no other: the marks follow the pick in the same frame as the pan.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## In an 800x320 window: at 800x480 the six zones' map (three abreast, 19 rows)
+## is too shallow for 6's pan to take 1 out of view; 200 units of view do, and
+## still show 6 with the two zones of its row.
 func test_in_view_marks_follow_a_zone_pick() -> void:
-	var office := await _live_office(_six_zones())
+	var office := await _live_office(_six_zones(), Vector2(800, 320))
 	var rail := office.hud.spaces
 	await _frames(2)
 	var first := _zone("w0")

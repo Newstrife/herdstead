@@ -95,21 +95,27 @@ Workspaces arriving later are zones placed on that same map (its first plan fixe
 zone of one empty pod row.
 
 The grid is fixed at **32 world units**. **The map is lanes** (`FloorLayoutPolicy`): across it a side wall (1 cell),
-`lanes` lanes of `zone_width_cells` (9) with an aisle column (`lane_aisle_cells`, 1) between two of them, the main
-corridor (2) and the other side wall: **10L + 3 cells** for L lanes; lane i covers columns 1 + 10i to 9 + 10i, the
-aisle after it is column 10 + 10i, and the main corridor is columns 10L and 10L + 1. Down it: the top wall (2 cells),
-the entry band (3), then the zones from row 6. A map's first plan picks L = max(1, ⌊(width − 3) / 10⌋) from the
-viewport width available at that moment (820 units, 25 cells: two lanes, 23 cells); after that, window or zoom changes
-only change how much is visible, and nothing reflows. L is raised only when a zone needs more lanes than the map has.
+`lanes` lanes of `zone_width_cells` (4) with an aisle column (`lane_aisle_cells`, 1) between two of them, the main
+corridor (2) and the other side wall: **5L + 3 cells** for L lanes; lane i covers columns 1 + 5i to 4 + 5i, the
+aisle after it is column 5 + 5i, and the main corridor is columns 5L and 5L + 1. A lane holds the narrowest pod (2
+columns, 3 cells) right of its zone's pad. Down it: the top wall (2 cells),
+the entry band (3), then the zones from row 6. A map's first plan picks L = max(2, ⌊(width − 3) / 5⌋) from the
+viewport width available at that moment (the default 1920×960 window at 2x: 772 units, 24 cells: four lanes, 23 cells);
+after that, window or zoom changes only change how much is visible, and nothing reflows. L is raised only when a zone
+needs more lanes than the map has. Never fewer than two lanes (13 cells): the smallest window (480×320 units) keeps the
+top wall's window, its picture and the pantry. Known gap until S3-CARPET re-grids the top-wall run: at 5L + 3 cells with L
+odd (18, 28, 38, 58) the run's grid meets the windows and the door and stands no plant.
 
 **A zone** (a workspace, `ZonePlacement`) stands in k adjacent lanes under an **aisle row** of its own
-(`zone_aisle_cells`, 1; the first zones' aisle row is row 5, right under the entry band): it is 10k − 1 cells wide
+(`zone_aisle_cells`, 1; the first zones' aisle row is row 5, right under the entry band): it is 5k − 1 cells wide
 (the aisle columns between its lanes are its own) and whole **pod rows** deep; its **slot** is its aisle row and its
 rectangle. Inside it a pad column (`zone_pad_left_cells`, 1) keeps its tables off its left partition; the rows are as
 deep as a table's measured reservation (`OfficeZoneLayout.pod_row_cells()`, 6 cells on the pods), with no
-walls and no cross corridors between them. **Lane span**: the fewest lanes whose 10k − 2 inner cells hold its widest
-table (for a table w cells wide, ⌈(w + 2) / 10⌉; a pod of c columns needs ⌈(c + 3) / 10⌉); on its first placement a
-zone takes more lanes, up to the map's, while it would stand taller than `zone_tall_rows` (3) pod rows.
+walls and no cross corridors between them. **Lane span**: the fewest lanes whose 5k − 2 inner cells hold its widest
+table (for a table w cells wide, ⌈(w + 2) / 5⌉; a pod of c columns needs ⌈(c + 3) / 5⌉); on its first placement a
+zone takes more lanes, up to the map's, while it would stand taller than `zone_tall_rows` (1) pod row: a new zone is as
+wide as its pods need to stand in one row, and wraps rows only at the map's lanes. A placed zone keeps its width as it
+grows (down, or right when a table is too wide for it).
 
 **Placement is a masonry that only grows, down or right** (`OfficeFloorLayout._place()`), zones taken in (number,
 key) order:
@@ -137,7 +143,7 @@ fallback).
 
 Inside a zone the row allocator is today's: next-fit on the zone's first layout, gap reuse afterwards, growth
 left-anchored, a table wider than the zone first was taking a row of its own (and widening the zone by lanes), rows
-never shrinking. **The map keeps its largest extents**: its width is 10L + 3, its height the larger of the last plan's
+never shrinking. **The map keeps its largest extents**: its width is 5L + 3, its height the larger of the last plan's
 and the lowest slot's bottom (at least `min_height_cells`, 12). Removing a zone leaves a gap a later zone may take;
 removing the last or lowest zone, or emptying a lane, never shrinks the map. The keep-outs (`FloorPlan.aisles`, drawn
 as plain floor) are every zone's aisle row and every inter-lane aisle column where no zone spans both lanes; no
@@ -628,7 +634,7 @@ Besides the client / machine / incremental-update tests, `tools/run_tests.sh` ch
   whole previous map and names that zone; a pane moving between zones during a failure is never seated twice; the
   node budget is charged on the composed map. No walk edge crosses a partition, and every approach is reached.
 - No walk-graph node is inside an obstacle and no edge enters one (including a thin obstacle between two clear
-  centres); validator and people share one graph, starting from the threshold's end; on stress maps (20 and 32 cells
+  centres); validator and people share one graph, starting from the threshold's end; on stress maps (asked 20 and 32 cells: 18 and 28
   wide) and after growth every approach point is reachable; each blocked leg is reported on its own, and no near leg
   passes the chair's column.
 - Coming in, going out (ghost), to the pantry and back (seat leg), changing seat or table, turning back and taking a

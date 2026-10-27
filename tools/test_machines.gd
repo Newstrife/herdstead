@@ -1918,8 +1918,8 @@ func test_attention_roster_replacement_excludes_rename_and_reconnect() -> void:
 
 
 ## Each machine is one map with its own plan, world and pan (as each floor was):
-## Local (40 agents, a pod of 20 columns, three lanes) and bee (snapshot_basic,
-## one lane) plan apart. A real click on the other machine's FLOORS row is a
+## Local (40 agents, a pod of 20 columns, 21 cells: five lanes of 4) and bee
+## (snapshot_basic, two one-lane zones) plan apart. A real click on the other machine's FLOORS row is a
 ## cold switch: a new world, nobody walking. Back on Local, its same FloorPlan
 ## object. Each map remembers where a real drag left it.
 func test_each_machine_keeps_its_own_map_world_and_pan() -> void:
@@ -1931,7 +1931,7 @@ func test_each_machine_keeps_its_own_map_world_and_pan() -> void:
 	var bee := "socket:bee"
 	var plan_a: FloorPlan = office.layout_plan()
 	_eq([office.navigator.shown_key, plan_a.floor_key], [HerdrFleet.LOCAL, HerdrFleet.LOCAL], "Local's map")
-	_eq(plan_a.lanes, 3, "widened to three lanes for its pod")
+	_eq(plan_a.lanes, 5, "widened to five lanes for its pod (Z1, 2026-10-27: lanes of 4)")
 	await process_frame
 	var middle := office.hud.world_rect().get_center()
 	await _drag_world(middle, Vector2(-120, -40))
@@ -1965,8 +1965,9 @@ func test_each_machine_keeps_its_own_map_world_and_pan() -> void:
 
 ## Another machine's blocked agents show only as its SPACES rows' counts: an edge arrow is for a zone
 ## of the shown map with a blocked desk off screen. Both serve snapshot_basic: bravo (2) has one blocked.
+## Z1 (2026-10-27): Local's bravo is two lanes wide (_wide_bravo()), so on 480x480's two lanes it stands under alpha.
 func test_another_machines_blocked_agents_show_only_as_rail_counts() -> void:
-	var office: OfficeDouble = await _two_machine_office()
+	var office: OfficeDouble = await _two_machine_office(Vector2(480, 480), _wide_bravo())
 	var bee := "socket:bee"
 	var local_bravo := HerdrFleet.pane_key(HerdrFleet.LOCAL, "bravo")
 	var bee_bravo := HerdrFleet.pane_key(bee, "bravo")

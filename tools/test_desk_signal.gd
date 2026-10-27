@@ -10,7 +10,10 @@ extends "res://tools/office_test_base.gd"
 ## godot --headless --path . --script tools/test_desk_signal.gd
 ##
 ## The rectangles and pans are what 6413cec drew and panned to on this fixture
-## (its own formulas, then in three places, printed before they moved here).
+## (its own formulas, then in three places, printed before they moved here),
+## re-pinned for Z1 (2026-10-27: a lane is 4 cells, pitch 5, a new zone takes
+## lanes until it stands one row; the map replans): only data (now beside notes
+## in the second row) and the one-lane zones' widths moved.
 ## When a desk's rows (OfficeStation), a pod's measure or the map's plan change
 ## on purpose, these numbers change with them: a failure prints the new one.
 
@@ -18,7 +21,9 @@ extends "res://tools/office_test_base.gd"
 ## floor's root in it, as the office puts it under the plate.
 const ORIGIN := Vector2(148, 26)
 const UNDER_PLATE := Vector2(0, 32)
-## The width the fixture's map is planned for: two lanes of zones.
+## The width the fixture's map is planned for: four lanes of 4 cells (Z1,
+## 2026-10-27; two lanes of 9 before), 23 cells: api and web two lanes each in
+## the first row, infra two, notes and data one each in the second.
 const PLAN_WIDTH := 800.0
 ## A view the size the 800x480 window leaves the world, 148 narrower.
 const VIEW := Vector2(512, 308)
@@ -46,8 +51,8 @@ const EXTENT: Dictionary[String, Rect2] = {
 	"api:p2": Rect2(277, 58, 38, 56),
 	"api:p3": Rect2(97, 296, 30, 56),
 	"api:p4": Rect2(161, 230, 30, 58),
-	"data:p1": Rect2(65, 678, 30, 58),
-	"data:p2": Rect2(65, 744, 30, 56),
+	"data:p1": Rect2(545, 454, 30, 58),
+	"data:p2": Rect2(545, 520, 30, 56),
 	"infra:p1": Rect2(65, 456, 30, 56),
 	"infra:p2": Rect2(161, 454, 30, 58),
 	"infra:p3": Rect2(421, 58, 38, 56),
@@ -62,8 +67,8 @@ const TARGET: Dictionary[String, Rect2] = {
 	"api:p2": Rect2(277, 58, 38, 56),
 	"api:p3": Rect2(97, 296, 30, 56),
 	"api:p4": Rect2(161, 230, 30, 58),
-	"data:p1": Rect2(65, 678, 30, 58),
-	"data:p2": Rect2(65, 744, 30, 56),
+	"data:p1": Rect2(545, 454, 30, 58),
+	"data:p2": Rect2(545, 520, 30, 56),
 	"infra:p1": Rect2(65, 456, 30, 16),
 	"infra:p2": Rect2(161, 454, 30, 58),
 	"infra:p3": Rect2(421, 58, 38, 56),
@@ -78,8 +83,8 @@ const POD: Dictionary[String, Rect2] = {
 	"api:p2": Rect2(64, 230, 64, 122),
 	"api:p3": Rect2(64, 230, 64, 122),
 	"api:p4": Rect2(160, 230, 64, 122),
-	"data:p1": Rect2(64, 678, 64, 122),
-	"data:p2": Rect2(64, 678, 64, 122),
+	"data:p1": Rect2(544, 454, 64, 122),
+	"data:p2": Rect2(544, 454, 64, 122),
 	"infra:p1": Rect2(64, 454, 64, 122),
 	"infra:p2": Rect2(160, 454, 64, 122),
 	"infra:p3": Rect2(160, 454, 64, 122),
@@ -94,8 +99,8 @@ const OPENING: Dictionary[String, Rect2] = {
 	"api": Rect2(32, 174, 288, 210),
 	"web": Rect2(352, 174, 288, 210),
 	"infra": Rect2(32, 398, 288, 210),
-	"notes": Rect2(352, 398, 288, 210),
-	"data": Rect2(32, 622, 288, 210),
+	"notes": Rect2(352, 398, 128, 210),
+	"data": Rect2(512, 398, 128, 210),
 }
 ## Where 6413cec's reveal(key) and reveal(key, true) left the pan of a VIEW-sized
 ## view of this floor, in the world's coordinates, from each of FROM.
@@ -117,9 +122,23 @@ const REVEALED: Dictionary[String, Array] = {
 		Vector2(137.5, 211.25)
 	],
 	"data:p1":
-	[Vector2(0, 460), Vector2(0, 524), Vector2(65, 600), Vector2(64, 600), Vector2(65, 460), Vector2(64, 524)],
+	[
+		Vector2(63, 236),
+		Vector2(96, 300),
+		Vector2(400, 454),
+		Vector2(400, 454),
+		Vector2(137.5, 236),
+		Vector2(137.5, 300)
+	],
 	"data:p2":
-	[Vector2(0, 524), Vector2(0, 524), Vector2(65, 600), Vector2(64, 600), Vector2(65, 524), Vector2(64, 524)],
+	[
+		Vector2(63, 300),
+		Vector2(96, 300),
+		Vector2(400, 520),
+		Vector2(400, 454),
+		Vector2(137.5, 300),
+		Vector2(137.5, 300)
+	],
 	"infra:p1":
 	[Vector2(0, 236), Vector2(0, 300), Vector2(65, 456), Vector2(64, 454), Vector2(65, 236), Vector2(64, 300)],
 	"infra:p2":
@@ -157,21 +176,24 @@ const REVEALED: Dictionary[String, Array] = {
 	],
 }
 ## Where 6413cec's reveal_zone(zone) left that pan, from each of FROM: the
-## zones are 288 wide, narrower than VIEW.
+## zones are 288 or 128 wide (Z1), narrower than VIEW.
 const OPENED: Dictionary[String, Array] = {
 	"api": [Vector2(0, 206), Vector2(32, 206), Vector2(32, 206)],
 	"web": [Vector2(128, 206), Vector2(352, 206), Vector2(137.5, 206)],
 	"infra": [Vector2(0, 430), Vector2(32, 430), Vector2(32, 430)],
-	"notes": [Vector2(128, 430), Vector2(352, 430), Vector2(137.5, 430)],
-	"data": [Vector2(0, 654), Vector2(32, 654), Vector2(32, 654)],
+	"notes": [Vector2(0, 430), Vector2(352, 430), Vector2(137.5, 430)],
+	"data": [Vector2(128, 430), Vector2(400, 430), Vector2(137.5, 430)],
 }
-## And of a view 160 wide, narrower than a zone: its left edge, whatever the pan was.
+## And of a view NARROW wide, narrower than a zone: its left edge, whatever the pan was.
+## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
+## The narrowest zone is one lane, 128 units, so the view is 96 wide (160 before).
+const NARROW := Vector2(96, 120)
 const OPENED_NARROW: Dictionary[String, Vector2] = {
 	"api": Vector2(32, 206),
 	"web": Vector2(352, 206),
 	"infra": Vector2(32, 430),
 	"notes": Vector2(352, 430),
-	"data": Vector2(32, 654),
+	"data": Vector2(512, 430),
 }
 
 var art: ArtPack
@@ -560,11 +582,7 @@ func test_the_floors_answers_pan_the_view_where_it_was_panned() -> void:
 		var pans := []
 		for from: Vector2 in FROM:
 			pans.append(OfficeCamera.opened(from, opening, VIEW))
-			_eq(
-				OfficeCamera.opened(from, opening, Vector2(160, 120)),
-				OPENED_NARROW[zone_id],
-				"%s in a narrow view" % zone_id
-			)
+			_eq(OfficeCamera.opened(from, opening, NARROW), OPENED_NARROW[zone_id], "%s in a narrow view" % zone_id)
 		_eq(pans, OPENED[zone_id], "%s opened from each pan" % zone_id)
 	var board := view.zone_sign(_pk("api"))
 	board.get_parent().remove_child(board)

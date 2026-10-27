@@ -73,8 +73,8 @@ MIN_CASES_ART=27
 MIN_CASES_CLIENT=52
 MIN_CASES_MACHINE=34
 MIN_CASES_INCREMENTAL=54
-MIN_CASES_OFFICE_LAYOUT=51
-MIN_CASES_OFFICE_MAP=23
+MIN_CASES_OFFICE_LAYOUT=53
+MIN_CASES_OFFICE_MAP=24
 MIN_CASES_OFFICE_SERVICE=16
 # GEOMETRY 27 -> 25: its two row-wall sign and title cases went with the row
 # walls (lane B2a); MAP's test_top_run_and_lane_gap_pieces_clear_... covers
@@ -143,7 +143,7 @@ MIN_CASES_LAUNCH_NEWS=5
 # is the live office's reveal, zone opening, pointer and arrows against the
 # numbers 6413cec left, through the paths that commit already had.
 MIN_CASES_DESK_SIGNAL=12
-MIN_CASES_DESK_SIGNAL_WIRING=9
+MIN_CASES_DESK_SIGNAL_WIRING=10
 MIN_CASES_PICK_FOLLOWS_WRITE=20
 
 # The quick tier (TIER=quick): every suite that an art, world or geometry
