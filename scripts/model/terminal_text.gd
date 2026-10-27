@@ -47,6 +47,21 @@ static func bound(text: String) -> String:
 	return "".join(pieces)
 
 
+## `text` at most `clusters` grapheme clusters long: a longer one keeps whole
+## clusters (never half a CJK glyph, an accent or a ZWJ family) and ends in
+## `…`, which counts as one of them. What a model string that is joined
+## into a longer one (DisplayName, NewsItem.subject()) is cut with; a Label
+## that clips its own text needs no such cut.
+static func clip(text: String, clusters: int) -> String:
+	# A cluster has at least one code point: no more code points, no more clusters.
+	if clusters <= 0 or text.length() <= clusters:
+		return text if clusters > 0 else ""
+	var ends := breaks(text)
+	if ends.size() <= clusters:
+		return text
+	return text.substr(0, ends[clusters - 2] if clusters > 1 else 0).strip_edges(false, true) + "…"
+
+
 ## `cluster` cut to its base when it is over CLUSTER_MAX code points.
 static func capped(cluster: String) -> String:
 	return cluster.substr(0, 1) if cluster.length() > CLUSTER_MAX else cluster

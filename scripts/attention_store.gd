@@ -243,7 +243,7 @@ func _metadata(item: AttentionItem, pane: PaneModel, machine_label: String) -> v
 	item.workspace_label = pane.workspace_label
 	item.tab_label = pane.tab_label
 	item.provider = pane.provider
-	item.title = pane.label if not pane.label.is_empty() else pane.terminal_title
+	item.title = pane.name
 
 
 func _begin(

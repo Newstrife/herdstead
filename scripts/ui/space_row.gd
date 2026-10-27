@@ -218,17 +218,18 @@ static func window_look(pane: PaneModel, live: bool) -> StringName:
 	return WINDOW_LOOKS.get(pane.state, &"WindowUnknown")
 
 
-## The window's tooltip: the agent and its state in the pack's words, `shell`
-## for a pane without one, and OFFLINE for a machine that is not answering.
+## The window's tooltip: what the office calls the pane and its agent's state
+## in the pack's words, `shell` for a pane without one, and OFFLINE for a
+## machine that is not answering.
 func _window_tip(pane: PaneModel, live: bool) -> String:
 	if pane.provider.is_empty():
-		return "shell"
+		return pane.name + " · shell"
 	if not live:
-		return pane.provider + " · OFFLINE"
+		return pane.name + " · OFFLINE"
 	if pane.launching():
-		return pane.provider + " · STARTING"
+		return pane.name + " · STARTING"
 	var drawn: ArtState = null if _art == null else _art.state(StringName(pane.state))
-	return pane.provider + " · " + (pane.state.to_upper() if drawn == null else drawn.label)
+	return pane.name + " · " + (pane.state.to_upper() if drawn == null else drawn.label)
 
 
 ## The pack's word for `state` (`UNREAD` for done), or herdr's in capitals

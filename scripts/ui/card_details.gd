@@ -10,7 +10,7 @@ extends BoxContainer
 ## the card's.
 ##
 ## The script sits on the card scene's own `%Detail` node, so its children stay
-## the card's unique names (`%Provider`, `%MoreList`, …).
+## the card's unique names (`%CardName`, `%MoreList`, …).
 
 ## The terminal title never takes more than this many lines, however tall the
 ## panel is; past that the panel would read as a log, not as a caption.
@@ -63,7 +63,7 @@ func set_noted(on: bool) -> void:
 ## Write `header` (CardPicture.header_of(): who sits there, in what state and
 ## where, and the PANE list), with the portrait in `art`'s people.
 func show_header(header: CardPicture.Header, art: ArtPack) -> void:
-	var provider: Label = %Provider
+	var card_name: Label = %CardName
 	var caption: Label = %Caption
 	var pill: PanelContainer = %CaptionPill
 	var machine_label: Label = %Machine
@@ -75,7 +75,8 @@ func show_header(header: CardPicture.Header, art: ArtPack) -> void:
 	var pane_label: Label = %PaneLabel
 	var foreground: Label = %ForegroundCwd
 	var session_label: Label = %Session
-	provider.text = header.provider
+	card_name.text = header.name
+	card_name.tooltip_text = header.name
 	caption.text = header.caption
 	pill.theme_type_variation = header.pill
 	caption.theme_type_variation = header.caption_look

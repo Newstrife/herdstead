@@ -60,6 +60,9 @@ class Sighting:
 	## The pane's terminal id, and the name herdr gave its agent (empty for none).
 	var terminal_id := ""
 	var agent_name := ""
+	## What the office calls the pane (DisplayName); the tab above is what a
+	## place says for it (DisplayName.tab_shown()), empty for a lone default tab.
+	var name := ""
 
 
 ## A stretch of one pane's time in one state, or a stretch nobody watched.
@@ -90,6 +93,8 @@ class Track:
 	var identity := ""
 	var terminal_id := ""
 	var agent_name := ""
+	## What the office called the pane when last seen (Sighting.name).
+	var name := ""
 	## herdr was launching the pane's agent when last seen.
 	var starting := false
 	var segments: Array[StateLog.Segment] = []
@@ -136,6 +141,8 @@ class Event:
 	## herdr was launching the pane's agent at the event, and the name it gave it.
 	var starting := false
 	var agent_name := ""
+	## What the office called the pane at the event (Track.name).
+	var name := ""
 	## REPLACED only: what the pane got.
 	var changed := StateLog.Changed.NONE
 
@@ -391,6 +398,7 @@ func _copy_labels(kept: Track, sighting: Sighting) -> void:
 		and kept.identity == sighting.identity
 		and kept.terminal_id == sighting.terminal_id
 		and kept.agent_name == sighting.agent_name
+		and kept.name == sighting.name
 		and kept.starting == sighting.starting
 	):
 		return
@@ -401,6 +409,7 @@ func _copy_labels(kept: Track, sighting: Sighting) -> void:
 	kept.identity = sighting.identity
 	kept.terminal_id = sighting.terminal_id
 	kept.agent_name = sighting.agent_name
+	kept.name = sighting.name
 	kept.starting = sighting.starting
 
 
@@ -539,6 +548,7 @@ func _record(kind: Kind, now: int, now_unix: float, kept: Track, ended: Segment,
 	event.state = open.state
 	event.starting = kept.starting
 	event.agent_name = kept.agent_name
+	event.name = kept.name
 	event.changed = changed
 	if ended != null:
 		event.previous_state = ended.state

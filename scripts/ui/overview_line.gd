@@ -85,13 +85,9 @@ func show_row(row: OverviewModel.Row, opened_msec: int, now_msec: int) -> void:
 	timeline.show_track(row.track, opened_msec, now_msec)
 
 
-## Who the row is: the provider in capitals; the name herdr gave an agent it
-## has not recognised yet (`CLAUDE-1`, the seconds after a start), as NEWS
-## writes it; `shell` for a pane without either.
+## Who the row is: what the office calls the pane (OverviewModel.Row.called()).
 static func agent_text(row: OverviewModel.Row) -> String:
-	if not row.agent.is_empty():
-		return row.agent.to_upper()
-	return "shell" if row.agent_name.is_empty() else row.agent_name.to_upper()
+	return row.called()
 
 
 ## What the STATE column says: herdr's word in capitals, `offline` for a

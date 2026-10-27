@@ -1,0 +1,458 @@
+{
+ "_comment": "Synthetic session.snapshot payload (result.snapshot) for the NAMES suite (tools/test_names.gd): a workspace whose lone tab herdr still calls by its number (label \"1\", number 1, as herdr 0.9.0 sends an unrenamed tab), one with two numeric tabs, one with a named tab; titles that name a task, a generic one, a spinner. Field shapes follow herdr 0.9.0 / protocol 22; every value is invented.",
+ "snapshot": {
+  "version": "0.9.0",
+  "protocol": 22,
+  "focused_workspace_id": "solo",
+  "focused_tab_id": "solo:t1",
+  "focused_pane_id": "solo:p1",
+  "workspaces": [
+   {
+    "workspace_id": "solo",
+    "number": 1,
+    "label": "solo",
+    "focused": true,
+    "pane_count": 0,
+    "tab_count": 1,
+    "active_tab_id": "solo:t1",
+    "agent_status": "idle",
+    "worktree": null
+   },
+   {
+    "workspace_id": "pair",
+    "number": 2,
+    "label": "pair",
+    "focused": false,
+    "pane_count": 0,
+    "tab_count": 2,
+    "active_tab_id": "pair:t1",
+    "agent_status": "idle",
+    "worktree": null
+   },
+   {
+    "workspace_id": "named",
+    "number": 3,
+    "label": "named",
+    "focused": false,
+    "pane_count": 0,
+    "tab_count": 1,
+    "active_tab_id": "named:t1",
+    "agent_status": "idle",
+    "worktree": null
+   }
+  ],
+  "tabs": [
+   {
+    "tab_id": "solo:t1",
+    "workspace_id": "solo",
+    "number": 1,
+    "label": "1",
+    "focused": false,
+    "pane_count": 3,
+    "agent_status": "idle"
+   },
+   {
+    "tab_id": "pair:t1",
+    "workspace_id": "pair",
+    "number": 1,
+    "label": "1",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "idle"
+   },
+   {
+    "tab_id": "pair:t2",
+    "workspace_id": "pair",
+    "number": 2,
+    "label": "2",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "idle"
+   },
+   {
+    "tab_id": "named:t1",
+    "workspace_id": "named",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "idle"
+   }
+  ],
+  "panes": [
+   {
+    "pane_id": "solo:p1",
+    "terminal_id": "term-solo-p1",
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "focused": true,
+    "cwd": "/home/tester/fetcher",
+    "foreground_cwd": "/home/tester/fetcher",
+    "agent": "claude",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "claude",
+     "kind": "session_id",
+     "value": "fake-session-solo-p1"
+    },
+    "terminal_title": "✳ Add retry to fetch",
+    "terminal_title_stripped": "✳ Add retry to fetch",
+    "agent_status": "blocked",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   },
+   {
+    "pane_id": "solo:p2",
+    "terminal_id": "term-solo-p2",
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "focused": false,
+    "cwd": "/home/tester/fetcher",
+    "foreground_cwd": "/home/tester/fetcher",
+    "agent": "claude",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "claude",
+     "kind": "session_id",
+     "value": "fake-session-solo-p2"
+    },
+    "terminal_title": "Claude Code",
+    "terminal_title_stripped": "Claude Code",
+    "agent_status": "working",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   },
+   {
+    "pane_id": "solo:p3",
+    "terminal_id": "term-solo-p3",
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "focused": false,
+    "cwd": "/home/tester/fetcher",
+    "foreground_cwd": "/home/tester/fetcher",
+    "terminal_title": "zsh",
+    "terminal_title_stripped": "zsh",
+    "agent_status": "unknown",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   },
+   {
+    "pane_id": "pair:p1",
+    "terminal_id": "term-pair-p1",
+    "workspace_id": "pair",
+    "tab_id": "pair:t1",
+    "focused": false,
+    "cwd": "/home/tester/pair",
+    "foreground_cwd": "/home/tester/pair",
+    "label": "reviewer",
+    "agent": "codex",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "codex",
+     "kind": "session_id",
+     "value": "fake-session-pair-p1"
+    },
+    "terminal_title": "codex",
+    "terminal_title_stripped": "codex",
+    "agent_status": "idle",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   },
+   {
+    "pane_id": "pair:p2",
+    "terminal_id": "term-pair-p2",
+    "workspace_id": "pair",
+    "tab_id": "pair:t2",
+    "focused": false,
+    "cwd": "/home/tester/pair",
+    "foreground_cwd": "/home/tester/pair",
+    "agent": "codex",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "codex",
+     "kind": "session_id",
+     "value": "fake-session-pair-p2"
+    },
+    "terminal_title": "⠋ Review the diff",
+    "terminal_title_stripped": "⠋ Review the diff",
+    "agent_status": "working",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   },
+   {
+    "pane_id": "named:p1",
+    "terminal_id": "term-named-p1",
+    "workspace_id": "named",
+    "tab_id": "named:t1",
+    "focused": false,
+    "cwd": "/home/tester/named",
+    "foreground_cwd": "/home/tester/named",
+    "agent": "pi",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "pi",
+     "kind": "session_id",
+     "value": "fake-session-named-p1"
+    },
+    "terminal_title": "pi",
+    "terminal_title_stripped": "pi",
+    "agent_status": "done",
+    "scroll": {
+     "offset_from_bottom": 0,
+     "max_offset_from_bottom": 0,
+     "viewport_rows": 40
+    },
+    "revision": 1
+   }
+  ],
+  "layouts": [
+   {
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "zoomed": false,
+    "area": {
+     "x": 0,
+     "y": 0,
+     "width": 160,
+     "height": 80
+    },
+    "focused_pane_id": "solo:p1",
+    "panes": [
+     {
+      "pane_id": "solo:p1",
+      "focused": false,
+      "rect": {
+       "x": 0,
+       "y": 0,
+       "width": 53,
+       "height": 80
+      }
+     },
+     {
+      "pane_id": "solo:p2",
+      "focused": false,
+      "rect": {
+       "x": 53,
+       "y": 0,
+       "width": 53,
+       "height": 80
+      }
+     },
+     {
+      "pane_id": "solo:p3",
+      "focused": false,
+      "rect": {
+       "x": 106,
+       "y": 0,
+       "width": 53,
+       "height": 80
+      }
+     }
+    ],
+    "splits": []
+   },
+   {
+    "workspace_id": "pair",
+    "tab_id": "pair:t1",
+    "zoomed": false,
+    "area": {
+     "x": 0,
+     "y": 0,
+     "width": 160,
+     "height": 80
+    },
+    "focused_pane_id": "pair:p1",
+    "panes": [
+     {
+      "pane_id": "pair:p1",
+      "focused": false,
+      "rect": {
+       "x": 0,
+       "y": 0,
+       "width": 160,
+       "height": 80
+      }
+     }
+    ],
+    "splits": []
+   },
+   {
+    "workspace_id": "pair",
+    "tab_id": "pair:t2",
+    "zoomed": false,
+    "area": {
+     "x": 0,
+     "y": 0,
+     "width": 160,
+     "height": 80
+    },
+    "focused_pane_id": "pair:p2",
+    "panes": [
+     {
+      "pane_id": "pair:p2",
+      "focused": false,
+      "rect": {
+       "x": 0,
+       "y": 0,
+       "width": 160,
+       "height": 80
+      }
+     }
+    ],
+    "splits": []
+   },
+   {
+    "workspace_id": "named",
+    "tab_id": "named:t1",
+    "zoomed": false,
+    "area": {
+     "x": 0,
+     "y": 0,
+     "width": 160,
+     "height": 80
+    },
+    "focused_pane_id": "named:p1",
+    "panes": [
+     {
+      "pane_id": "named:p1",
+      "focused": false,
+      "rect": {
+       "x": 0,
+       "y": 0,
+       "width": 160,
+       "height": 80
+      }
+     }
+    ],
+    "splits": []
+   }
+  ],
+  "agents": [
+   {
+    "terminal_id": "term-solo-p1",
+    "agent": "claude",
+    "terminal_title": "✳ Add retry to fetch",
+    "terminal_title_stripped": "✳ Add retry to fetch",
+    "agent_status": "blocked",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "claude",
+     "kind": "session_id",
+     "value": "fake-session-solo-p1"
+    },
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "pane_id": "solo:p1",
+    "focused": true,
+    "cwd": "/home/tester/fetcher",
+    "foreground_cwd": "/home/tester/fetcher",
+    "revision": 1,
+    "state_change_seq": 1
+   },
+   {
+    "terminal_id": "term-solo-p2",
+    "agent": "claude",
+    "terminal_title": "Claude Code",
+    "terminal_title_stripped": "Claude Code",
+    "agent_status": "working",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "claude",
+     "kind": "session_id",
+     "value": "fake-session-solo-p2"
+    },
+    "workspace_id": "solo",
+    "tab_id": "solo:t1",
+    "pane_id": "solo:p2",
+    "focused": false,
+    "cwd": "/home/tester/fetcher",
+    "foreground_cwd": "/home/tester/fetcher",
+    "revision": 1,
+    "state_change_seq": 1
+   },
+   {
+    "terminal_id": "term-pair-p1",
+    "agent": "codex",
+    "terminal_title": "codex",
+    "terminal_title_stripped": "codex",
+    "agent_status": "idle",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "codex",
+     "kind": "session_id",
+     "value": "fake-session-pair-p1"
+    },
+    "workspace_id": "pair",
+    "tab_id": "pair:t1",
+    "pane_id": "pair:p1",
+    "focused": false,
+    "cwd": "/home/tester/pair",
+    "foreground_cwd": "/home/tester/pair",
+    "revision": 1,
+    "state_change_seq": 1
+   },
+   {
+    "terminal_id": "term-pair-p2",
+    "agent": "codex",
+    "terminal_title": "⠋ Review the diff",
+    "terminal_title_stripped": "⠋ Review the diff",
+    "agent_status": "working",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "codex",
+     "kind": "session_id",
+     "value": "fake-session-pair-p2"
+    },
+    "workspace_id": "pair",
+    "tab_id": "pair:t2",
+    "pane_id": "pair:p2",
+    "focused": false,
+    "cwd": "/home/tester/pair",
+    "foreground_cwd": "/home/tester/pair",
+    "revision": 1,
+    "state_change_seq": 1
+   },
+   {
+    "terminal_id": "term-named-p1",
+    "agent": "pi",
+    "terminal_title": "pi",
+    "terminal_title_stripped": "pi",
+    "agent_status": "done",
+    "agent_session": {
+     "source": "fixture",
+     "agent": "pi",
+     "kind": "session_id",
+     "value": "fake-session-named-p1"
+    },
+    "workspace_id": "named",
+    "tab_id": "named:t1",
+    "pane_id": "named:p1",
+    "focused": false,
+    "cwd": "/home/tester/named",
+    "foreground_cwd": "/home/tester/named",
+    "revision": 1,
+    "state_change_seq": 1
+   }
+  ]
+ }
+}

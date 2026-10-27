@@ -98,7 +98,9 @@ MIN_CASES_OFFICE_NAVIGATOR=26
 MIN_CASES_SPACE_RAIL=20
 MIN_CASES_EDGE_ARROWS=20
 MIN_CASES_ATTENTION_STORE=28
-MIN_CASES_AGENT_LIST=36
+# AGENT LIST 36 -> 38: the 37th case was already there; NEXT with nobody next
+# is an opaque pill.
+MIN_CASES_AGENT_LIST=38
 MIN_CASES_ATTENTION_INTEGRATION=19
 MIN_CASES_FRAME_LOOP=9
 MIN_CASES_PIXEL_PEOPLE=53
@@ -110,9 +112,11 @@ MIN_CASES_ANSWERS=42
 MIN_CASES_BUBBLES=24
 MIN_CASES_MONITOR=36
 MIN_CASES_TOP_BAR=27
-MIN_CASES_STATE_LOG=21
-MIN_CASES_NEWS_EVENTS=15
+MIN_CASES_STATE_LOG=22
+MIN_CASES_NEWS_EVENTS=16
 MIN_CASES_LENS=20
+# What every surface calls a pane (DisplayName), live and as a table.
+MIN_CASES_NAMES=8
 MIN_CASES_STRATEGIC=28
 MIN_CASES_ALERTS=19
 MIN_CASES_OVERVIEW=21
@@ -127,7 +131,9 @@ MIN_CASES_CLOSE=15
 MIN_CASES_SPACES=16
 MIN_CASES_REFUSAL_LADDER=23
 # The agent card's picture (CardPicture): pure tables, no scene and no herdr.
-MIN_CASES_CARD_PICTURE=27
+# 27 -> 30: the 28th case was already there; the card and NEXT call a pane by
+# its name (DisplayName), two cases.
+MIN_CASES_CARD_PICTURE=30
 # How a start that is over is said across cards of its pane: four transitions
 # by real input and the closing case, in a suite of its own because
 # tools/test_launch.gd stands at gdlint's file cap.
@@ -147,7 +153,8 @@ MIN_CASES_PICK_FOLLOWS_WRITE=20
 # wall-clock time with a fake herdr.
 QUICK_SUITES="test_art test_office_incremental test_office_layout test_office_map test_office_service
 test_office_navigator test_office_geometry test_office_frames test_office_quiet test_day_light
-test_office_reconcile test_office_walking test_office_rests test_lens test_pixel_people test_desk_signal"
+test_office_reconcile test_office_walking test_office_rests test_lens test_pixel_people test_desk_signal
+test_names"
 SUITES="${SUITES:-}"
 CASE="${CASE:-}"
 SHARD="${SHARD:-}"
@@ -444,6 +451,8 @@ run_suites() {
 		--socket="$WORK/news-nowhere.sock" --work="$WORK"
 	run_scene_suite test_lens "LENS TESTS" "$MIN_CASES_LENS" -- --read-only \
 		--socket="$WORK/lens-nowhere.sock" --work="$WORK"
+	run_scene_suite test_names "NAMES TESTS" "$MIN_CASES_NAMES" -- --read-only \
+		--socket="$WORK/names-nowhere.sock" --work="$WORK"
 	run_scene_suite test_strategic "STRATEGIC TESTS" "$MIN_CASES_STRATEGIC" -- --read-only \
 		--socket="$WORK/strategic-nowhere.sock" --work="$WORK"
 	run_scene_suite test_alerts "ALERTS TESTS" "$MIN_CASES_ALERTS" -- --read-only \

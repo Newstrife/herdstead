@@ -33,7 +33,7 @@ func test_an_arrival_walks_in_from_the_door_to_the_seat() -> void:
 	if body == null:
 		_done(office)
 		return
-	_eq(_plate(station).text, "CODEX", "its plate names them at once")
+	_eq(_plate(station).text, "main", "its plate names the pane at once")
 	_check(_badge(station).visible, "and its badge shows")
 	var target: Area2D = station.get_node("Target")
 	_check(target.input_pickable, "and it answers a click")

@@ -363,8 +363,9 @@ func test_a_drag_or_a_click_between_squares_picks_nothing() -> void:
 	_done(office)
 
 
-## Hovering a square names it: provider, state in the pack's words, the wait
-## (always, even where the square has no room for it), and where it sits.
+## Hovering a square names it: the pane's name, then who (the provider), the
+## state in the pack's words and the wait (always, even where the square has
+## no room for it), then where it sits.
 func test_the_tooltip_names_provider_state_wait_and_place() -> void:
 	var raw := _with(_stress(), "w0:t0:p1", {"agent_status": "idle", "launch_pending": true})
 	var office := await _live_office(raw, SMALL)
@@ -376,14 +377,16 @@ func test_the_tooltip_names_provider_state_wait_and_place() -> void:
 	var wait := OfficeAttention.wait_text(StateLog.wait_of(office.fleet.state_log().track(blocked), now))
 	_eq(plan.wait_drawn(blocked), "", "none drawn")
 	var pane := office.frame.pane(blocked)
-	var place := "%s / %s · %s" % [pane.workspace_label, pane.tab_label, _pane_label(pane)]
+	var place := "%s · %s" % [pane.place(), _pane_label(pane)]
 	var asks := office.art.state(ArtContract.STATE_BLOCKED).label
-	var tip := "CLAUDE · %s · %s\n%s" % [asks, wait, place]
+	var tip := "%s\nCLAUDE · %s · %s\n%s" % [pane.name, asks, wait, place]
 	_eq(plan.tooltip_at(plan.seat_rect(blocked).get_center()), tip, "blocked, in the pack's word")
 	var done := _spk("w0:t0:p3")
-	_check(plan.tooltip_at(plan.seat_rect(done).get_center()).begins_with("CLAUDE · UNREAD\n"), "done is UNREAD")
+	var done_tip := plan.tooltip_at(plan.seat_rect(done).get_center())
+	_check(done_tip.begins_with(office.frame.pane(done).name + "\nCLAUDE · UNREAD\n"), "done is UNREAD: " + done_tip)
 	var starting := _spk("w0:t0:p1")
-	_check(plan.tooltip_at(plan.seat_rect(starting).get_center()).begins_with("CLAUDE · STARTING\n"), "a start")
+	var start_tip := plan.tooltip_at(plan.seat_rect(starting).get_center())
+	_check(start_tip.begins_with(office.frame.pane(starting).name + "\nCLAUDE · STARTING\n"), "a start: " + start_tip)
 	var square := plan.seat_rect(blocked)
 	_eq(plan.tooltip_at(square.position - Vector2(1, 1)), "", "nothing between squares")
 	# Through the real pointer: the viewport asks the plan for it.
@@ -405,7 +408,8 @@ func test_a_stale_floor_is_dark_and_says_no_wait() -> void:
 	for key: String in plan.seat_keys():
 		_eq(plan.looks().get(key, &""), &"WindowDark", "dark: " + key)
 		_eq(plan.wait_drawn(key), "", "no wait: " + key)
-	_check(plan.tooltip_at(plan.seat_rect(_spk("w0:t0:p2")).get_center()).begins_with("CLAUDE · OFFLINE\n"), "OFFLINE")
+	var dark := plan.tooltip_at(plan.seat_rect(_spk("w0:t0:p2")).get_center())
+	_check(dark.begins_with(office.frame.pane(_spk("w0:t0:p2")).name + "\nCLAUDE · OFFLINE\n"), "OFFLINE: " + dark)
 	_eq(plan.modulate, office.art.stale_tint, "tinted like the frozen world")
 	var header: Control = office.hud.strategic.get_node("%Header")
 	_eq(header.modulate, Color.WHITE, "the header is not")
@@ -735,7 +739,8 @@ func test_the_stress_fit_at_2x_4x_and_min() -> void:
 	for screen: Vector2 in [WIDE, SMALL]:
 		hud.fit(screen)
 		rooms[screen] = hud.strategic.room_for(hud.world_rect().size)
-	_eq(rooms[WIDE], Vector2(804, 271), "the room at 2x, above the card")
+	# The SPACES column says names from 960 units on: 48 more of the 960 are its.
+	_eq(rooms[WIDE], Vector2(756, 271), "the room at 2x, above the card")
 	_eq(rooms[SMALL], Vector2(324, 163), "the room at 4x and the minimum")
 	var eighty := _rows_of(10)
 	var four_hundred := _rows_of(50)

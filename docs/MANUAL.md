@@ -148,8 +148,9 @@ zero. It reconnects with exponential backoff from 0.5 s to 5 s.
 
 **People and looks.** Everyone in the office is a pixel person: six layers (legs < top < body < glasses < hair <
 headwear), density 2, nearest-neighbour. Clothes follow the provider; face, hair and glasses vary per pane, so several
-panes of one agent are not twins. The provider shows on the seat's name plate, which appears while the seat is hovered or
-selected, or while `L` is held. The Avatar Studio
+panes of one agent are not twins. The seat's name plate says what the pane is called (its task summary from the terminal
+title, else its label, tab or directory) and appears while the seat is hovered or selected, or while `L` is held; hovering
+the seat shows the whole name, who sits there and in what state, and where. The Avatar Studio
 (`scenes/avatar_studio.tscn`) pins each part per agent for all 23 agents in `data/agent_catalog.json` (or leaves it
 VARIES), saved to `user://herdstead_avatars.json` (schema 2). A save rereads what it will write, checks the file on disk
 was not changed by someone else, refuses any save that would lose data and says why, and keeps anything it cannot read
@@ -219,7 +220,7 @@ The AGENTS list has one row per pane on every machine, in two views:
 - **Tree**: machine → space → worktree mezzanine → tab → agent.
 
 Groups fold and show a count; Shells and History start folded. The flat view's folds and the chosen view are saved in
-`user://herdstead.cfg`. The filter box matches agent, tab, space and repo names.
+`user://herdstead.cfg`. The filter box matches the panes' names, agent, tab, space and repo names.
 
 - Click a row: select that pane (same as clicking its seat: show its machine's map, pan to it, show it on the card).
 - Double-click (or `Enter`): open it in the terminal monitor (read-only monitor under `--read-only`).
@@ -254,10 +255,10 @@ The bottom of the screen is the staff panel, which hosts the agent card. The car
 does not fit is in the tooltip.
 
 **Compact by default, at every size.** On a screen at least 400 units tall it is a card at the bottom-left: portrait,
-name, the state in a pill of its colour, where, and `‹ ›`, `Monitor ⤢`, `Open ⏎` under them (the `⤢` and `⏎` are small icons after the word), with NEXT (▶) at the right
-end; the office shows between them but takes no click there. Below 400 units it is one line: who · state · where, how long
+the pane's name, the state in a pill of its colour, who and where (`CLAUDE · api / main`), and `‹ ›`, `Monitor ⤢`, `Open ⏎` under them (the `⤢` and `⏎` are small icons after the word), with NEXT (▶) at the right
+end; the office shows between them but takes no click there. Below 400 units it is one line: name · state · where, how long
 it has waited, `‹ ›`, `Monitor ⤢`, `Open ⏎`, NEXT. Below 640 units of screen width these read `⤢`, `⏎`, and NEXT shows only
-provider and space. Compact, the panel reads no preview: to see a working agent's terminal, expand it.
+the name. Compact, the panel reads no preview: to see a working agent's terminal, expand it.
 
 - `Enter`, `Open ⏎` or answer mode expand it to full height: portrait, state, wait, location (a shell shows `SHELL` /
   `no agent` instead of portrait and state), a live 12-row monospace preview of the terminal (herdr's `detection` when
@@ -274,7 +275,7 @@ provider and space. Compact, the panel reads no preview: to see a working agent'
 and only while it is still the terminal you picked. It switches herdr's shared view, and **clears UNREAD for every pane of
 that tab** (the note beside it says `Clears tab's UNREAD`).
 
-**NEXT** at the right end says what pressing it would do and to whom (`Answer CLAUDE web` / `Read CODEX api`) and how
+**NEXT** at the right end says what pressing it would do and to whom, by name (`Answer needs approval` / `Read refactor the fleet`) and how
 long they have waited. Clicking it equals pressing `N`: select that agent and expand its panel; a blocked one enters
 answer mode once its question shows (nothing is sent; you still press the key, so `N` then a digit answers), a done one
 only expands. Under `--read-only` there is no verb; it only selects. With nothing to do it reads `All clear` and greys
@@ -337,7 +338,7 @@ will type the kind into this terminal and press Enter. After sending, the footer
 (`Starting claude-2 · 4s` → `claude-2 started`; a launch that asks at once: `claude-2 asks: answer with the keys`).
 If nothing is detected after 31 seconds the office asks herdr once and says `not detected` or
 `did not start: look at the terminal`. Never retried. In the world a person walks in from the lift door with an hourglass
-overhead; until herdr detects the kind the name plate reads `CLAUDE-2`.
+overhead; until herdr detects the kind the card's seat line reads `CLAUDE-2 · api / main`.
 
 **NEW PANE BESIDE <agent>** (an agent seat selected, same place): `New pane →` or `New pane ↓`, the direction chosen from
 the pane's shape; refused when either side would be under 40 columns or 10 rows. herdr splits a new shell pane in the same
@@ -408,7 +409,7 @@ All three read the state log: the state changes observed since this run opened, 
 no terminal text and is never saved. Clicking an entry only selects the pane.
 
 **NEWS** is the bottom line of the screen: the latest 8 events, newest on the left. The time is written after the segment
-that ended: `11:40 CODEX ui working 38m → done` (`+` = at least). An entry whose pane is gone is disabled (the tooltip
+that ended: `11:40 refactor the fleet · api working 38m → done` (`+` = at least; a long name is cut, the tooltip says it whole). An entry whose pane is gone is disabled (the tooltip
 says so); machine entries are not clickable.
 
 **EVENTS** is the drawer's second tab: the same events, newest on top, up to 200 rows.
@@ -826,7 +827,8 @@ scripts/office_*.gd      navigator, camera, lens, alerts, draw helpers, window (
                          question tips, new-pane follow, view marks (the rail's in-view marks and the edge arrows)
 scripts/model/           typed models: HerdrSnapshot (the only reader of raw snapshots), OfficeFrame, StateLog,
                          command context / ticket / refusal / answers / results, layout plans
-                         PickFollowsWrite (pure: where the pick goes after a write the office sent)
+                         PickFollowsWrite (pure: where the pick goes after a write the office sent),
+                         DisplayName (pure: what every surface calls a pane)
 scripts/layout/          map and zone planning, seat planning, walk graph, validation
 scripts/world/           pods (table.gd), stations, chips, the floor view, machine plate, zone signs, shell,
                          presentation (walking), rests, pointer

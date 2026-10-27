@@ -39,6 +39,8 @@ class Row:
 	## The name herdr gave the pane's agent (`claude-1`, bounded by the
 	## snapshot); what the row is called while `agent` is still empty.
 	var agent_name := ""
+	## What the office calls the pane (StateLog.Track.name): the AGENT column.
+	var name := ""
 	## herdr is launching the pane's agent and it has not asked anything
 	## (PaneModel.launching()): the STATE column says STARTING.
 	var starting := false
@@ -66,6 +68,16 @@ class Row:
 	var track: StateLog.Track
 	## The pane the staff panel shows.
 	var selected := false
+
+	## The AGENT column and what its sort orders by: what the office calls the
+	## pane; without a name, the provider in capitals, the name herdr gave an
+	## agent it has not recognised yet (`CLAUDE-1`), or `shell`.
+	func called() -> String:
+		if not name.is_empty():
+			return name
+		if not agent.is_empty():
+			return agent.to_upper()
+		return "shell" if agent_name.is_empty() else agent_name.to_upper()
 
 	## The SPACE / TAB column: `api / main`, and `@ bee` on another machine's pane.
 	func place() -> String:
@@ -181,6 +193,7 @@ static func _row(kept: StateLog.Track, ledger: StateLog, now: int) -> Row:
 	row.key = kept.key
 	row.agent = kept.agent
 	row.agent_name = kept.agent_name
+	row.name = kept.name
 	row.space = kept.space
 	row.tab = kept.tab
 	row.machine_label = kept.machine_label
@@ -231,7 +244,8 @@ static func _compare(a: Row, b: Row, by: Sort) -> int:
 			# The longest in its state first.
 			return signi(b.for_msec - a.for_msec)
 		Sort.AGENT:
-			return signi(a.agent.nocasecmp_to(b.agent))
+			# The column says names, so it sorts by them (ties by key, _before()).
+			return signi(a.called().nocasecmp_to(b.called()))
 		Sort.SPACE:
 			return signi(a.place().nocasecmp_to(b.place()))
 		Sort.FOR:

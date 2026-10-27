@@ -441,6 +441,11 @@ func _control(office: OfficeDouble, unique: String) -> Control:
 	return office.hud.inspector.get_node("%" + unique)
 
 
+## What the card's seat line says: who sits there, in a kind's words, and where.
+func _seat(card: Control) -> String:
+	return (card.get_node("%Seat") as Label).text
+
+
 func _key_button(office: OfficeDouble, unique: String) -> Button:
 	return office.hud.inspector.get_node("%" + unique)
 

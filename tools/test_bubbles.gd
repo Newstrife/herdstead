@@ -325,7 +325,8 @@ func test_hovering_a_bubble_shows_the_question_it_read() -> void:
 	_check(office.hud.world_tip_shown(), "still blocked, still under the pointer: the tooltip stays")
 	_eq(office.hud.world_tip_text(), OfficeQuestionReader.NOT_READ_TEXT, "and drops the old session's question at once")
 	await _move_pointer(at + Vector2(0, 60))
-	_check(not office.hud.world_tip_shown(), "the pointer leaves: the tooltip goes")
+	# 60 below the chip is the shell alpha:p2's seat, whose own tooltip names it now.
+	_eq(office.hud.world_tip_text(), "main\nSHELL\nalpha lab / main", "the pointer leaves: the bubble's tooltip goes")
 	_eq(_all_inputs(), 0, "nothing written")
 
 
@@ -418,7 +419,7 @@ func test_next_walks_the_same_queue_as_n_and_sends_nothing() -> void:
 			var asks := next != null and next.asks()
 			if next != null:
 				var verb := "Answer" if asks else "Read"
-				var who := "%s %s %s" % [verb, next.provider.to_upper(), next.workspace_label]
+				var who := "%s %s" % [verb, next.name]
 				_check(
 					card.next_text().begins_with(who), "%s %d: NEXT names %s: %s" % [how, press, who, card.next_text()]
 				)
@@ -473,7 +474,7 @@ func test_the_next_wait_ticks_and_all_clear_disables() -> void:
 	await _until(func() -> bool: return office.navigator.peek_next(office.frame) == key, "bee's alpha:p3 is next")
 	await _until(func() -> bool: return not button.disabled, "NEXT is on")
 	var pane := office.frame.pane(key)
-	var said := "Answer %s %s @ %s" % [pane.provider.to_upper(), pane.workspace_label, office.fleet.label(BEE)]
+	var said := "Answer %s @ %s" % [pane.name, office.fleet.label(BEE)]
 	_eq(line.text, said, "it names bee's alpha:p3, to answer, on bee")
 	var ticking := RegEx.create_from_string("^\\d+s \\(N\\)$")
 	await _until(func() -> bool: return ticking.search(wait.text) != null, "its wait ticks: " + wait.text)
@@ -730,11 +731,11 @@ func test_the_compact_next_shows_whole_words() -> void:
 	await _frames(2)
 	_check(card.compact(), "480x320: the compact line")
 	var pane := office.frame.pane(key)
-	var who := "%s %s" % [pane.provider.to_upper(), pane.workspace_label]
+	var who := pane.name
 	var said := "Answer %s @ %s" % [who, office.fleet.label(HerdrFleet.LOCAL)]
 	_check(button.is_visible_in_tree(), "NEXT is on the compact line")
 	_check(not title.is_visible_in_tree(), "no `NEXT:` on the compact line")
-	_eq(line.text, who, "whom, and where")
+	_eq(line.text, who, "whom, by name")
 	_eq(card.next_text(), who, "what it shows")
 	var font := line.get_theme_font("font")
 	var needed := (
@@ -749,7 +750,8 @@ func test_the_compact_next_shows_whole_words() -> void:
 	)
 	var own := "N: the next agent who needs you"
 	_check(button.tooltip_text.begins_with(own), "the button's own sentence first: " + button.tooltip_text)
-	_check(button.tooltip_text.ends_with("\nNext: " + said), "the tooltip says the rest: " + button.tooltip_text)
+	var whole := "\nNext: %s · %s" % [said, pane.workspace_label]
+	_check(button.tooltip_text.ends_with(whole), "the tooltip says the rest, the space too: " + button.tooltip_text)
 	office.test_screen = Vector2(800, 480)
 	office.refresh()
 	await _until(func() -> bool: return title.is_visible_in_tree(), "800x480: the wide line")
@@ -758,7 +760,7 @@ func test_the_compact_next_shows_whole_words() -> void:
 	_check(title.is_visible_in_tree(), "`NEXT:` before it again")
 	_eq(line.text, said, "the whole sentence")
 	_check(
-		button.tooltip_text.begins_with(own) and button.tooltip_text.ends_with("\nNext: " + said),
+		button.tooltip_text.begins_with(own) and button.tooltip_text.ends_with(whole),
 		"the tooltip says it whole too, in case the line clips it: " + button.tooltip_text
 	)
 	for which: String in ["control-a", "control-b"]:
@@ -798,7 +800,7 @@ func test_next_on_a_blocked_agent_opens_answer_mode_and_n_then_a_digit_sends_one
 	var card := _card(office)
 	var key := HerdrFleet.pane_key(BEE, "alpha:p3")
 	_eq(office.navigator.peek_next(office.frame), key, "the one blocked agent is next")
-	_check(card.next_text().begins_with("Answer CODEX alpha"), "NEXT says what a press does: " + card.next_text())
+	_check(card.next_text().begins_with("Answer codex session"), "NEXT says what a press does: " + card.next_text())
 	_ctl("control-b", "next", {"action": "delay", "method": "pane.read", "seconds": 1.0})
 	await _tap(KEY_N)
 	await _until(func() -> bool: return office.picked_key == key, "N picks it")
@@ -830,7 +832,7 @@ func test_next_on_a_done_agent_opens_its_card_without_answer_mode() -> void:
 	var card := _card(office)
 	var key := HerdrFleet.pane_key(BEE, "alpha:p3")
 	_eq(office.navigator.peek_next(office.frame), key, "the one done agent is next")
-	_check(card.next_text().begins_with("Read CODEX alpha"), "NEXT says what a press does: " + card.next_text())
+	_check(card.next_text().begins_with("Read codex session"), "NEXT says what a press does: " + card.next_text())
 	_check(office.hud.card_compact(), "the panel is one line")
 	var next: Control = card.get_node("%NextButton")
 	await _click_control(next)
@@ -843,12 +845,12 @@ func test_next_on_a_done_agent_opens_its_card_without_answer_mode() -> void:
 	_eq(_count("control-a", "pane.focus") + _count("control-b", "pane.focus"), 0, "and no switch")
 
 
-## What NEXT says it will do for pane `key`: `Answer CLAUDE alpha lab @ bee`.
+## What NEXT says it will do for pane `key`: `Answer claude session @ bee`.
 func _answer_line(office: OfficeDouble, key: String) -> String:
 	var pane := office.frame.pane(key)
 	if pane == null:
 		return "(no pane %s)" % key
-	return "Answer %s %s @ %s" % [pane.provider.to_upper(), pane.workspace_label, office.fleet.label(pane.machine())]
+	return "Answer %s @ %s" % [pane.name, office.fleet.label(pane.machine())]
 
 
 ## While anyone is blocked, `N` walks the

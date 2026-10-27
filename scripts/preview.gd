@@ -288,10 +288,12 @@ func zone(at: Vector2, number: int, space: String, tab: String, split: bool) -> 
 	# API is the tab its workspace has open, with herdr's focus on its first
 	# seat; WEB is a tab nobody has open, so every lamp on it is dimmed. The four
 	# near seats of WEB carry no pane at all: a chair, no screen, no lamp.
+	# The mock panes have no titles: each is called by its tab (DisplayName).
 	for spot: String in seats:
 		var level := OfficeTable.Lamp.ON if split else OfficeTable.Lamp.DIM
 		if not seats[spot].vacant:
 			seats[spot].light(OfficeTable.Lamp.FOCUS if split and spot == "0/far" else level)
+			seats[spot].show_name(tab)
 	return table
 
 
@@ -366,8 +368,10 @@ func _hud() -> OfficeHud:
 	pane.state = "idle" if stale else "blocked"
 	pane.workspace_label = "API"
 	pane.tab_label = "DEV"
+	pane.tab_shown = "DEV"
 	pane.cwd = "/home/mock/herdstead"
 	pane.terminal_title = "Source: mock fixture"
+	pane.name = DisplayName.of(pane.terminal_title, "", "DEV", pane.cwd, "", pane.pane_id, pane.provider)
 	hud.inspector.show_pane(pane, "", stale)
 	hud.inspector.set_duration("12m")
 	return hud
@@ -452,6 +456,8 @@ func _mock_office() -> MockOffice:
 				sighting.agent = pane[2]
 				sighting.space = pane[3]
 				sighting.tab = pane[4]
+				# No titles here: each mock pane is called by its tab (DisplayName).
+				sighting.name = DisplayName.of("", "", str(pane[4]), "", "", str(pane[1]), str(pane[2]))
 				kept[key] = sighting
 			sighting.status = change[1]
 			# The baseline's start is unknown; every later one is seen.
@@ -481,6 +487,8 @@ func _mock_office() -> MockOffice:
 			model.workspace_id = model.pane_id.get_slice(":", 0)
 			model.workspace_label = sighting.space
 			model.tab_label = sighting.tab
+			model.tab_shown = sighting.tab
+			model.name = sighting.name
 			building.all_panes.append(model)
 			frame.pane_by_key[key] = model
 		# As OfficeProjection.frame(): a dropped machine's panes are not live.

@@ -22,6 +22,8 @@ func _pane(machine := "local", pane_id := "pane", state := "working") -> PaneMod
 	pane.workspace_label = "Project"
 	pane.tab_label = "Main"
 	pane.label = "Worker"
+	# What the projection would call it (DisplayName): no title, so its label.
+	pane.name = "Worker"
 	return pane
 
 
@@ -60,7 +62,7 @@ func test_first_snapshot_is_baseline_and_metadata_does_not_make_events() -> void
 	_check(_observe(store, [pane], 2000), "metadata refresh accepted")
 	_eq(store.active().size(), 1, "same event plus repeated snapshot deduplicates")
 	_eq(store.current(2000)[0], item, "same episode object survives metadata")
-	_eq(item.title, "Worker", "explicit pane name takes priority over changing terminal title")
+	_eq(item.title, "Worker", "the record is titled by the pane's name, not by a raw terminal title")
 	_eq(item.workspace_label, "Renamed project", "workspace label refreshes")
 	_eq(item.tab_label, "Renamed tab", "tab label refreshes")
 	_eq(item.workspace_key, HerdrFleet.pane_key("local", "workspace"), "workspace is machine scoped")
@@ -362,6 +364,8 @@ func test_verified_terminal_or_native_session_preserves_reconnect_dismissal() ->
 		if pane.session != null:
 			pane.session.source = "screen"
 		pane.label = "Same session, renamed"
+		# What the projection calls a pane with that label and no title (DisplayName).
+		pane.name = pane.label
 		_observe(store, [pane], 3000)
 		_eq(store.active().size(), 1, "known identity with unchanged state creates no new event")
 		_eq(store.active()[0], item, "terminal ID or native session alone can establish identity")
@@ -565,6 +569,7 @@ func _crowd(count: int, every: int, machine := "local") -> Array[PaneModel]:
 func _rename(panes: Array[PaneModel], name: String) -> void:
 	for pane in panes:
 		pane.label = "%s %s" % [name, pane.pane_id]
+		pane.name = pane.label
 
 
 ## The live record of pane `key`, or null.

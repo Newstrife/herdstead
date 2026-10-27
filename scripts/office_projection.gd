@@ -114,6 +114,7 @@ static func project(
 	for workspace_id: String in tabs_by_workspace:
 		var listed: Array = tabs_by_workspace[workspace_id]
 		listed.sort_custom(by_number)
+	var tab_counts := DisplayName.tab_counts(snapshot.tabs)
 	var workspaces: Array = []
 	for workspace in snapshot.workspaces:
 		workspaces.append([workspace.number, workspace.workspace_id, workspace])
@@ -144,6 +145,7 @@ static func project(
 				floor_model.worktree = workspace.worktree.checkout_path.trim_suffix("/").get_file()
 		# Which tab herdr has open, or empty when this workspace does not say.
 		var open_tab := workspace.active_tab_id
+		var tabs_here: int = tab_counts.get(workspace_id, 0)
 		for tab_entry: Array in tabs_by_workspace.get(workspace_id, []):
 			var tab: HerdrSnapshot.Tab = tab_entry[2]
 			var room := RoomModel.new()
@@ -151,13 +153,14 @@ static func project(
 			room.tab_id = tab.tab_id
 			room.number = tab.number
 			room.label = tab.label
+			room.label_shown = DisplayName.tab_shown(tab.label, tab.number, tab.tab_id, tabs_here)
 			# Absent stays absent: a workspace that names no open tab leaves
 			# every one of its tabs unknown, which is not the same as closed.
 			if not open_tab.is_empty():
 				room.active = RoomModel.Active.YES if tab.tab_id == open_tab else RoomModel.Active.NO
 			for pane_entry: Array in panes_by_tab.get(tab.tab_id, []):
 				var source: HerdrSnapshot.Pane = pane_entry[1]
-				var pane := pane_model(source, states, machine)
+				var pane := pane_model(source, states, machine, tab, tabs_here)
 				# Neither ownership claim overrides the other. An inconsistent pane
 				# remains in panes_of/inspector_pane, but has no proven world seat.
 				if pane.workspace_id != workspace_id:
@@ -174,7 +177,6 @@ static func project(
 				# from this tab's previous plan or stable pane-key order.
 				pane.side = placed_side if pane.explicit_layout else "far"
 				pane.workspace_label = floor_model.label
-				pane.tab_label = room.label
 				if not pane.provider.is_empty() or pane.starting:
 					floor_model.agents += 1
 				room.panes.append(pane)
@@ -271,7 +273,16 @@ static func floor_counts(floor_model: ZoneModel) -> Dictionary:
 
 
 ## One pane as a desk. `states` are the states the art pack has a badge for.
-static func pane_model(pane: HerdrSnapshot.Pane, states: PackedStringArray, machine := HerdrFleet.LOCAL) -> PaneModel:
+## `tab` is the snapshot's tab the pane names (null: none), one of
+## `tabs_in_workspace` in its workspace: its label, what a place says for it,
+## and the pane's name (DisplayName) come from it.
+static func pane_model(
+	pane: HerdrSnapshot.Pane,
+	states: PackedStringArray,
+	machine := HerdrFleet.LOCAL,
+	tab: HerdrSnapshot.Tab = null,
+	tabs_in_workspace := 0
+) -> PaneModel:
 	var status := pane.status()
 	if not states.has(status):
 		# herdr may grow states this art pack has no badge for.
@@ -292,6 +303,10 @@ static func pane_model(pane: HerdrSnapshot.Pane, states: PackedStringArray, mach
 	model.cwd = pane.cwd
 	model.foreground_cwd = pane.foreground_cwd
 	model.terminal_title = pane.terminal_title_stripped
+	if tab != null:
+		model.tab_label = tab.label
+		model.tab_shown = DisplayName.tab_shown(tab.label, tab.number, tab.tab_id, tabs_in_workspace)
+	model.name = DisplayName.of_pane(pane, tab)
 	return model
 
 
@@ -305,17 +320,19 @@ static func panes_of(
 ) -> Array[PaneModel]:
 	var panes: Array[PaneModel] = []
 	var workspace_labels: Dictionary[String, String] = {}
-	var tab_labels: Dictionary[String, String] = {}
+	var tabs: Dictionary[String, HerdrSnapshot.Tab] = {}
+	var tab_counts := DisplayName.tab_counts(snapshot.tabs)
 	for workspace in snapshot.workspaces:
 		if not workspace_labels.has(workspace.workspace_id):
 			workspace_labels[workspace.workspace_id] = workspace.label
 	for tab in snapshot.tabs:
-		if not tab_labels.has(tab.tab_id):
-			tab_labels[tab.tab_id] = tab.label
+		if not tabs.has(tab.tab_id):
+			tabs[tab.tab_id] = tab
 	for pane in snapshot.panes:
-		var model := pane_model(pane, states, machine)
+		var tab: HerdrSnapshot.Tab = tabs.get(pane.tab_id)
+		var count: int = 0 if tab == null else tab_counts.get(tab.workspace_id, 0)
+		var model := pane_model(pane, states, machine, tab, count)
 		model.workspace_label = workspace_labels.get(model.workspace_id, "")
-		model.tab_label = tab_labels.get(model.tab_id, "")
 		panes.append(model)
 	return panes
 

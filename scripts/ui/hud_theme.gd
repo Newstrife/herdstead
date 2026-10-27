@@ -442,12 +442,16 @@ static func _card(theme: Theme, art: ArtPack, font: Font) -> void:
 ## The staff panel's NEXT button and the closed drawer's tab, dark buttons.
 ## NEXT's words are labels of their own, which keep their colours: a hover
 ## thickens its edge instead of changing the fill under them. Off (nobody
-## next), it is an edge alone. The tab's letters stand one per line.
+## next), it keeps its `deep` fill with a `slate` edge: in the card form it
+## floats over the world, and a hollow pill showed the floor through it.
+## The tab's letters stand one per line.
 static func _staff(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("NextAction", "Button")
 	theme.set_type_variation("DrawerTab", "Button")
 	for state: String in BUTTON_STATES:
 		var next := _dark_button(art, state, true)
+		if state == "disabled":
+			next.bg_color = art.color(ArtContract.DEEP)
 		next.set_corner_radius_all(6)
 		next.anti_aliasing = false
 		theme.set_stylebox(state, "NextAction", next)

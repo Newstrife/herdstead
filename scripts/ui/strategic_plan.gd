@@ -210,9 +210,9 @@ func pointed_key() -> String:
 
 
 ## What the tooltip says at `at` (this control's units): over a square, the
-## agent (`shell` for none), its state in the pack's words (`OFFLINE` on a
-## machine that is not answering, `STARTING` while herdr launches it) and its
-## wait, then where it sits; over a section's caption, what its zone's sign
+## pane's name, then who sits there (`SHELL` for none), its state in the pack's
+## words (`OFFLINE` on a machine that is not answering, `STARTING` while herdr
+## launches it) and its wait, then where it sits; over a section's caption, what its zone's sign
 ## tooltip says (repository, checkout, whose worktree), under the caption's
 ## whole words when it is cut; nothing elsewhere.
 func tooltip_at(at: Vector2) -> String:
@@ -225,11 +225,8 @@ func tooltip_at(at: Vector2) -> String:
 					return ""
 				return section.caption + "\n" + section.tip if _heading_cut[index] else section.tip
 		return ""
-	var words := PackedStringArray()
-	if seat.provider.is_empty():
-		words.append("shell")
-	else:
-		words.append(seat.provider.to_upper())
+	var words := PackedStringArray([seat.who])
+	if not seat.provider.is_empty():
 		if _model.stale:
 			words.append("OFFLINE")
 		elif seat.starting:
@@ -239,7 +236,7 @@ func tooltip_at(at: Vector2) -> String:
 			words.append(str(seat.state_word_key).to_upper() if drawn == null else drawn.label)
 	if not seat.wait.is_empty():
 		words.append(seat.wait)
-	return " · ".join(words) + "\n" + seat.place
+	return seat.name + "\n" + " · ".join(words) + "\n" + seat.place
 
 
 func _get_tooltip(at_position: Vector2) -> String:

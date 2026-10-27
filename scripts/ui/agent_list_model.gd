@@ -60,10 +60,11 @@ class Entry:
 	## Key of the group this line sits in; empty at the top.
 	var parent := ""
 	var depth := 0
-	## A group's title; a pane's provider in capitals (`SHELL` for none).
+	## A group's title; what the office calls a pane or a History line's pane
+	## (DisplayName; a line without one: its provider in capitals, else AGENT).
+	## The row has nothing else to say beside it and cuts it to its room; its
+	## tooltip says it whole, with the kind and the place.
 	var title := ""
-	## A pane's label, else its tab's; a History line's tab (else its space).
-	var detail := ""
 	var presence := Presence.UNKNOWN
 	## Machine key and herdr's pane id, for the badge's clock.
 	var machine := ""
@@ -94,20 +95,22 @@ class Entry:
 	var _search := ""
 	var _searched := false
 
-	## Lower-case text the filter box matches: provider, labels, space, repo,
-	## worktree, machine. Made the first time a filter asks, not per refresh.
+	## Lower-case text the filter box matches: name, provider, labels, space,
+	## repo, worktree, machine. Made the first time a filter asks, not per refresh.
 	func search() -> String:
 		if _searched:
 			return _search
 		_searched = true
 		var words := PackedStringArray()
 		if pane != null:
-			words.append_array([pane.provider, pane.label, pane.tab_label, pane.workspace_label, building_label])
+			words.append_array(
+				[pane.name, pane.provider, pane.label, pane.tab_label, pane.workspace_label, building_label]
+			)
 			if floor_ref != null:
 				var at := floor_ref.zone_model
 				words.append_array([at.label, at.repo, at.worktree])
 		elif history != null:
-			words.append_array([history.provider, history.space, history.tab, history.machine_label])
+			words.append_array([history.name, history.provider, history.space, history.tab, history.machine_label])
 		_search = "\n".join(words).to_lower()
 		return _search
 
@@ -384,8 +387,7 @@ static func _pane_entry(
 	entry.machine = building.key
 	entry.pane_id = pane.pane_id
 	entry.presence = presence_of(pane, building.stale)
-	entry.title = pane.provider.to_upper() if not pane.provider.is_empty() else "SHELL"
-	entry.detail = pane.label if not pane.label.is_empty() else pane.tab_label
+	entry.title = pane.name
 	var item: AttentionItem = live_items.get(pane.key)
 	if item != null and item.identity_key == pane.identity_key():
 		entry.item = item
@@ -407,8 +409,9 @@ static func _history_entry(line: AgentHistory.Line, now_msec: int) -> Entry:
 	entry.history = line
 	entry.machine = line.machine
 	entry.presence = HISTORY_PRESENCE.get(line.was, Presence.UNREAD)
-	entry.title = line.provider.to_upper() if not line.provider.is_empty() else "AGENT"
-	entry.detail = line.tab if not line.tab.is_empty() else line.space
+	entry.title = line.name
+	if line.name.is_empty():
+		entry.title = line.provider.to_upper() if not line.provider.is_empty() else "AGENT"
 	entry.note = note_of(entry, now_msec)
 	return entry
 

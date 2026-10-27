@@ -842,9 +842,10 @@ func _note(site: Site) -> void:
 		var spaces: Dictionary[String, String] = {}
 		for workspace in held.workspaces:
 			spaces[workspace.workspace_id] = workspace.label
-		var tabs: Dictionary[String, String] = {}
+		var tabs: Dictionary[String, HerdrSnapshot.Tab] = {}
 		for tab in held.tabs:
-			tabs[tab.tab_id] = tab.label
+			tabs[tab.tab_id] = tab
+		var tab_counts := DisplayName.tab_counts(held.tabs)
 		var listed: Dictionary[String, bool] = {}
 		for pane in held.panes:
 			listed[pane.pane_id] = true
@@ -856,7 +857,13 @@ func _note(site: Site) -> void:
 			sighting.terminal_id = pane.terminal_id
 			sighting.agent_name = pane.agent_name
 			sighting.space = spaces.get(pane.workspace_id, "")
-			sighting.tab = tabs.get(pane.tab_id, "")
+			# The words the office calls the pane by (DisplayName), so a pane
+			# gone from the snapshot is still called what it was.
+			var tab: HerdrSnapshot.Tab = tabs.get(pane.tab_id)
+			if tab != null:
+				var count: int = tab_counts.get(tab.workspace_id, 0)
+				sighting.tab = DisplayName.tab_shown(tab.label, tab.number, tab.tab_id, count)
+			sighting.name = DisplayName.of_pane(pane, tab)
 			var clock: HerdrClient.StateClock = clocks.get(pane.pane_id)
 			if clock != null:
 				sighting.identity = clock.identity
