@@ -19,7 +19,9 @@ extends "res://tools/office_test_base.gd"
 ## data:p1; idle api:p2 and infra:p3 (data:p2 is idle but still launching, so
 ## it has no card); thirteen panes with the three shells.
 const FIXTURE_COUNTS: Array[int] = [2, 2, 3, 2]
-const FIXTURE_PANES := "13 panes"
+## S3 TILES (2026-10-28): the count says the machines first, as B2 does
+## (OfficeTotals.count_words()).
+const FIXTURE_PANES := "1 machine · 13 panes"
 ## The asset showroom, whose top bar shows a mock of its own.
 const SHOWROOM_SCENE := "res://scenes/preview.tscn"
 
@@ -83,7 +85,8 @@ func test_cards_come_from_live_machines_only() -> void:
 	_eq(_counts(bar), [0, 0, 0, 0], "a dropped machine is nobody working, waiting or idle")
 	_check(bar.cards().is_empty(), "no card")
 	_check(not bar.folds().any(func(fold: PortraitFold) -> bool: return fold.visible), "and no fold")
-	_eq(_panes_text(bar), "0 panes", "no panes")
+	# S3 TILES (2026-10-28): the count names the machines; the dropped one is still in the fleet.
+	_eq(_panes_text(bar), "1 machine · 0 panes", "no panes")
 	_check(bar.alarmed(), "the bar says a machine is down")
 	_eq(_status_label(bar).theme_type_variation, &"LabelBlocked", "in the blocked colour")
 	_eq(bar.status_line(), "OFFLINE / RECONNECTING", "the status line says so")
@@ -117,7 +120,9 @@ func test_the_strip_fits_every_width_and_nothing_overlaps() -> void:
 		_check(bar.fitted().needed <= strip.size.x, "rung %d fits at %s" % [bar.fitted().rung, screen])
 		rungs.append(bar.fitted().rung)
 		_fits(bar, "at %s" % screen)
-	_eq(rungs, [4, 4, 3, 1], "faces at 480 and 640, the blocked named at 800, every card at 1920")
+	# S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens: at 800×480 the 364-unit
+	# room takes the blocked and the done as tiles (rung 2, 290) where it took the cards' rung 3.
+	_eq(rungs, [4, 4, 2, 1], "faces at 480 and 640, the blocked and the done named at 800, every card at 1920")
 	_done(office)
 
 
@@ -136,7 +141,7 @@ func test_a_crowded_bar_keeps_every_agent_counted() -> void:
 			PortraitBarModel.Group.IDLE: 78
 		}
 	)
-	hud.bar.show_portraits(model, 999)
+	hud.bar.show_portraits(model, _totals(1, 999))
 	hud.bar.show_waits({_crowd_key(PortraitBarModel.Group.BLOCKED, 0): "1h 05m+"})
 	await _frames(2)
 	var bar := hud.bar
@@ -149,7 +154,8 @@ func test_a_crowded_bar_keeps_every_agent_counted() -> void:
 	await _frames(2)
 	_eq(_shown_and_folded(bar), [12, 34, 56, 78], "every agent counted at 1920")
 	_check(bar.cards().size() > faces, "more of them shown at 1920: %d" % bar.cards().size())
-	_eq(_panes_text(bar), "999 panes", "and the panes")
+	# S3 TILES (2026-10-28): the count names the machines first.
+	_eq(_panes_text(bar), "1 machine · 999 panes", "and the panes")
 	var panes: Button = bar.get_node("%Panes")
 	_check(_fits_label_button(panes), "whole")
 	_fits(bar, "crowded at 1920")
@@ -654,7 +660,8 @@ func test_the_showroom_bar_shows_its_mock_agents() -> void:
 	_check(counts.blocked > 0 and counts.idle > 0, "the mock has something to show: %s" % counts)
 	var bar := hud.bar
 	_eq(_counts(bar), [counts.blocked, counts.done, counts.working, counts.idle], "Local's mock agents, bee dropped")
-	_eq(_panes_text(bar), "%d panes" % panes, "Local's panes")
+	# S3 TILES (2026-10-28): the count names the machines first: the showroom's two, bee dropped.
+	_eq(_panes_text(bar), "2 machines · %d panes" % panes, "Local's panes")
 	for card in bar.portraits().cards:
 		_check(card.machine == "local", "%s is Local's" % card.key)
 		if card.group == PortraitBarModel.Group.BLOCKED:
@@ -1294,3 +1301,12 @@ func _chime_office(path: String, remember: bool, flags: Array[String]) -> Office
 
 func _chime_switch(office: OfficeDouble) -> Button:
 	return office.hud.bar.get_node("%Chime")
+
+
+## Totals for the bar's count: `machines` in the fleet, `panes` on the live ones.
+func _totals(machines: int, panes: int) -> OfficeTotals:
+	var totals := OfficeTotals.new()
+	totals.machines_total = machines
+	totals.machines_live = machines
+	totals.panes = panes
+	return totals

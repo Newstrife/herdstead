@@ -4,7 +4,7 @@ extends Control
 ## machine (a click shows its map), then the portrait strip, who needs you as
 ## faces (the blocked in the order `N` walks them, each with how long
 ## it has waited; then the done, oldest first; then the working and the idle,
-## in place order), then `13 panes` and the chime switch, and two
+## in place order), then `1 machine · 13 panes` and the chime switch, and two
 ## right-aligned lines, the pack's name and how the office is running, as wide
 ## as the longest status needs at every window size (the scene's offsets).
 ## Where the agents do not all fit, the strip folds them by a fixed ladder
@@ -12,7 +12,12 @@ extends Control
 ## hiding the longest-waiting blocked. `13 panes` and the chime switch show
 ## where titles are allowed; on a narrower bar they step aside and the strip
 ## takes their room. Hovering the status line says how each machine answers,
-## and a machine chip says it for its machine.
+## and a machine chip says it for its machine. On a tall bar (a screen at least
+## `OfficeHud.staff_tall_from` high) the cards are B2's tiles, the face over the
+## words, and the folds as tall; on a short one, the horizontal cards
+## (set_tall()). The wordmark, the strip and the right end stand in the band's
+## middle either way (the scene's anchors; on a tall bar the wordmark's caps,
+## not its box, are centred: HudTheme's WordmarkMarginTall).
 ##
 ## Its nodes are permanent, but for the cards and the chips: a card exists only
 ## while its pane shows as a card or a face, and a pane that stops showing gives
@@ -74,6 +79,8 @@ var _machines: Array[OfficeTotals.MachineRow] = []
 var _chips: Dictionary[String, MachineChip] = {}
 ## Whether the bar has its titles (set_titled()): the chips are wide.
 var _titled := true
+## Whether the cards are tiles (set_tall()).
+var _tall := false
 ## The panes whose cards a hovered HUD line outlines (point()), as a set.
 var _pointed: Dictionary[String, bool] = {}
 ## Who the strip shows, and dressed from what.
@@ -106,6 +113,8 @@ func _ready() -> void:
 	var strip: Control = %Strip
 	strip.resized.connect(_fit_chips)
 	strip.resized.connect(_lay_out)
+	if _tall:
+		_take_form()
 
 
 func _notification(what: int) -> void:
@@ -279,12 +288,13 @@ func dress(art: ArtPack) -> void:
 	_lay_out()
 
 
-## Who the strip shows (`model`), and how many panes the live machines carry,
-## for `13 panes`.
-func show_portraits(model: PortraitBarModel, panes: int) -> void:
+## Who the strip shows (`model`), and from `totals` how many machines there
+## are and how many panes the live ones carry, for `1 machine · 13 panes`
+## (OfficeTotals.count_words()).
+func show_portraits(model: PortraitBarModel, totals: OfficeTotals) -> void:
 	_model = model
 	var button: Button = %Panes
-	var said := "%d panes" % panes
+	var said := OfficeTotals.count_words(totals.machines_total, totals.panes)
 	if button.text != said:
 		button.text = said
 	_lay_out()
@@ -339,6 +349,39 @@ func set_titled(on: bool) -> void:
 	for key: String in _chips:
 		_chips[key].set_narrow(not on)
 	_fit_chips()
+
+
+## The cards are tiles (`on`, a tall bar) or horizontal cards. Every card,
+## pooled ones and the gauge included, and every fold takes the form; the
+## strip is laid out once with the new widths. Nothing when the form is the
+## same (OfficeHud.fit() asks on every fit).
+func set_tall(on: bool) -> void:
+	if on == _tall:
+		return
+	_tall = on
+	if is_node_ready():
+		_take_form()
+
+
+## Every card, the gauge and every fold in the form set_tall() asked for, and
+## the strip laid out with their widths.
+func _take_form() -> void:
+	var margin: Control = %WordmarkMargin
+	margin.theme_type_variation = &"WordmarkMarginTall" if _tall else &"WordmarkMargin"
+	_gauge.set_tall(_tall)
+	var row: HBoxContainer = %Cards
+	for child in row.get_children():
+		if child is PortraitCard:
+			(child as PortraitCard).set_tall(_tall)
+	for fold in folds():
+		fold.set_tall(_tall)
+	_laid_out = ""
+	_lay_out()
+
+
+## Whether the cards are tiles.
+func is_tall() -> bool:
+	return _tall
 
 
 ## The chime is on (`on`) or off: the switch says so, in the lines' cream
@@ -491,6 +534,7 @@ func _unpooled() -> PortraitCard:
 	var made: PortraitCard = CARD_SCENE.instantiate()
 	var row: HBoxContainer = %Cards
 	row.add_child(made)
+	made.set_tall(_tall)
 	made.pressed.connect(func() -> void: portrait_picked.emit(made.key))
 	made.place_picked.connect(func(zone: String) -> void: zone_picked.emit(zone))
 	made.place_hovered.connect(func(on: bool) -> void: portrait_pointed.emit(made.key if on else ""))

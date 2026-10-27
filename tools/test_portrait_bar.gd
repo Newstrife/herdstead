@@ -17,10 +17,17 @@ extends "res://tools/office_test_base.gd"
 ## The pack's states, as the projection is told them.
 const STATES := ["working", "blocked", "done", "idle", "unknown"]
 ## The widths the ladder's table in the spec is worked out with (A.2): a card,
-## a face, a fold, a tally, the gap.
+## a face, a fold, a tally, the gap. A short bar's horizontal cards.
 const METRICS := [86.0, 20.0, 40.0, 24.0, 2.0]
-## The strip's room at 960, 800, 640 and 480 units, plain window (A.2).
-const ROOMS: Array[float] = [573.0, 413.0, 253.0, 208.0]
+## The same on a tall bar, B2's tiles (S3 TILES, T.3b): a tile, a tile's face,
+## a fold, a tally, the gap.
+const TILE_METRICS := [50.0, 26.0, 40.0, 24.0, 2.0]
+## The strip's room at 960, 800 and 640 units on a tall bar with
+## `1 machine · 13 panes`, and at 480 on a short untitled one, plain window
+## (S3 TILES, 2026-10-28: measured; `%Panes` 95 wide where it was 46).
+const ROOMS: Array[float] = [524.0, 364.0, 204.0, 208.0]
+## Which of ROOMS are a tall bar's.
+const TALL_ROOMS := 3
 
 
 func _initialize() -> void:
@@ -175,17 +182,20 @@ func test_only_agents_of_live_machines_get_cards() -> void:
 	_eq(keys.size(), 4 + 2 + 2 + 1, "four blocked, two done, two working, one idle")
 
 
-## The spec's table (A.2): four fleets at the strip's room at 960, 800, 640 and
-## 480 units take exactly these rungs, forms, blocked shown and widths; and the
-## scene measures those rooms and those widths.
+## The spec's table (A.2, re-measured for the tiles in T.3b): four fleets at
+## the strip's room at 960, 800 and 640 units (a tall bar: tiles) and 480 (a
+## short one: cards) take exactly these rungs, forms, blocked shown and widths;
+## and the scene measures those rooms and those widths, per form.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens. The
+## three tall rooms are worked out with the tile's widths at the rooms the scene
+## measures beside `1 machine · 13 panes`; the 480 row is BAR-a's, unchanged.
 func test_the_fold_ladder_takes_the_first_rung_that_fits() -> void:
-	var metrics := _metrics()
 	# fleet (b/d/w/i) -> per room: [rung, faces_shown, needed]
 	var table: Dictionary[String, Array] = {
-		"2/2/3/2": [[2, 2, 434.0], [3, 2, 302.0], [4, 2, 170.0], [4, 2, 170.0]],
-		"1/1/2/2": [[1, 1, 526.0], [2, 1, 258.0], [3, 1, 192.0], [3, 1, 192.0]],
-		"3/6/22/18": [[3, 3, 478.0], [4, 3, 280.0], [5, 3, 190.0], [5, 3, 190.0]],
-		"12/10/20/11": [[4, 12, 566.0], [5, 12, 388.0], [7, 6, 234.0], [7, 4, 190.0]],
+		"2/2/3/2": [[1, 2, 466.0], [2, 2, 290.0], [4, 2, 194.0], [4, 2, 170.0]],
+		"1/1/2/2": [[1, 1, 310.0], [1, 1, 310.0], [2, 1, 186.0], [3, 1, 192.0]],
+		"3/6/22/18": [[3, 3, 406.0], [4, 3, 334.0], [6, 3, 160.0], [5, 3, 190.0]],
+		"12/10/20/11": [[5, 12, 460.0], [7, 9, 354.0], [7, 3, 186.0], [7, 4, 190.0]],
 	}
 	var forms: Dictionary[int, Array] = {
 		1:
@@ -242,30 +252,69 @@ func test_the_fold_ladder_takes_the_first_rung_that_fits() -> void:
 		var counts := _counts(fleet)
 		for index in ROOMS.size():
 			var wanted: Array = table[fleet][index]
+			var metrics := _metrics(TILE_METRICS if index < TALL_ROOMS else METRICS)
 			var made := PortraitBarModel.fit(counts, metrics, ROOMS[index])
 			var where := "%s at %d" % [fleet, ROOMS[index]]
 			_eq([made.rung, made.faces_shown, made.needed], wanted, where)
 			var rung: int = wanted[0]
 			_eq(_forms(made), forms[rung], "%s: rung %d's forms" % [where, rung])
-	# The scene: its widths, and the room it leaves the strip.
+	# The scene: its widths per form, and the room it leaves the strip.
 	var hud := await _bare_hud(Vector2(960, 480))
-	var scene := hud.bar.metrics()
-	_eq([scene.card, scene.face, scene.fold, scene.tally, scene.gap], METRICS, "the scene measures the table's widths")
+	hud.bar.show_portraits(PortraitBarModel.new(), _totals(1, 13))
 	var strip: Control = hud.bar.get_node("%Strip")
 	var widths: Array[float] = [960.0, 800.0, 640.0, 480.0]
 	for index in widths.size():
 		hud.fit(Vector2(widths[index], 480.0 if widths[index] > 480.0 else 320.0))
 		await _frames(2)
 		_eq(strip.size.x, ROOMS[index], "the strip's room at %d" % widths[index])
+		var scene := hud.bar.metrics()
+		_eq(
+			[scene.card, scene.face, scene.fold, scene.tally, scene.gap],
+			TILE_METRICS if index < TALL_ROOMS else METRICS,
+			(
+				"at %d the scene measures the table's widths: %s"
+				% [widths[index], "tiles" if index < TALL_ROOMS else "cards"]
+			)
+		)
 	hud.free()
 
 
 ## For every room from the four tallies' 102 to 1200, on the four fleets and a
-## fleet of blocked alone: what the rung needs fits; every agent is shown or
-## folded, once; on the last rung the faces are the first k blocked and the
-## rest are the blocked tally; and a wider room never shows fewer agents.
+## fleet of blocked alone, with the cards' widths and with the tiles': what the
+## rung needs fits; every agent is shown or folded, once; on the last rung the
+## faces are the first k blocked and the rest are the blocked tally; and a
+## wider room never shows fewer agents. On a short bar and on a tall one, the
+## bar gives the first k blocked the faces.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens, so
+## the ladder is walked with both forms' widths and the bar on both bands.
 func test_the_ladder_never_hides_the_longest_waiting_blocked() -> void:
-	var metrics := _metrics()
+	for widths: Array in [METRICS, TILE_METRICS]:
+		_never_hides(_metrics(widths))
+	# The bar gives the first k blocked the faces, in N's order: the longest waits.
+	var office := await _live_office(_many_blocked(12))
+	for screen: Vector2 in [Vector2(480, 320), Vector2(640, 480)]:
+		office.test_screen = screen
+		office.refresh()
+		await _frames(2)
+		var bar := office.hud.bar
+		var order := _waiting(office.frame, "blocked")
+		var faces: Array[String] = []
+		for card in bar.cards():
+			faces.append(card.key)
+		_eq(bar.is_tall(), screen.y >= office.hud.staff_tall_from, "%s: the form its band gives" % screen)
+		_eq(bar.fitted().rung, PortraitBarModel.LAST_RUNG, "fourteen blocked at %s take the last rung" % screen)
+		_eq(faces, order.slice(0, faces.size()), "the faces are the first of N's order at %s" % screen)
+		_check(bar.fold_of(PortraitBarModel.Group.BLOCKED).tallied(), "and the rest a tally")
+		_eq(
+			bar.fold_of(PortraitBarModel.Group.BLOCKED).count_text(),
+			"+%d" % (order.size() - faces.size()),
+			"counting the blocked who have no face"
+		)
+	_done(office)
+
+
+## The ladder's laws on every room from 102 to 1200 with `metrics`.
+func _never_hides(metrics: PortraitBarModel.Metrics) -> void:
 	for fleet: String in ["2/2/3/2", "1/1/2/2", "3/6/22/18", "12/10/20/11", "40/0/0/0", "0/3/50/50"]:
 		var counts := _counts(fleet)
 		var agents := 0
@@ -297,38 +346,28 @@ func test_the_ladder_never_hides_the_longest_waiting_blocked() -> void:
 					"%s at %d: rung %d needs %s, shows %d of %d" % [fleet, room, made.rung, made.needed, shown, agents]
 				)
 			shown_before = shown
-		_check(broken == 0, "%s holds at every room from 102 to 1200" % fleet)
-	# The bar gives the first k blocked the faces, in N's order: the longest waits.
-	var office := await _live_office(_many_blocked(12))
-	office.test_screen = Vector2(480, 320)
-	office.refresh()
-	await _frames(2)
-	var bar := office.hud.bar
-	var order := _waiting(office.frame, "blocked")
-	var faces: Array[String] = []
-	for card in bar.cards():
-		faces.append(card.key)
-	_eq(bar.fitted().rung, PortraitBarModel.LAST_RUNG, "fourteen blocked at 480 take the last rung")
-	_eq(faces, order.slice(0, faces.size()), "the faces are the first of N's order")
-	_check(bar.fold_of(PortraitBarModel.Group.BLOCKED).tallied(), "and the rest a tally")
-	_eq(
-		bar.fold_of(PortraitBarModel.Group.BLOCKED).count_text(),
-		"+%d" % (order.size() - faces.size()),
-		"counting the blocked who have no face"
-	)
-	_done(office)
+		_check(broken == 0, "%s holds at every room from 102 to 1200 with a card %s wide" % [fleet, metrics.card])
 
 
 ## A card at 2x in the shipped pack: a seven-glyph CJK name whole, a long
 ## English task cut with an ellipsis and whole in the tooltip, a blocked
 ## card's place and its hour-long wait (`api`, `1h 05m+`) both whole, a done
-## card with no wait; every label inside its card.
+## card with no wait; every label inside its card. A tile (a tall bar) has a
+## 48-unit name row: six CJK glyphs whole, the seventh cut, the long task cut,
+## each whole in the tooltip; the wait always whole, the place whole beside a
+## minutes wait (`12m`) and cut beside the hour-long one; every label inside
+## its tile.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens. The
+## card's words are checked on a short bar (960×320: the same 60-unit text
+## column as before); the tile's on a tall one (960×480): its name row is the
+## tile's 48 units, so a seven-glyph CJK name (56 at 8 px, measured) cuts there,
+## and `▮api 1h 05m+` needs 53 of 48, so the place gives way to the wait.
 func test_a_card_says_name_place_and_wait_within_its_width() -> void:
-	var hud := await _bare_hud(Vector2(960, 480))
+	var hud := await _bare_hud(Vector2(960, 320))
 	var model := PortraitBarModel.new()
 	model.counts = {
 		PortraitBarModel.Group.BLOCKED: 2,
-		PortraitBarModel.Group.DONE: 1,
+		PortraitBarModel.Group.DONE: 2,
 		PortraitBarModel.Group.WORKING: 0,
 		PortraitBarModel.Group.IDLE: 0
 	}
@@ -336,11 +375,13 @@ func test_a_card_says_name_place_and_wait_within_its_width() -> void:
 		_made("Local:a", PortraitBarModel.Group.BLOCKED, "整理舰队的日志", "api"),
 		_made("Local:b", PortraitBarModel.Group.BLOCKED, "refactor the fleet", "api"),
 		_made("Local:c", PortraitBarModel.Group.DONE, "tests", "web"),
+		_made("Local:d", PortraitBarModel.Group.DONE, "整理舰队的日", "web"),
 	]
-	hud.bar.show_portraits(model, 3)
+	hud.bar.show_portraits(model, _totals(1, 4))
 	hud.bar.show_waits({"Local:a": "12m", "Local:b": "1h 05m+"})
 	await _frames(2)
-	_eq(hud.bar.fitted().rung, 1, "three cards fit at 960")
+	_check(not hud.bar.is_tall(), "960×320 is a short bar: cards")
+	_eq(hud.bar.fitted().rung, 1, "four cards fit at 960")
 	var cjk := hud.bar.card_for("Local:a")
 	var long := hud.bar.card_for("Local:b")
 	var done := hud.bar.card_for("Local:c")
@@ -359,14 +400,41 @@ func test_a_card_says_name_place_and_wait_within_its_width() -> void:
 	_check(wait.visible and wait.text == "1h 05m+", "the hour-long wait shows: `%s`" % wait.text)
 	_check(_fits_label(wait), "and whole")
 	_check(not _label(done, "%Wait").visible, "a done card says no wait")
-	for card: PortraitCard in [cjk, long, done]:
+	_inside(hud.bar, "card")
+	# The same agents on a tall bar: tiles.
+	hud.fit(Vector2(960, 480))
+	await _frames(2)
+	_check(hud.bar.is_tall(), "960×480 is a tall bar: tiles")
+	_eq(hud.bar.fitted().rung, 1, "four tiles fit at 960")
+	var six := hud.bar.card_for("Local:d")
+	_eq(_label(cjk, "%Name").size.x, 48.0, "a tile's name row is 48 units")
+	_check(_fits_label(_label(six, "%Name")), "six CJK glyphs are whole on a tile")
+	_check(not _fits_label(_label(cjk, "%Name")), "the seventh does not fit")
+	_eq(_label(cjk, "%Name").text, "整理舰队的日志", "the label keeps the whole text")
+	_check(cjk.get_tooltip(Vector2.ZERO).begins_with("整理舰队的日志\n"), "and the tooltip says it whole")
+	_check(not _fits_label(_label(long, "%Name")), "`refactor the fleet` is cut on a tile too")
+	_eq(_label(cjk, "%Name").horizontal_alignment, HORIZONTAL_ALIGNMENT_CENTER, "a tile's name is centred")
+	_check(_fits_label(_label(cjk, "%Wait")) and _label(cjk, "%Wait").visible, "`12m` is whole")
+	_check(_fits_label(_label(cjk, "%Place")), "and `api` beside it")
+	_check(_fits_label(_label(long, "%Wait")) and _label(long, "%Wait").visible, "`1h 05m+` is whole")
+	_check(not _fits_label(_label(long, "%Place")), "and the place gives way to it")
+	_check(long.get_tooltip(Vector2.ZERO).ends_with("api"), "the tooltip says the place whole")
+	_check(not _label(done, "%Wait").visible, "a done tile says no wait")
+	_inside(hud.bar, "tile")
+	hud.free()
+
+
+## Every shown label, tag and face of `bar`'s cards stands inside its card.
+func _inside(bar: OfficeBar, form: String) -> void:
+	for card in bar.cards():
 		var rect := card.get_global_rect()
 		for path: String in ["%Name", "%Place", "%Wait"]:
 			var label := _label(card, path)
 			if label.is_visible_in_tree():
-				_check(rect.encloses(label.get_global_rect()), "%s %s inside its card" % [card.key, path])
-		_check(rect.encloses((card.get_node("%Tag") as Control).get_global_rect()), "%s: its tag too" % card.key)
-	hud.free()
+				_check(rect.encloses(label.get_global_rect()), "%s %s inside its %s" % [card.key, path, form])
+		for path: String in ["%Tag", "%FaceBox"]:
+			var node: Control = card.get_node(path)
+			_check(rect.encloses(node.get_global_rect()), "%s: its %s too" % [card.key, path])
 
 
 ## A refresh keeps every card's node; a new order moves them; a pane that
@@ -453,7 +521,12 @@ func test_the_zone_tag_wears_its_groups_carpet_family() -> void:
 
 
 ## A card's face is the seat's person: the same look (every slot) for the same
-## pane and provider, standing and facing front, and it stands still.
+## pane and provider, standing and facing front, and it stands still. Its foot
+## stands at the face window's middle, 37 under the window's top, on a tile
+## and on a card alike (the head's top one unit under the window: the BAR-a
+## measure), so a tile shows the head and the shoulders.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens: the
+## holder is checked per form.
 func test_the_face_is_the_seats_person_and_stands_still() -> void:
 	var office := await _live_office(fixture, Vector2(1920, 480))
 	var checked := 0
@@ -475,25 +548,50 @@ func test_the_face_is_the_seats_person_and_stands_still() -> void:
 	await _frames(10)
 	var still := office.hud.bar.cards()[0].person().get_node("AnimationPlayer") as AnimationPlayer
 	_check(not still.is_playing(), "and stays still")
+	for screen: Vector2 in [Vector2(1920, 480), Vector2(1920, 320)]:
+		office.test_screen = screen
+		office.refresh()
+		await _frames(2)
+		var form := "tile" if office.hud.bar.is_tall() else "card"
+		_eq(form, "tile" if screen.y >= office.hud.staff_tall_from else "card", "%s: its band's form" % screen)
+		for card in office.hud.bar.cards():
+			var window: Control = card.get_node("%Face")
+			var foot := card.person().get_global_transform().origin
+			var wanted := Vector2(window.get_global_rect().get_center().x, window.get_global_rect().position.y + 37.0)
+			_eq(foot, wanted, "%s's %s: the foot at the window's middle, 37 under its top" % [card.key, form])
+		var first: Control = office.hud.bar.cards()[0].get_node("%Face")
+		_eq(first.size, Vector2(46, 22) if form == "tile" else Vector2(18, 26), "the %s's face window" % form)
 	_done(office)
 
 
-## Each group's frame is its own (PortraitCard<State>); only the selected
-## pane's card wears the paper ring, and it follows the selection.
+## Each group's frame is its own: a tile's face window wears it
+## (PortraitFace<State>) and the tile none (PortraitTile), a card wears it
+## itself (PortraitCard<State>) round a bare window; only the selected pane's
+## card wears the paper ring, 1 in from the frame, and it follows the
+## selection; the pointed ring 2 in, under the face, on either form.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens: on
+## a tile the frame and the rings are the face window's (B2: the words stand on
+## the bar's ground), so the looks and the ring rects are checked per form.
 func test_a_card_frame_says_the_state_and_the_selected_one_its_ring() -> void:
 	var office := await _live_office(fixture, Vector2(1920, 480))
 	var bar := office.hud.bar
-	var looks: Dictionary[String, StringName] = {
-		"web:p1": &"PortraitCardBlocked",
-		"web:p2": &"PortraitCardDone",
-		"api:p1": &"PortraitCardWorking",
-		"api:p2": &"PortraitCardIdle",
+	var looks: Dictionary[String, String] = {
+		"web:p1": "Blocked",
+		"web:p2": "Done",
+		"api:p1": "Working",
+		"api:p2": "Idle",
 	}
+	_check(bar.is_tall(), "1920×480: tiles")
 	for pane_id: String in looks:
 		var card := bar.card_for(_pane(pane_id))
 		_check(card != null, "%s has a card" % pane_id)
 		if card != null:
-			_eq(card.theme_type_variation, looks[pane_id], pane_id)
+			_eq(card.theme_type_variation, &"PortraitTile", "%s: the tile wears no frame" % pane_id)
+			_eq(
+				(card.get_node("%FaceBox") as Control).theme_type_variation,
+				StringName("PortraitFace" + looks[pane_id]),
+				"%s: its window wears the state" % pane_id
+			)
 	# Before any pick the office's selection is herdr's focus (the list's highlight).
 	var active := office.navigator.active_key
 	var at_first: Array[String] = []
@@ -504,23 +602,46 @@ func test_a_card_frame_says_the_state_and_the_selected_one_its_ring() -> void:
 	await _frames(2)
 	_eq(office.navigator.active_key, _pane("api:p1"), "a click on the desk selects api:p1")
 	_eq(_ringed(bar), [_pane("api:p1")], "its card alone wears the ring")
-	var ring := bar.card_for(_pane("api:p1")).get_node("%Selected") as Control
-	var frame := bar.card_for(_pane("api:p1")).get_global_rect()
-	_eq(ring.get_global_rect(), frame.grow(-1.0), "inside the state's edge, which still shows")
-	# S3 BAR-b ruling 1 (2026-10-27): the pointed ring nests inside the selection's, so the state's edge,
-	# the selection and the pointing all show at once.
-	bar.point(PackedStringArray([_pane("api:p1")]))
-	var pointed := bar.card_for(_pane("api:p1")).get_node("%Pointed") as Control
-	_check(pointed.visible and ring.visible, "pointed at and selected together")
-	_eq(pointed.get_global_rect(), frame.grow(-2.0), "the pointed ring inside the selection's")
-	_eq(pointed.theme_type_variation, &"PortraitPointed", "in its own look")
-	var face := bar.card_for(_pane("api:p1")).get_node("%Face") as Control
-	_check(pointed.get_index() < face.get_index(), "drawn under the face: the head's top, at its row, stays whole")
-	bar.point(PackedStringArray())
+	var picked := bar.card_for(_pane("api:p1"))
+	await _rings_nest(bar, picked, (picked.get_node("%FaceBox") as Control).get_global_rect(), "tile")
+	office.test_screen = Vector2(1920, 320)
+	office.refresh()
+	await _frames(2)
+	_check(not bar.is_tall(), "1920×320: cards")
+	_eq(bar.card_for(_pane("api:p1")), picked, "the same node")
+	for pane_id: String in looks:
+		var card := bar.card_for(_pane(pane_id))
+		_eq(card.theme_type_variation, StringName("PortraitCard" + looks[pane_id]), "%s: the card wears it" % pane_id)
+		_eq((card.get_node("%FaceBox") as Control).theme_type_variation, &"PortraitFaceBare", "round a bare window")
+	await _rings_nest(bar, picked, picked.get_global_rect(), "card")
+	office.test_screen = Vector2(1920, 480)
+	office.refresh()
+	await _frames(2)
 	await _click_desk(office, _pane("web:p2"))
 	await _frames(2)
 	_eq(_ringed(bar), [_pane("web:p2")], "and the ring follows")
 	_done(office)
+
+
+## On `card`, whose frame is `frame`: the selection's ring 1 in, the pointed
+## ring 2 in and under the face, both showing at once (S3 BAR-b ruling 1,
+## 2026-10-27: the state's edge, the selection and the pointing all show).
+func _rings_nest(bar: OfficeBar, card: PortraitCard, frame: Rect2, form: String) -> void:
+	var ring := card.get_node("%Selected") as Control
+	_check(ring.visible, "%s: selected" % form)
+	_eq(ring.get_global_rect(), frame.grow(-1.0), "%s: inside the state's edge, which still shows" % form)
+	bar.point(PackedStringArray([card.key]))
+	await _frames(1)
+	var pointed := card.get_node("%Pointed") as Control
+	_check(pointed.visible and ring.visible, "%s: pointed at and selected together" % form)
+	_eq(pointed.get_global_rect(), frame.grow(-2.0), "%s: the pointed ring inside the selection's" % form)
+	_eq(pointed.theme_type_variation, &"PortraitPointed", "%s: in its own look" % form)
+	var face := card.get_node("%Face") as Control
+	var under := face if pointed.get_parent() == face.get_parent() else card.get_node("%Body") as Control
+	_eq(pointed.get_parent(), under.get_parent(), "%s: the ring and the face's box are siblings" % form)
+	_check(pointed.get_index() < under.get_index(), "%s: drawn under the face: the head's top stays whole" % form)
+	bar.point(PackedStringArray())
+	await _frames(1)
 
 
 ## Answer mode owns the number keys: outside it, real presses of 1 to 9 pick
@@ -572,7 +693,11 @@ func test_hovering_a_card_points_at_its_desk() -> void:
 ## place as they were. A real change lays it out once. Among several machines
 ## (S3 BAR-b, 2026-10-27), the chips and a card's pointed ring are written apart,
 ## each on its own change: the same snapshots leave the chips as they were, and
-## pointing at a card writes its ring alone and lays nothing out.
+## pointing at a card writes its ring alone and lays nothing out. A tall bar
+## turned short, and back, lays the strip out once each way and keeps every
+## card, pooled card and fold on the same node (S3 TILES, 2026-10-28: the
+## strip's cards are B2's tiles on tall screens; a form change is the only
+## change a refit makes to the strip).
 func test_an_unchanged_strip_lays_nothing_out() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
@@ -582,12 +707,28 @@ func test_an_unchanged_strip_lays_nothing_out() -> void:
 	_feed(office, fixture)
 	await _frames(2)
 	_eq(bar.layouts(), count, "the same snapshot again: no lay-out")
-	bar.show_portraits(PortraitBarModel.of(office.frame, office.navigator.active_key), 13)
+	bar.show_portraits(PortraitBarModel.of(office.frame, office.navigator.active_key), _totals(1, 13))
 	await _frames(2)
 	_eq(bar.layouts(), count, "the same model handed again: none either")
 	_eq(_strip_picture(bar), before, "and nothing on the strip changed")
 	await _wait_ticks(2)
 	_eq(bar.layouts(), count, "attention's beat writes the waits, and lays nothing out")
+	var nodes := _strip_nodes(bar)
+	_check(bar.is_tall(), "the suite's 800×480: tiles")
+	office.test_screen = Vector2(800, 320)
+	office.refresh()
+	await _frames(2)
+	_check(not bar.is_tall(), "800×320: cards")
+	_eq(bar.layouts(), count + 1, "a tall bar turned short: laid out once")
+	_eq(_strip_nodes(bar), nodes, "every card, pooled card and fold on the same node")
+	office.test_screen = Vector2(SCREEN)
+	office.refresh()
+	await _frames(2)
+	_check(bar.is_tall(), "back to tiles")
+	_eq(bar.layouts(), count + 2, "and back: once more")
+	_eq(_strip_nodes(bar), nodes, "still the same nodes")
+	_eq(_strip_picture(bar), before, "showing what they showed")
+	count = bar.layouts()
 	_feed(office, _with(fixture, "infra:p1", {"agent_status": "working"}))
 	await _frames(2)
 	_eq(bar.layouts(), count + 1, "a real change: laid out once")
@@ -623,6 +764,201 @@ func test_an_unchanged_strip_lays_nothing_out() -> void:
 	_done(two)
 
 
+## A tile wears its state's small mark (S3 TILES, Q-U4: B2's dots) in its face
+## window's top-left corner, 8 units square at the pack's density: blocked's
+## `!`, done's envelope (unread's), working's and idle's dots; a card on a
+## short bar wears none. The mark is never pulsed: a plain sprite, not a
+## StatusBadge, out of the attention clock's group, at rest beat after beat, while the
+## blocked seat's badge in the world, which keeps the pack's 16-unit badge,
+## bobs on the same clock.
+func test_a_tile_wears_its_states_dot_and_it_never_bobs() -> void:
+	var office := await _live_office(fixture, Vector2(1920, 480))
+	var bar := office.hud.bar
+	var art := ArtPack.from_manifest(MANIFESTS[0])
+	var dots: Dictionary[String, StringName] = {
+		"web:p1": &"badge_blocked_small",
+		"web:p2": &"badge_unread_small",
+		"api:p1": &"badge_working_small",
+		"api:p2": &"badge_idle_small",
+	}
+	var marks: Array[Sprite2D] = []
+	for pane_id: String in dots:
+		var card := bar.card_for(_pane(pane_id))
+		_check(card != null and card.is_tall(), "%s has a tile" % pane_id)
+		if card == null:
+			continue
+		var mark := card.badge()
+		var window: Control = card.get_node("%FaceBox")
+		_check(mark.visible, "%s wears a mark" % pane_id)
+		_eq(PortraitCard.dot_of(art, card.shown_card().group), dots[pane_id], "%s: the mark for its state" % pane_id)
+		_eq(mark.texture.get_size(), Vector2(16, 16), "%s: 16 texels square" % pane_id)
+		var drawn := mark.get_global_transform() * mark.get_rect()
+		_eq(
+			drawn,
+			Rect2(window.get_global_rect().position, Vector2(8, 8)),
+			"%s: 8 units, in the window's corner" % pane_id
+		)
+		_check(
+			not mark is StatusBadge and not mark.is_in_group(StatusBadge.GROUP),
+			"%s: a plain sprite, never in the attention clock's group" % pane_id
+		)
+		marks.append(mark)
+	var seat := _world_badge(office, "web:p1")
+	_check(seat != null, "web:p1's seat has its badge in the world")
+	if seat == null:
+		_done(office)
+		return
+	_check(seat.texture.get_size() != marks[0].texture.get_size(), "the world keeps the pack's badge, not the mark")
+	var rests: Array[Vector2] = []
+	for mark in marks:
+		rests.append(mark.offset)
+	var lifts: Dictionary[Vector2, bool] = {}
+	var still := true
+	# Over a second and a half of real time: blocked's rhythm steps every 0.3 s.
+	var until := Time.get_ticks_msec() + 1500
+	while Time.get_ticks_msec() < until:
+		await process_frame
+		lifts[seat.offset] = true
+		for index in marks.size():
+			still = still and marks[index].offset == rests[index]
+	_check(lifts.size() >= 2, "the seat's badge bobs on the clock: %s" % [lifts.keys()])
+	_check(still, "the tiles' marks never move")
+	office.test_screen = Vector2(1920, 320)
+	office.refresh()
+	await _frames(2)
+	for pane_id: String in dots:
+		var card := bar.card_for(_pane(pane_id))
+		_check(card != null and not card.is_tall() and not card.badge().visible, "%s: a card wears no mark" % pane_id)
+	_done(office)
+
+
+## A short bar (a screen under `staff_tall_from`) keeps BAR-a's horizontal
+## card exactly: 86×28, the face window 18×26 at (1, 1), the words 60×24 at
+## (22, 2), the face alone 20×28, folds 40×28 and tallies 24×28, the frame
+## on the card, no mark. A tall one shows the tiles: 50×48, the face window
+## 48×24 at (1, 0) over the name and the place rows (48×12 each), the face
+## alone 26×48, folds 40×48 and tallies 24×48. The same nodes either way.
+## S3 TILES (2026-10-28): the strip's cards are B2's tiles on tall screens.
+func test_short_screens_keep_the_horizontal_card() -> void:
+	var office := await _live_office()
+	var bar := office.hud.bar
+	var forms: Dictionary[float, Array] = {
+		320.0: [Vector2(86, 28), Vector2(20, 28), Rect2(1, 1, 18, 26), Rect2(22, 2, 60, 24), 28.0],
+		480.0: [Vector2(50, 48), Vector2(26, 48), Rect2(2, 1, 46, 22), Rect2(1, 24, 48, 24), 48.0],
+	}
+	var nodes := _strip_nodes(bar)
+	for height: float in [320.0, 480.0, 320.0]:
+		for width: float in [800.0, 1920.0]:
+			office.test_screen = Vector2(width, height)
+			office.refresh()
+			await _frames(2)
+			var wanted: Array = forms[height]
+			var where := "%dx%d" % [width, height]
+			_eq(bar.is_tall(), height >= office.hud.staff_tall_from, "%s: the band's form" % where)
+			_check(not bar.cards().is_empty(), "%s: cards show" % where)
+			for card in bar.cards():
+				var at := card.get_global_rect().position
+				var face: Control = card.get_node("%Face")
+				var words: Control = card.get_node("%Text")
+				_eq(card.size, wanted[1] if card.face_only() else wanted[0], "%s %s: its size" % [where, card.key])
+				var window := face.get_global_rect()
+				_eq(Rect2(window.position - at, window.size), wanted[2], "%s %s: the face window" % [where, card.key])
+				if not card.face_only():
+					var text := words.get_global_rect()
+					_eq(Rect2(text.position - at, text.size), wanted[3], "%s %s: the words" % [where, card.key])
+				_eq(card.badge().visible, card.is_tall(), "%s %s: a mark on a tile only" % [where, card.key])
+				_eq(
+					card.theme_type_variation == &"PortraitTile",
+					card.is_tall(),
+					"%s %s: the frame on the card only as a card" % [where, card.key]
+				)
+			var tall_as: float = wanted[4]
+			for fold in bar.folds():
+				if fold.visible:
+					_eq(fold.size, Vector2(24.0 if fold.tallied() else 40.0, tall_as), "%s %s" % [where, fold.name])
+	var kept := _strip_nodes(bar)
+	_check(nodes.all(func(id: int) -> bool: return kept.has(id)), "every node the strip had is kept through every form")
+	_done(office)
+
+
+## The bar's right end says B2's words, `1 machine · 13 panes`
+## (OfficeTotals.count_words(): `2 machines`, `1 pane`), whole, and keeps the
+## chime switch and the two lines; a dropped machine still counts as a
+## machine and carries no panes. On a tall bar the wordmark, the count, the
+## switch and the lines stand in the band's middle (no box more than two
+## units off it; the wordmark, the count and the switch exactly), and the
+## short band keeps its places exactly. A real click on the count still opens the
+## OVERVIEW; one on the switch still flips the chime.
+## S3 TILES (2026-10-28): D-RIGHTEND's default; A1 centred only the strip.
+func test_the_right_end_says_machines_and_panes_and_keeps_its_switches() -> void:
+	_eq(OfficeTotals.count_words(1, 13), "1 machine · 13 panes", "B2's words")
+	_eq(OfficeTotals.count_words(2, 40), "2 machines · 40 panes", "two machines")
+	_eq(OfficeTotals.count_words(1, 1), "1 machine · 1 pane", "one pane")
+	_eq(OfficeTotals.count_words(0, 0), "0 machines · 0 panes", "none")
+	var office := await _live_office(fixture, Vector2(960, 480))
+	var bar := office.hud.bar
+	var panes: Button = bar.get_node("%Panes")
+	var chime: Button = bar.get_node("%Chime")
+	var lines: Control = bar.get_node("%Lines")
+	var wordmark: Control = bar.get_node("%Wordmark")
+	_eq(panes.text, "1 machine · 13 panes", "the fixture's machine and panes")
+	var font := panes.get_theme_font("font")
+	var words := font.get_string_size(panes.text, HORIZONTAL_ALIGNMENT_LEFT, -1, panes.get_theme_font_size("font_size"))
+	_check(words.x <= panes.size.x, "whole: %s in %s" % [words.x, panes.size.x])
+	_check(panes.visible and chime.visible and lines.visible, "the count, the switch and the lines all show")
+	var band := bar.get_global_rect()
+	_eq(band.size.y, office.hud.bar_tall_height, "a tall band")
+	for node: Control in [wordmark, panes, chime, lines]:
+		var off := node.get_global_rect().get_center().y - band.get_center().y
+		_check(absf(off) <= 2.0, "%s stands in the band's middle: %s off" % [node.name, off])
+	_eq(panes.get_global_rect().get_center().y, band.get_center().y, "the count exactly")
+	_eq(chime.get_global_rect().get_center().y, band.get_center().y, "the switch exactly")
+	_eq(
+		wordmark.get_global_rect().get_center().y,
+		band.get_center().y,
+		"the wordmark exactly (WordmarkMarginTall: no margin over its row, its caps on the middle line)"
+	)
+	office.test_screen = Vector2(960, 320)
+	office.refresh()
+	await _frames(2)
+	_eq(bar.get_global_rect().size.y, office.hud.bar_short_height, "a short band")
+	_eq(
+		[
+			wordmark.get_global_rect().position.y,
+			lines.get_global_rect().position.y,
+			panes.get_global_rect().position.y,
+			chime.get_global_rect().position.y
+		],
+		[6.5, 2.0, 2.5, 2.5],
+		"the short band keeps the wordmark, the lines, the count and the switch where they stood (b0b3619, measured)"
+	)
+	office.test_screen = Vector2(960, 480)
+	office.refresh()
+	await _frames(2)
+	_check(not office.hud.overview_open(), "the OVERVIEW closed")
+	await _press(panes)
+	await _frames(2)
+	_check(office.hud.overview_open(), "a click on the count opens the OVERVIEW")
+	await _press(panes)
+	await _frames(2)
+	_check(not office.hud.overview_open(), "and closes it")
+	var was := bar.chime_shown()
+	await _press(chime)
+	await _frames(2)
+	_eq(bar.chime_shown(), not was, "a click on the switch flips the chime")
+	await _press(chime)
+	await _frames(2)
+	_eq(bar.chime_shown(), was, "and back")
+	_set_online(office, false)
+	await _frames(1)
+	_eq(panes.text, "1 machine · 0 panes", "a dropped machine is still a machine, with no panes")
+	_done(office)
+	var two := await _two_machine_office(fixture, Vector2(960, 480))
+	var both: Button = two.hud.bar.get_node("%Panes")
+	_check(both.text.begins_with("2 machines · "), "two machines: %s" % both.text)
+	_done(two)
+
+
 # --- helpers ------------------------------------------------------------------
 
 
@@ -652,6 +988,14 @@ func _strip_picture(bar: OfficeBar) -> Array:
 		if fold.visible:
 			picture.append([fold.name, fold.count_text(), fold.theme_type_variation, fold.get_global_rect()])
 	return picture
+
+
+## Every node in the strip, shown or pooled, cards and folds, left to right.
+func _strip_nodes(bar: OfficeBar) -> Array[int]:
+	var ids: Array[int] = []
+	for child in (bar.get_node("%Cards") as Control).get_children():
+		ids.append(child.get_instance_id())
+	return ids
 
 
 ## Every machine chip's key, words, look, rect and node.
@@ -723,13 +1067,14 @@ func _card(model: PortraitBarModel, key: String) -> PortraitBarModel.Card:
 	return null
 
 
-func _metrics() -> PortraitBarModel.Metrics:
+## `widths` (METRICS or TILE_METRICS) as the ladder's metrics.
+func _metrics(widths: Array) -> PortraitBarModel.Metrics:
 	var made := PortraitBarModel.Metrics.new()
-	made.card = METRICS[0]
-	made.face = METRICS[1]
-	made.fold = METRICS[2]
-	made.tally = METRICS[3]
-	made.gap = METRICS[4]
+	made.card = widths[0]
+	made.face = widths[1]
+	made.fold = widths[2]
+	made.tally = widths[3]
+	made.gap = widths[4]
 	return made
 
 
@@ -842,3 +1187,22 @@ func _aim(control: Control) -> Vector2:
 		var face: Control = control.get_node("%Face")
 		return face.get_global_rect().get_center()
 	return control.get_global_rect().get_center()
+
+
+## Totals for the bar's count: `machines` in the fleet, `panes` on the live ones.
+func _totals(machines: int, panes: int) -> OfficeTotals:
+	var totals := OfficeTotals.new()
+	totals.machines_total = machines
+	totals.machines_live = machines
+	totals.panes = panes
+	return totals
+
+
+## Pane `pane_id`'s badge over its seat in the world (Local's), in the
+## attention clock's group; null when it has none.
+func _world_badge(office: OfficeDouble, pane_id: String) -> StatusBadge:
+	for node in office.get_tree().get_nodes_in_group(StatusBadge.GROUP):
+		var badge := node as StatusBadge
+		if badge.machine == LOCAL and badge.pane_id == pane_id and not office.hud.is_ancestor_of(badge):
+			return badge
+	return null

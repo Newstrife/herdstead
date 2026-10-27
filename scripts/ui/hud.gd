@@ -879,8 +879,9 @@ func _on_monitor_closed() -> void:
 
 
 ## Lay the panels out for a `screen`-sized viewport: the bar's height first
-## (`bar_tall_height` on a screen at least `staff_tall_from` high,
-## `bar_short_height` below), then every panel under it.
+## (`bar_tall_height` on a screen at least `staff_tall_from` high, its cards
+## B2's tiles; `bar_short_height` below, the horizontal cards), then every
+## panel under it.
 func fit(screen: Vector2) -> void:
 	_screen = screen
 	var control: Control = $Screen
@@ -890,6 +891,7 @@ func fit(screen: Vector2) -> void:
 	var band := bar_tall_height if screen.y >= staff_tall_from else bar_short_height
 	if bar.offset_bottom != band:
 		bar.offset_bottom = band
+	bar.set_tall(screen.y >= staff_tall_from)
 	var top := band + panel_top_gap
 	if right_column.offset_top != top:
 		right_column.offset_top = top
@@ -938,12 +940,13 @@ func show_bar(theme_name: String, status: String, alarmed: bool) -> void:
 	bar.show_bar(theme_name, status, alarmed)
 
 
-## The top bar's portrait strip (`model`), and from `totals` its `13 panes`,
+## The top bar's portrait strip (`model`), and from `totals` its
+## `1 machine · 13 panes`,
 ## the status line's hover and, among several machines, a chip per machine,
 ## `shown`'s (the machine whose map is drawn) the current one.
 func show_portraits(model: PortraitBarModel, totals: OfficeTotals, shown := "") -> void:
 	bar.show_machines(totals.machine_rows, shown, totals.machines_total > 1)
-	bar.show_portraits(model, totals.panes)
+	bar.show_portraits(model, totals)
 
 
 ## Outline the portrait cards of panes `keys` as pointed at (a HUD line about a

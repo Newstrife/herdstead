@@ -657,6 +657,26 @@
       "size": [32, 32],
       "pivot": [0, 0],
       "nine_patch": [2, 2, 2, 2]
+    },
+    "badge_blocked_small": {
+      "path": "ui/badge_blocked_small.png",
+      "size": [8, 8],
+      "pivot": [0, 0]
+    },
+    "badge_unread_small": {
+      "path": "ui/badge_unread_small.png",
+      "size": [8, 8],
+      "pivot": [0, 0]
+    },
+    "badge_working_small": {
+      "path": "ui/badge_working_small.png",
+      "size": [8, 8],
+      "pivot": [0, 0]
+    },
+    "badge_idle_small": {
+      "path": "ui/badge_idle_small.png",
+      "size": [8, 8],
+      "pivot": [0, 0]
     }
   },
   "states": {

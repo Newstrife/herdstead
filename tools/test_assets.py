@@ -878,10 +878,12 @@ class PixelSourceTests(unittest.TestCase):
             len(files),
             len(draw_pixel_sources.DESK_PIECES) + len(draw_pixel_sources.FIXTURE_SIZES)
             + len(draw_pixel_sources.DENSE_SIZES) + len(draw_pixel_sources.PARTITION_SIZES)
-            + len(draw_pixel_sources.MARK_PROVIDERS) + len(draw_pixel_sources.CARPET_FAMILIES) + 18,
+            + len(draw_pixel_sources.MARK_PROVIDERS) + len(draw_pixel_sources.CARPET_FAMILIES)
+            + len(draw_pixel_sources.TILE_DOTS) + 18,
             "8 desk props, 2 fixture props, 3 density-2 pieces (the idle mug: D2, 2026-10-27), 7 partition pieces, "
             "23 provider marks (D3, 2026-10-27), 5 zone carpets (S3 item 7, 2026-10-27: one carpet per zone, in its "
-            "group's family), the pod family's 17 images, 1 manifest",
+            "group's family), 4 tile dots (S3 TILES, 2026-10-28: the portrait tiles' state marks), the pod family's "
+            "17 images, 1 manifest",
         )
         self.assertEqual(len(draw_pixel_sources.DENSE_SIZES), 3, "the paper stack, the idle mug and the seat mark")
         self.assertEqual(files, sorted(path.relative_to(second) for path in second.rglob("*") if path.is_file()))
@@ -1138,6 +1140,46 @@ class PixelSourceTests(unittest.TestCase):
             draw_pixel_sources.draw(ROOT / "art/daylight", occupied)
         self.assertEqual([path.name for path in occupied.iterdir()], ["artist.png"])
         self.assertEqual((occupied / "artist.png").read_bytes(), b"artist work")
+
+    def test_the_tile_dots_keep_their_contract_and_ship_as_drawn(self):
+        """S3 TILES (2026-10-28): a portrait tile's state mark is B2's small dot (Q-U4), pack art drawn here.
+
+        One per badge a state wears (blocked, unread for done, working, idle), each 16x16 texels at the pack's
+        density (8x8 units on a top-left pivot), hard alpha, `deep` and its state's colour only (idle's white is
+        `paper`); blocked's `!` and done's envelope fill the canvas but for its corners, working's and idle's
+        round dot is 12 texels across in its middle; what art/daylight ships and pack.json declares is exactly
+        what the tool draws.
+        """
+        manifest = json.loads((ROOT / "art/daylight/pack.json").read_text())
+        palette = manifest["palette"]
+        self.assertEqual(sorted(draw_pixel_sources.TILE_DOTS),
+                         sorted(f"badge_{state['badge']}_small" for name, state in manifest["states"].items()
+                                if name != "unknown"),
+                         "one dot per badge a drawn state wears, named after it (done wears unread)")
+        drawn = self.draw("drawn")
+        d = draw_pixel_sources.DENSE
+        corners = ((0, 0), (8 * d - 1, 0), (0, 8 * d - 1), (8 * d - 1, 8 * d - 1))
+        for name, fill in draw_pixel_sources.TILE_DOT_FILLS.items():
+            self.assertEqual(manifest["ui"].get(name), {"path": f"ui/{name}.png", "size": [8, 8], "pivot": [0, 0]}, name)
+            with Image.open(drawn / f"ui/{name}.png") as dot, Image.open(ROOT / f"art/daylight/ui/{name}.png") as shipped:
+                self.assertEqual(dot.size, (8 * d, 8 * d), name)
+                self.assertEqual(dot.convert("RGBA").tobytes(), shipped.convert("RGBA").tobytes(),
+                                 f"{name}: art/daylight ships what the tool draws")
+                rgba = dot.convert("RGBA")
+            alpha = rgba.getchannel("A")
+            self.assertEqual({value for _, value in alpha.getcolors()}, {0, 255}, f"{name}: hard alpha")
+            colours = {colour[:3] for _, colour in rgba.getcolors() if colour[3]}
+            self.assertEqual(colours, {tuple(bytes.fromhex(palette[key])) for key in ("deep", fill)},
+                             f"{name}: `deep` and {fill} only")
+            if draw_pixel_sources.TILE_DOTS[name] is draw_pixel_sources.TILE_DOT_SQUARE:
+                self.assertEqual(alpha.getbbox(), (0, 0, 8 * d, 8 * d), f"{name}: fills its canvas")
+                self.assertEqual([alpha.getpixel(at) for at in corners], [0, 0, 0, 0], f"{name}: its corners cut")
+            else:
+                self.assertEqual(alpha.getbbox(), (2, 2, 8 * d - 2, 8 * d - 2), f"{name}: 12 texels across, centred")
+        built = json.loads((ROOT / "assets/daylight/manifest.json").read_text())
+        for name in draw_pixel_sources.TILE_DOTS:
+            self.assertIn(name, built["ui"], f"the built pack carries {name}")
+            self.assertTrue((ROOT / f"assets/daylight/ui/{name}.png").is_file(), "and its picture")
 
     def test_the_idle_mug_ships_as_drawn_and_is_the_desk_mugs_picture(self):
         """D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.

@@ -615,6 +615,34 @@ static func _portraits(theme: Theme, art: ArtPack) -> void:
 				box.border_color = art.color(ArtContract.PAPER if pressed else edges[state])
 				box.set_content_margin_all(0)
 				theme.set_stylebox(look, name, box)
+	# A tile (a tall bar's card) wears no frame of its own: its words stand on
+	# the bar's ground, and its face window wears the state (PortraitFace<State>:
+	# `ink` with the state's 1-unit edge, 2 units under the pointer, …Lit), as
+	# B2 draws it. On a card the window draws nothing (PortraitFaceBare): the
+	# card's own frame is round it.
+	theme.set_type_variation(&"PortraitTile", "Button")
+	theme.set_constant("outline_size", &"PortraitTile", 0)
+	for look: String in BUTTON_STATES + ["hover_pressed"]:
+		var bare := _flat(Color.TRANSPARENT)
+		bare.draw_center = false
+		bare.set_content_margin_all(0)
+		theme.set_stylebox(look, &"PortraitTile", bare)
+	for state: String in edges:
+		for lit: bool in [false, true]:
+			var window := StringName("PortraitFace%s%s" % [state, "Lit" if lit else ""])
+			theme.set_type_variation(window, "Panel")
+			var framed := _flat(art.color(ArtContract.INK))
+			framed.set_border_width_all(2 if lit else 1)
+			framed.border_color = art.color(edges[state])
+			theme.set_stylebox("panel", window, framed)
+	theme.set_type_variation(&"PortraitFaceBare", "Panel")
+	theme.set_stylebox("panel", &"PortraitFaceBare", StyleBoxEmpty.new())
+	# The face and the words: side by side on a card, a 2-unit gap between;
+	# one over the other on a tile, none (PortraitCard.set_tall()).
+	var gaps: Dictionary[StringName, int] = {&"PortraitBody": 2, &"PortraitBodyTall": 0}
+	for body: StringName in gaps:
+		theme.set_type_variation(body, "BoxContainer")
+		theme.set_constant("separation", body, gaps[body])
 	theme.set_type_variation(&"PortraitSelected", "Panel")
 	var ring := _flat(Color.TRANSPARENT)
 	ring.draw_center = false
@@ -672,10 +700,18 @@ static func _chime_switch(theme: Theme, art: ArtPack) -> void:
 			theme.set_color(role, name, ink)
 
 
-## The top bar's `13 panes` (OfficeBar, `%Panes`): words alone at 8, in the
+## The top bar's `1 machine · 13 panes` (OfficeBar, `%Panes`): words alone at 8, in the
 ## right-hand lines' muted colour (BarLine), with a muted edge under the
 ## pointer; cream with a cream edge while the OVERVIEW is open (BarLineOn).
+## And the wordmark's top margin per band (WordmarkMargin, WordmarkMarginTall).
 static func _bar_line(theme: Theme, art: ArtPack, font: Font) -> void:
+	# The wordmark's room over its 24-unit row (OfficeBar, `%WordmarkMargin`, centred in the band): on the
+	# short band 5 above, where it has always stood; on the tall one none, which puts its caps (rows 6..18 of
+	# the row, measured at 2x) on the band's middle line.
+	var lifts: Dictionary[StringName, int] = {&"WordmarkMargin": 5, &"WordmarkMarginTall": 0}
+	for margin: StringName in lifts:
+		theme.set_type_variation(margin, "MarginContainer")
+		theme.set_constant("margin_top", margin, lifts[margin])
 	var inks: Dictionary[StringName, StringName] = {&"BarLine": ArtContract.MUTED, &"BarLineOn": ArtContract.CREAM}
 	for name: StringName in inks:
 		theme.set_type_variation(name, "Button")

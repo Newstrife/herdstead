@@ -8,7 +8,14 @@ clip_contents = true
 focus_mode = 0
 theme_type_variation = &"PortraitCardIdle"
 script = ExtResource("1")
+card_size = Vector2(86, 28)
+tile_size = Vector2(50, 48)
 face_width = 20.0
+tile_face_width = 26.0
+card_face = Vector2(20, 28)
+tile_face = Vector2(24, 24)
+card_body = Vector4(0, 0, 4, 0)
+tile_body = Vector4(1, 0, 1, 0)
 
 [node name="Pointed" type="Panel" parent="."]
 unique_name_in_owner = true
@@ -26,31 +33,67 @@ grow_vertical = 2
 mouse_filter = 2
 theme_type_variation = &"PortraitPointed"
 
-[node name="Face" type="Control" parent="."]
+[node name="Body" type="BoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -4.0
+grow_horizontal = 1
+grow_vertical = 1
+mouse_filter = 2
+theme_type_variation = &"PortraitBody"
+
+[node name="FaceBox" type="Panel" parent="Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(20, 28)
+layout_mode = 2
+size_flags_horizontal = 1
+size_flags_vertical = 1
+mouse_filter = 2
+theme_type_variation = &"PortraitFaceBare"
+
+[node name="Face" type="Control" parent="Body/FaceBox"]
 unique_name_in_owner = true
 clip_contents = true
-layout_mode = 0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 1.0
 offset_top = 1.0
-offset_right = 19.0
-offset_bottom = 27.0
+offset_right = -1.0
+offset_bottom = -1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 
-[node name="FaceHolder" type="Node2D" parent="Face"]
-unique_name_in_owner = true
-position = Vector2(9, 37)
+[node name="FaceAnchor" type="Control" parent="Body/FaceBox/Face"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+grow_horizontal = 2
+mouse_filter = 2
 
-[node name="Text" type="VBoxContainer" parent="."]
+[node name="FaceHolder" type="Node2D" parent="Body/FaceBox/Face/FaceAnchor"]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 22.0
-offset_top = 2.0
-offset_right = 82.0
-offset_bottom = 26.0
+position = Vector2(0, 37)
+
+[node name="Badge" type="Sprite2D" parent="Body/FaceBox"]
+unique_name_in_owner = true
+visible = false
+
+[node name="Text" type="VBoxContainer" parent="Body"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 theme_override_constants/separation = 0
 
-[node name="Name" type="Label" parent="Text"]
+[node name="Name" type="Label" parent="Body/Text"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
@@ -59,13 +102,13 @@ theme_type_variation = &"PortraitName"
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="Where" type="HBoxContainer" parent="Text"]
+[node name="Where" type="HBoxContainer" parent="Body/Text"]
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="PlaceButton" type="Button" parent="Text/Where"]
+[node name="PlaceButton" type="Button" parent="Body/Text/Where"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
@@ -73,7 +116,7 @@ size_flags_horizontal = 3
 focus_mode = 0
 theme_type_variation = &"PortraitPlaceButton"
 
-[node name="PlaceRow" type="HBoxContainer" parent="Text/Where/PlaceButton"]
+[node name="PlaceRow" type="HBoxContainer" parent="Body/Text/Where/PlaceButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -83,7 +126,7 @@ grow_vertical = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="Tag" type="Panel" parent="Text/Where/PlaceButton/PlaceRow"]
+[node name="Tag" type="Panel" parent="Body/Text/Where/PlaceButton/PlaceRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(3, 8)
 layout_mode = 2
@@ -91,7 +134,7 @@ size_flags_vertical = 4
 mouse_filter = 2
 theme_type_variation = &"CarpetTag0"
 
-[node name="Place" type="Label" parent="Text/Where/PlaceButton/PlaceRow"]
+[node name="Place" type="Label" parent="Body/Text/Where/PlaceButton/PlaceRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -100,7 +143,7 @@ theme_type_variation = &"PortraitPlace"
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="Wait" type="Label" parent="Text/Where"]
+[node name="Wait" type="Label" parent="Body/Text/Where"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
