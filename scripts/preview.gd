@@ -146,7 +146,12 @@ func _ready() -> void:
 	# The top bar and the overview read a mock state log (the live office's
 	# comes from the fleet): two hours, a pane that appeared, a machine that dropped.
 	var mock := _mock_office()
-	hud.show_totals(OfficeTotals.of(mock.frame, _mock_machines(mock), mock.ledger))
+	var portraits := PortraitBarModel.of(mock.frame, "")
+	hud.show_portraits(portraits, OfficeTotals.of(mock.frame, _mock_machines(mock)))
+	var blocked := PackedStringArray()
+	for card in portraits.of_group(PortraitBarModel.Group.BLOCKED):
+		blocked.append(card.key)
+	hud.show_waits(OfficeAttention.waits_of(mock.ledger, blocked, mock.now_msec))
 	hud.inspector.show_next(_mock_next(mock.frame))
 	if args.text("overview") == "open":
 		# Hidden under it, as the office hides its world: the overview stops
@@ -509,7 +514,7 @@ func _mock_office() -> MockOffice:
 	return mock
 
 
-## The mock's machines as the top bar's MACHINES says them: Local answering
+## The mock's machines as the status line's hover says them: Local answering
 ## now, bee last heard from when it dropped.
 func _mock_machines(mock: MockOffice) -> Array[OfficeTotals.MachineRow]:
 	var local := OfficeTotals.MachineRow.new()

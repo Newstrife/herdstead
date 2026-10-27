@@ -542,6 +542,30 @@ func _half_click(control: Control, down: bool, double := false) -> void:
 	root.push_input(event, true)
 
 
+## Every node the HUD holds, by instance id, sorted (tools/office_test_base.gd's,
+## which the write suites do not extend): the same list after a refresh means
+## nothing was made or freed.
+func _hud_nodes(office: OfficeDouble) -> Array:
+	var found: Array = []
+	for node: Node in office.hud.find_children("*", "", true, false):
+		found.append(node.get_instance_id())
+	found.sort()
+	return found
+
+
+## Show every agent's card in the top bar's strip once, in a wide window and
+## back: the strip keeps a card node for each pane it has shown (S3 BAR-a,
+## 2026-10-27), so a count of the HUD's nodes taken after this holds them.
+func _every_card_once(office: OfficeDouble) -> void:
+	var screen := office.test_screen
+	office.test_screen = Vector2(1920, 480)
+	office.refresh()
+	await _frames(2)
+	office.test_screen = screen
+	office.refresh()
+	await _frames(2)
+
+
 ## A real click on `control`: press, a frame, release, a frame.
 func _click_control(control: Control) -> void:
 	for down: bool in [true, false]:

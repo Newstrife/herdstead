@@ -138,23 +138,25 @@ func test_the_timeline_spans_start_observed_and_hatch_what_nobody_watched() -> v
 # --- opening and closing ---------------------------------------------------------------
 
 
-## A click on PANES opens the overview over the world and both side columns:
-## PANES reads pressed, the world and the signposts are hidden, the minimap and
+## A click on `13 panes` opens the overview over the world and both side columns:
+## it reads pressed, the world and the signposts are hidden, the minimap and
 ## the drawer stay where they are, and nothing is laid out again (no floor
 ## planned, no room changed). It stands from under the bar to the columns'
 ## bottom edge. Its `X  Esc`, clicked, closes it and brings the world back.
-func test_the_panes_counter_opens_the_overview_and_x_closes_it() -> void:
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; PANES is
+## the bar's `13 panes` button.
+func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 	var office := await _blocked_bee()
 	var hud := office.hud
 	var attempts := office.layout_attempt_count()
 	var room := hud.world_rect()
 	var moves: Array[int] = [0]
 	hud.room_changed.connect(func() -> void: moves[0] += 1)
-	var panes := hud.bar.counter(&"panes")
-	_eq(panes.theme_type_variation, &"Counter", "PANES starts unpressed")
+	var panes: Button = hud.bar.get_node("%Panes")
+	_eq(panes.theme_type_variation, &"BarLine", "`13 panes` starts unpressed")
 	await _click_control(panes)
-	_check(hud.overview_open(), "PANES opens the overview")
-	_eq(panes.theme_type_variation, &"CounterOn", "and reads pressed")
+	_check(hud.overview_open(), "`13 panes` opens the overview")
+	_eq(panes.theme_type_variation, &"BarLineOn", "and reads pressed")
 	_check(not office.world.visible, "the world is out of sight")
 	_check(not hud.edge_arrows.visible, "so are the edge arrows")
 	_check(hud.spaces.visible and hud.right_column.visible, "the minimap and the drawer stay, covered")
@@ -170,7 +172,7 @@ func test_the_panes_counter_opens_the_overview_and_x_closes_it() -> void:
 	_heading_apart(hud.overview, "800x480")
 	await _click_control(_part(hud.overview, "%Close"))
 	_check(not hud.overview_open(), "X closes it")
-	_eq(panes.theme_type_variation, &"Counter", "PANES is released")
+	_eq(panes.theme_type_variation, &"BarLine", "`13 panes` is released")
 	_check(office.world.visible, "the world is back")
 	_eq(office.layout_attempt_count(), attempts, "still nothing planned")
 	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "nothing written")
@@ -552,30 +554,36 @@ func test_the_timeline_redraws_once_a_second_not_every_frame() -> void:
 	_check(drawn >= 1 and drawn <= 3, "drawn %d times in 1.2 s" % drawn)
 
 
-## Under the overview WORKING and IDLE set its chips and leave the agent list's
-## filter alone; the counter pressed is the chip's, PANES stays pressed. Closed,
-## the counters say the list's filter again.
-func test_counters_while_open_drive_the_chips_not_the_list() -> void:
+## Under the overview the working and idle folds set its chips and leave the
+## agent list's filter alone; the fold pressed is the chip's, `13 panes` stays
+## pressed. Closed, nothing reads pressed.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; the
+## counters' "closed: IDLE says the list's filter" retires with the bar's
+## list filter (a fold opens the overview instead).
+func test_folds_while_open_drive_the_chips_not_the_list() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with()
 	var bar := office.hud.bar
 	var list := office.hud.agent_list
-	await _click_control(bar.counter(&"idle"))
-	_eq(list.presence_filter(), [AgentListModel.Presence.IDLE], "IDLE filters the list first")
+	var panes: Button = bar.get_node("%Panes")
+	var working := bar.fold_of(PortraitBarModel.Group.WORKING)
+	var idle := bar.fold_of(PortraitBarModel.Group.IDLE)
+	_check(working.visible and idle.visible, "six agents at 800: the working and the idle are folded")
 	await _tap(KEY_O)
-	_eq(bar.counter(&"idle").theme_type_variation, &"Counter", "open on ALL: IDLE is the chips', not pressed")
-	await _click_control(bar.counter(&"working"))
-	_eq(office.hud.overview.filter(), OverviewModel.Filter.WORKING, "WORKING sets the chip")
-	_eq(list.presence_filter(), [AgentListModel.Presence.IDLE], "and leaves the list's filter")
-	_eq(bar.counter(&"working").theme_type_variation, &"CounterOn", "WORKING reads pressed")
-	_eq(bar.counter(&"panes").theme_type_variation, &"CounterOn", "PANES too")
+	_eq(idle.theme_type_variation, &"PortraitFoldIdle", "open on ALL: no fold pressed")
+	await _click_control(working)
+	_eq(office.hud.overview.filter(), OverviewModel.Filter.WORKING, "the working fold sets the chip")
+	_eq(list.presence_filter(), [] as Array[AgentListModel.Presence], "and leaves the list's filter")
+	_eq(working.theme_type_variation, &"PortraitFoldWorkingOn", "the fold reads pressed")
+	_eq(panes.theme_type_variation, &"BarLineOn", "`13 panes` too")
 	_check(office.hud.overview.shown_keys().size() >= 1, "working rows show")
-	await _click_control(bar.counter(&"working"))
+	await _click_control(working)
 	_eq(office.hud.overview.filter(), OverviewModel.Filter.ALL, "again: ALL")
-	_eq(bar.counter(&"working").theme_type_variation, &"Counter", "released")
+	_eq(working.theme_type_variation, &"PortraitFoldWorking", "released")
 	await _tap(KEY_O)
-	_eq(bar.counter(&"idle").theme_type_variation, &"CounterOn", "closed: IDLE says the list's filter again")
-	_eq(bar.counter(&"panes").theme_type_variation, &"Counter", "PANES released")
+	_check(not office.hud.overview_open(), "closed")
+	_eq(panes.theme_type_variation, &"BarLine", "`13 panes` released")
+	_check(not bar.folds().any(func(fold: PortraitFold) -> bool: return fold.is_on()), "and every fold")
 
 
 ## A `--read-only` office opens the overview all the same (it is observation):
@@ -811,13 +819,3 @@ func _held_state(office: OfficeDouble, key: String) -> String:
 static func _seconds(said: String) -> int:
 	var digits := said.trim_suffix("s")
 	return digits.to_int() if digits.is_valid_int() else -1
-
-
-## Every node the HUD holds, by instance (tools/office_test_base.gd's, which
-## this suite does not extend): a rebuild anywhere shows as a different list.
-func _hud_nodes(office: OfficeDouble) -> Array:
-	var found: Array = []
-	for node: Node in office.hud.find_children("*", "", true, false):
-		found.append(node.get_instance_id())
-	found.sort()
-	return found

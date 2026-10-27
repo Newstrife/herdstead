@@ -497,6 +497,24 @@ func station(sorted: Node2D, at_table: OfficeTable, column: int, side: String) -
 	return result
 
 
+## The seat's person for pane `key`, standing and facing front, in `holder`:
+## `actor` when there is one, else a new person, instanced once and kept (its
+## feet disabled: no floor holds them). The same face and hair as at the seat
+## (vary_by(key)), dressed in `pack`'s people as `provider`; re-dressing the same
+## node is new textures, never a new person. The agent card's portrait and the
+## top bar's faces both come from here.
+static func seat_face(holder: Node2D, actor: PixelPerson, pack: ArtPack, provider: String, key: String) -> PixelPerson:
+	var person := actor
+	if person == null:
+		person = PERSON_SCENE.instantiate()
+		holder.add_child(person)
+		var feet: CollisionShape2D = person.get_node("Feet")
+		feet.disabled = true
+	person.vary_by(key)
+	person.configure(pack.people, provider, AvatarLook.facing(AvatarLook.STAND, AvatarLook.FRONT))
+	return person
+
+
 ## A standing, front-facing person shown as a portrait at `at`, `zoom` times
 ## their world size, inside a holder node that carries the zoom (a physics body
 ## is never scaled itself). `zoom` is a whole number: the pixel people are one

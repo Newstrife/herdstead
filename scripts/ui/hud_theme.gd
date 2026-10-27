@@ -33,9 +33,9 @@ const LABEL_COLORS: Dictionary[StringName, StringName] = {
 }
 ## Label variations that also change the size, and the palette key they take.
 ## Every size is one of a cut's own (OfficeDraw.cut_for()), and each wears the
-## cut drawn at it (build()): the headings and the counters' numbers the
-## heading cut at 12, the small rows (the SPACES rail's numbers, the agent
-## list's chevrons, the counters' titles) the display cut at 8. A heading's
+## cut drawn at it (build()): the headings the heading cut at 12, the small
+## rows (the SPACES rail's numbers, the agent list's chevrons, the portrait
+## cards' and folds' words) the display cut at 8. A heading's
 ## variation keeps the name of the size it had before the pixel faces
 ## (Heading13, Heading16): the scenes name them.
 const LABEL_SIZES: Dictionary[StringName, int] = {
@@ -47,11 +47,10 @@ const LABEL_SIZES: Dictionary[StringName, int] = {
 	&"Heading13Blocked": 12,
 	&"ListChevron": 8,
 	&"ListChevronCurrent": 8,
-	&"CounterTitle": 8,
-	&"CounterTitlePaper": 8,
-	&"CounterValue": 12,
-	&"CounterValuePaper": 12,
-	&"CounterTitleMuted": 8,
+	&"PortraitName": 8,
+	&"PortraitPlace": 8,
+	&"PortraitWait": 8,
+	&"PortraitCount": 8,
 }
 const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"Heading13": ArtContract.PAPER,
@@ -62,13 +61,13 @@ const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"Heading13Blocked": ArtContract.BLOCKED,
 	&"ListChevron": ArtContract.MUTED,
 	&"ListChevronCurrent": ArtContract.PAPER,
-	# The top bar's counters: a `muted` title under a `paper` number on a dark
-	# chip, both `paper` on a pressed one, and both `ink` on the loud `blocked` one.
-	&"CounterTitle": ArtContract.INK,
-	&"CounterTitlePaper": ArtContract.PAPER,
-	&"CounterTitleMuted": ArtContract.MUTED,
-	&"CounterValue": ArtContract.INK,
-	&"CounterValuePaper": ArtContract.PAPER,
+	# The top bar's portrait cards: the name in paper over its space in muted,
+	# a blocked agent's wait in the blocked colour; a fold's number in paper
+	# over its word in muted (PortraitPlace).
+	&"PortraitName": ArtContract.PAPER,
+	&"PortraitPlace": ArtContract.MUTED,
+	&"PortraitWait": ArtContract.BLOCKED,
+	&"PortraitCount": ArtContract.PAPER,
 }
 ## The fixed ASCII headings: the wordmark in the display cut at twice its 8,
 ## and SPACES, NEWS and NEXT in the heading cut at its 12 (OfficeDraw.cut_for()).
@@ -130,10 +129,6 @@ const MONO_FACES := ["Menlo", "SF Mono", "Monaco", "DejaVu Sans Mono", "monospac
 const KEY_HINT_ICON := 10
 const PREVIEW_SIZE := 7
 const PREVIEW_LINE_SPACING := -1
-## Units taken off the top and bottom of a counter's title and number line
-## boxes (FontVariation spacing_top, spacing_bottom); see _counters().
-const COUNTER_TITLE_TRIM := Vector2i(-3, -1)
-const COUNTER_VALUE_TRIM := Vector2i(-2, -1)
 ## The OVERVIEW's scroll bar, and the gap between it and the timelines, in
 ## units. overview.tscn's `%BarRoom` is their sum less the heads' separation.
 const OVERVIEW_BAR := 4
@@ -183,8 +178,9 @@ static func build(art: ArtPack, font: Font) -> Theme:
 	_panel(theme, art)
 	_buttons(theme, art)
 	_attention(theme, art)
-	_counters(theme, art)
+	_portraits(theme, art)
 	_chime_switch(theme, art)
+	_bar_line(theme, art, font)
 	_tooltips(theme, art)
 	_agent_list(theme, art)
 	_edge_arrows(theme, art)
@@ -625,70 +621,54 @@ static func _attention(theme: Theme, art: ArtPack) -> void:
 	theme.set_color("font_hover_color", "PopupMenu", art.color(ArtContract.PAPER))
 
 
-## The top bar's counters (scenes/ui/counter.tscn): `ink` chips with a slate
-## edge on the `deep` bar, the number over its title. BLOCKED above zero, and
-## MACHINES while a machine is down, wear the blocked colour with ink words
-## (CounterHot); a counter whose filter the agent list shows reads pressed, in
-## slate with a paper edge (CounterOn). The pointer thickens the edge rather
-## than changing the fill: the labels are the counter's own, not the button's
-## text, so they cannot change colour with it (OfficeCounter._restyle()).
-static func _counters(theme: Theme, art: ArtPack) -> void:
-	var fills: Dictionary[StringName, StringName] = {
-		&"Counter": ArtContract.INK,
-		&"CounterHot": ArtContract.BLOCKED,
-		&"CounterOn": ArtContract.SLATE,
+## The top bar's portrait strip (OfficeBar): a card (PortraitCard<State>) and
+## a fold (PortraitFold<State>) are an `ink` chip with a 1-unit edge in their
+## state's colour (blocked, unread for done, working, muted for idle), 2 units
+## under the pointer, as the counters were; the fold of the state the OVERVIEW
+## keeps reads pressed, `slate` with a `paper` edge (PortraitFold<State>On). The
+## selected card wears a 1-unit `paper` ring just inside its edge, so the
+## state's colour still shows (PortraitSelected).
+## A card's words are labels of their own (LABEL_HEADINGS), not the button's
+## text, so they keep their colour under the pointer.
+static func _portraits(theme: Theme, art: ArtPack) -> void:
+	var edges: Dictionary[String, StringName] = {
+		"Blocked": ArtContract.BLOCKED,
+		"Done": ArtContract.UNREAD,
+		"Working": ArtContract.WORKING,
+		"Idle": ArtContract.MUTED,
 	}
-	var edges: Dictionary[StringName, StringName] = {
-		&"Counter": ArtContract.SLATE,
-		&"CounterHot": ArtContract.BLOCKED,
-		&"CounterOn": ArtContract.PAPER,
-	}
-	for name: StringName in fills:
-		theme.set_type_variation(name, "Button")
-		theme.set_constant("outline_size", name, 0)
-		for state: String in BUTTON_STATES:
-			var box := _flat(art.color(fills[name]))
-			var lit := state == "hover" or state == "pressed"
-			box.set_border_width_all(2 if lit else 1)
-			box.border_color = art.color(ArtContract.MUTED if lit and name == &"Counter" else edges[name])
-			box.content_margin_left = 2
-			box.content_margin_right = 2
-			box.content_margin_top = 1
-			box.content_margin_bottom = 1
-			theme.set_stylebox(state, name, box)
-	# A number over its title is 29 units of line box (16 + 1 + 12, measured)
-	# in a 26-unit counter, and neither line has a descender or an accent:
-	# capitals, digits, `/`, `max 12m`. Trimming each face's line box, not
-	# overlapping the labels, keeps the pair inside the counter. The heading
-	# cut at 12 inks its digits on rows 4..12 of 16, the display cut at 8 its
-	# capitals on 3..8 of 12; each line keeps two rows under its baseline (a
-	# taller fallback's cut takes rows from there too, OfficeDraw.no_taller(),
-	# and a descent cut below nothing would move the text), so the number is 13
-	# rows with two empty over its digits, the title 8 with none over its
-	# capitals: 13 + 1 + 8 = 22 in the middle of the counter, the digits and
-	# the capitals three rows apart and three rows of fill over and under them.
-	for name: StringName in [
-		&"CounterTitle", &"CounterTitlePaper", &"CounterTitleMuted", &"CounterValue", &"CounterValuePaper"
-	]:
-		# A copy of the face the variation already has, its own cut and
-		# fallbacks (a FontVariation wrapped in another one loses its own
-		# settings). The trim is added to the face's own spacing: the rows a taller
-		# fallback was cut by, above and below (build(), OfficeDraw.no_taller()),
-		# stay cut.
-		var face := theme.get_font("font", name)
-		var trimmed: FontVariation = face.duplicate() if face is FontVariation else FontVariation.new()
-		if face is not FontVariation:
-			trimmed.base_font = face
-		var value := name.begins_with("CounterValue")
-		trimmed.spacing_top += COUNTER_VALUE_TRIM.x if value else COUNTER_TITLE_TRIM.x
-		trimmed.spacing_bottom += COUNTER_VALUE_TRIM.y if value else COUNTER_TITLE_TRIM.y
-		theme.set_font("font", name, trimmed)
+	for state: String in edges:
+		for kind: String in ["PortraitCard" + state, "PortraitFold" + state, "PortraitFold%sOn" % state]:
+			var name := StringName(kind)
+			var pressed := kind.ends_with("On")
+			theme.set_type_variation(name, "Button")
+			theme.set_constant("outline_size", name, 0)
+			for look: String in BUTTON_STATES + ["hover_pressed"]:
+				var box := _flat(art.color(ArtContract.SLATE if pressed else ArtContract.INK))
+				var lit := look.begins_with("hover") or look == "pressed"
+				box.set_border_width_all(2 if lit else 1)
+				box.border_color = art.color(ArtContract.PAPER if pressed else edges[state])
+				box.set_content_margin_all(0)
+				theme.set_stylebox(look, name, box)
+	theme.set_type_variation(&"PortraitSelected", "Panel")
+	var ring := _flat(Color.TRANSPARENT)
+	ring.draw_center = false
+	ring.set_border_width_all(1)
+	ring.border_color = art.color(ArtContract.PAPER)
+	theme.set_stylebox("panel", &"PortraitSelected", ring)
+	# A card's zone tag: its worktree group's carpet, flat, so it reads as the
+	# room's colour beside the space's name; the index the zone's sign and
+	# carpet use (OfficeZoneSign.accent_of()). It never shows state.
+	for index in ArtContract.CARPETS.size():
+		var tag := StringName("CarpetTag%d" % index)
+		theme.set_type_variation(tag, "Panel")
+		theme.set_stylebox("panel", tag, _flat(art.color(ArtContract.CARPETS[index])))
 
 
 ## The top bar's chime switch (OfficeBar, `%Chime`): an outline, not a chip, so
-## it never reads as a seventh counter. Off (BarSwitch) it is the right-hand
+## it never reads as a portrait card. Off (BarSwitch) it is the right-hand
 ## lines' muted colour; on (BarSwitchOn), their cream. The pointer thickens the
-## edge, as on a counter.
+## edge, as on a card.
 static func _chime_switch(theme: Theme, art: ArtPack) -> void:
 	var inks: Dictionary[StringName, StringName] = {&"BarSwitch": ArtContract.MUTED, &"BarSwitchOn": ArtContract.CREAM}
 	for name: StringName in inks:
@@ -716,7 +696,39 @@ static func _chime_switch(theme: Theme, art: ArtPack) -> void:
 			theme.set_color(role, name, ink)
 
 
-## Every HUD tooltip (the counters' breakdowns, a list row's details, a
+## The top bar's `13 panes` (OfficeBar, `%Panes`): words alone at 8, in the
+## right-hand lines' muted colour (BarLine), with a muted edge under the
+## pointer; cream with a cream edge while the OVERVIEW is open (BarLineOn).
+static func _bar_line(theme: Theme, art: ArtPack, font: Font) -> void:
+	var inks: Dictionary[StringName, StringName] = {&"BarLine": ArtContract.MUTED, &"BarLineOn": ArtContract.CREAM}
+	for name: StringName in inks:
+		theme.set_type_variation(name, "Button")
+		theme.set_constant("outline_size", name, 0)
+		_sized(theme, art, font, name, 8)
+		var ink := art.color(inks[name])
+		for state: String in BUTTON_STATES + ["hover_pressed"]:
+			var box := _flat(Color.TRANSPARENT)
+			box.draw_center = false
+			var lit := state.begins_with("hover") or state == "pressed"
+			box.set_border_width_all(1 if lit or name == &"BarLineOn" else 0)
+			box.border_color = ink
+			box.content_margin_left = 3
+			box.content_margin_right = 3
+			box.content_margin_top = 0
+			box.content_margin_bottom = 0
+			theme.set_stylebox(state, name, box)
+		for role: String in [
+			"font_color",
+			"font_hover_color",
+			"font_pressed_color",
+			"font_hover_pressed_color",
+			"font_focus_color",
+			"font_disabled_color"
+		]:
+			theme.set_color(role, name, ink)
+
+
+## Every HUD tooltip (the portrait cards' and folds' names, a list row's details, a
 ## button's hint): paper on `deep` with a muted edge. Godot's own tooltip panel
 ## is see-through, which the office under it would show through.
 static func _tooltips(theme: Theme, art: ArtPack) -> void:

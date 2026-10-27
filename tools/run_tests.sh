@@ -113,6 +113,9 @@ MIN_CASES_ANSWERS=42
 MIN_CASES_BUBBLES=24
 MIN_CASES_MONITOR=36
 MIN_CASES_TOP_BAR=27
+# The portrait strip that replaced the top bar's counters (S3 BAR-a); 12: an
+# unchanged strip lays nothing out (ruling 1).
+MIN_CASES_PORTRAIT_BAR=12
 MIN_CASES_STATE_LOG=22
 MIN_CASES_NEWS_EVENTS=16
 MIN_CASES_LENS=22
@@ -446,6 +449,8 @@ run_suites() {
 	run_connected_suite test_spaces "SPACES TESTS" "$MIN_CASES_SPACES" spaces 300
 	run_scene_suite test_top_bar "TOP BAR TESTS" "$MIN_CASES_TOP_BAR" -- --read-only \
 		--socket="$WORK/top-bar-nowhere.sock" --work="$WORK"
+	run_scene_suite test_portrait_bar "PORTRAIT BAR TESTS" "$MIN_CASES_PORTRAIT_BAR" -- --read-only \
+		--socket="$WORK/portrait-nowhere.sock" --work="$WORK"
 	run_scene_suite test_state_log "STATE LOG TESTS" "$MIN_CASES_STATE_LOG" -- --read-only \
 		--socket="$WORK/state-log-nowhere.sock" --work="$WORK"
 	run_scene_suite test_news_events "NEWS EVENTS TESTS" "$MIN_CASES_NEWS_EVENTS" -- --read-only \

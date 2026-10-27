@@ -422,9 +422,11 @@ func test_an_events_row_click_picks_and_a_gone_one_is_disabled() -> void:
 
 
 ## Every locate counts one navigation (what a pick waiting for a new pane
-## records), however it is asked for: `N`, a top-bar counter, `›` and `‹` on
+## records), however it is asked for: `N`, a top-bar card, `›` and `‹` on
 ## the staff panel's line, a NEWS entry, an EVENTS row and a row of the agent
 ## list, each a real click or key.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; a blocked
+## card where BLOCKED was.
 func test_every_locate_counts_one_navigation() -> void:
 	var office := await _live_office()
 	var navigator := office.navigator
@@ -433,9 +435,9 @@ func test_every_locate_counts_one_navigation() -> void:
 	var revision := navigator.nav_revision
 	await _office_key(office, KEY_N)
 	_eq(navigator.nav_revision, revision + 1, "`N`: one")
-	await _press(office.hud.bar.counter(&"blocked"))
+	await _press(office.hud.bar.cards()[0])
 	await _frames(2)
-	_eq(navigator.nav_revision, revision + 2, "BLOCKED: one")
+	_eq(navigator.nav_revision, revision + 2, "a blocked card: one")
 	var on: Button = office.hud.inspector.get_node("%StepOn")
 	var back: Button = office.hud.inspector.get_node("%StepBack")
 	_check(on.is_visible_in_tree() and not on.disabled and not back.disabled, "`‹ ›` are on the line")
@@ -461,9 +463,11 @@ func test_every_locate_counts_one_navigation() -> void:
 	_done(office)
 
 
-## `A` on the EVENTS page shows AGENTS and gives the list the keyboard, and so
-## does a WORKING counter's filter: the list takes keys, or is filtered, only
-## where it can be seen.
+## `A` on the EVENTS page shows AGENTS and gives the list the keyboard: the
+## list takes keys only where it can be seen. The working fold opens the
+## OVERVIEW, and the list takes neither a filter nor the keyboard.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; the
+## WORKING counter's list filter is a fold's OVERVIEW now.
 func test_a_switches_to_agents_and_takes_the_keyboard() -> void:
 	var office := await _live_office()
 	var hud := office.hud
@@ -477,11 +481,12 @@ func test_a_switches_to_agents_and_takes_the_keyboard() -> void:
 	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
 	_check(not hud.agent_list.has_keyboard(), "leaving AGENTS lets the keyboard go")
 	_eq(hud.drawer_tabs.theme_type_variation, &"DrawerTabs", "and its tab says that too")
-	await _press(hud.bar.counter(&"working"))
+	await _press(hud.bar.fold_of(PortraitBarModel.Group.WORKING))
 	await _frames(2)
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.AGENTS, "WORKING's filter shows AGENTS")
-	_eq(hud.agent_list.presence_filter(), [AgentListModel.Presence.WORKING], "filtered")
-	_check(not hud.agent_list.has_keyboard(), "without taking the keyboard")
+	_check(hud.overview_open(), "the working fold opens the OVERVIEW")
+	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.EVENTS, "the drawer stays on EVENTS")
+	_eq(hud.agent_list.presence_filter(), [] as Array[AgentListModel.Presence], "the list takes no filter")
+	_check(not hud.agent_list.has_keyboard(), "nor the keyboard")
 	_done(office)
 
 

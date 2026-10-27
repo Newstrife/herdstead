@@ -1027,6 +1027,7 @@ func test_a_shell_card_offers_the_kinds_seen_on_its_machine() -> void:
 	var tip := _kind(office, 0).tooltip_text
 	_check(tip.begins_with("Types `claude` and Enter in this terminal"), "the tooltip says what it types: " + tip)
 	_check("claude-1" in tip, "and the name herdr gives it")
+	await _every_card_once(office)
 	var nodes := _hud_nodes(office)
 	var only_pi := _changed(_changed(_raw(), "alpha:p1", {"agent": null}), "alpha:p3", {"agent": null})
 	_ctl("control-b", "set_snapshot", {"snapshot": only_pi})
@@ -1949,16 +1950,6 @@ func _launch_fits(card: OfficePaneInspector, what: String) -> void:
 	var note: Label = card.get_node("%LaunchNote")
 	var most := 3 if what.begins_with("480x320") else 2
 	_check(note.get_line_count() <= most, "%s: `%s` in %d lines: %d" % [what, note.text, most, note.get_line_count()])
-
-
-## Every node under the HUD, by instance id, sorted: the same list after a
-## refresh means nothing was made or freed.
-func _hud_nodes(office: OfficeDouble) -> Array:
-	var found: Array = []
-	for node: Node in office.hud.find_children("*", "", true, false):
-		found.append(node.get_instance_id())
-	found.sort()
-	return found
 
 
 ## Local's alpha:p2 in fake A's snapshot as it is now, changed by `changes`

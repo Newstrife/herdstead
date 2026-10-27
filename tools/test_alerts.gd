@@ -120,9 +120,11 @@ func _title() -> String:
 	return root.title
 
 
-## The top bar's BLOCKED number, as the viewer reads it.
+## How many blocked agents the top bar holds, as the viewer counts its cards
+## and its blocked tally. (S3 BAR-a, 2026-10-27: the portrait strip replaces
+## the counters; BLOCKED's number was this.)
 func _bar_blocked(office: OfficeDouble) -> String:
-	return office.hud.bar.counter(&"blocked").value_text()
+	return str(office.hud.bar.count(PortraitBarModel.Group.BLOCKED))
 
 
 # --- the bounce and the title -------------------------------------------------

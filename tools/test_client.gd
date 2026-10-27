@@ -408,7 +408,7 @@ func test_state_since_through_the_client() -> void:
 
 
 ## When a machine was last heard from (HerdrClient.heard_at, which the top
-## bar's MACHINES counter says on hover): a snapshot read, or a status event
+## bar's status line says on hover): a snapshot read, or a status event
 ## applied to it, is hearing from the machine; a refused snapshot, an event
 ## held back while stale, and a drop are not, and a drop keeps the last time.
 func test_heard_at_follows_snapshots_and_status_events() -> void:
@@ -1845,25 +1845,21 @@ func test_hud_free_area() -> void:
 	var at := lines.get_global_rect()
 	# 132 units: the longest status, OFFLINE / RECONNECTING, is 131 (tools/test_top_bar.gd).
 	_eq([at.position.x, at.size.x], [1452.0, 132.0], "the right-hand lines keep 132 units at the bar's right end")
-	for counter in hud.bar.counters():
-		_check(
-			not lines.get_global_rect().intersects(counter.get_global_rect()),
-			"the lines do not cover the %s counter" % counter.id
-		)
-	# The chime switch stands at the counters' row's right end, 4 units short
-	# of the lines, and the counters stretch over the rest of the wider bar.
+	# S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+	var strip: Control = hud.bar.get_node("%Strip")
+	_check(not lines.get_global_rect().intersects(strip.get_global_rect()), "the lines do not cover the strip")
+	# The chime switch stands at the bar's row's right end, 4 units short of
+	# the lines, `13 panes` before it, and the strip stretches over the rest.
 	var switch: Control = hud.bar.get_node("%Chime")
 	var room := switch.get_global_rect()
 	_check(not lines.get_global_rect().intersects(room), "the lines do not cover the chime switch")
-	# The row stretches its counters to whole units, so its last child may end a unit short.
-	var row: Control = hud.bar.get_node("%Counters")
-	_eq(row.get_global_rect().end.x, at.position.x - 4.0, "the counters' row ends 4 units short of the lines")
+	# The row stretches its children to whole units, so its last child may end a unit short.
+	var row: Control = hud.bar.get_node("%Row")
+	_eq(row.get_global_rect().end.x, at.position.x - 4.0, "the bar's row ends 4 units short of the lines")
 	_check(absf(room.end.x - row.get_global_rect().end.x) <= 1.0, "and the switch ends with the row: %s" % room)
-	_eq(
-		hud.bar.counter(&"panes").get_global_rect().end.x + 3.0,
-		room.position.x,
-		"the wider bar gives the counters the room, up to the switch"
-	)
+	var panes: Control = hud.bar.get_node("%Panes")
+	_eq(panes.get_global_rect().end.x + 4.0, room.position.x, "`13 panes` stands before the switch")
+	_eq(strip.get_global_rect().end.x + 4.0, panes.get_global_rect().position.x, "and the strip has the rest, up to it")
 	# Every panel swallows the mouse, so nothing over one reaches the office.
 	for panel: Control in [hud.bar, hud.spaces, hud.inspector, hud.agent_list]:
 		_eq(panel.mouse_filter, Control.MOUSE_FILTER_STOP, "%s stops the mouse" % panel.name)

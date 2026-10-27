@@ -256,7 +256,10 @@ func _ready() -> void:
 	hud.machine_picked.connect(_pick_machine)
 	hud.arrow_picked.connect(_pan_to_desk)
 	hud.room_changed.connect(_on_room_changed)
-	hud.counter_pressed.connect(_on_counter)
+	# A portrait card picks its pane as a row of the list does.
+	hud.portrait_picked.connect(_pick_from_list)
+	hud.fold_pressed.connect(_on_fold)
+	hud.panes_pressed.connect(_on_panes)
 	hud.history_locate_requested.connect(_locate_history)
 	hud.attention_snooze_requested.connect(_snooze_attention)
 	hud.attention_hidden_changed.connect(_hide_attention)
@@ -811,52 +814,30 @@ func _open_card_for(pane: PaneModel) -> void:
 		hud.expand_card()
 
 
-## A top-bar counter pressed: BLOCKED walks the blocked agents, longest wait
-## first, and opens answer mode once the question is shown, as a click on a
-## chip does; DONE walks the UNREAD ones from the oldest, and only picks;
-## WORKING and IDLE filter the agent list, and the same press again clears it
-## (while the overview is open they set its chips instead, and leave the list
-## alone); PANES opens the overview, or closes it. MACHINES only has its hover.
-func _on_counter(id: StringName) -> void:
-	match id:
-		&"blocked":
-			_jump_to_state(str(ArtContract.STATE_BLOCKED))
-		&"done":
-			_jump_to_state(str(ArtContract.STATE_DONE))
-		&"working":
-			if hud.overview_open():
-				_toggle_chip(OverviewModel.Filter.WORKING)
-			else:
-				hud.toggle_list_filter([AgentListModel.Presence.WORKING])
-		&"idle":
-			if hud.overview_open():
-				_toggle_chip(OverviewModel.Filter.IDLE)
-			else:
-				hud.toggle_list_filter([AgentListModel.Presence.IDLE])
-		&"panes":
-			if hud.overview_open():
-				_close_overview()
-			else:
-				_open_overview()
+## A portrait fold or tally pressed: the overview opens on its group's state
+## (OfficeHud.filter_of()); while it is open, the same press toggles that chip,
+## or ALL again. Nothing is picked, read or written; the list keeps its filter.
+func _on_fold(group: PortraitBarModel.Group) -> void:
+	var keep := OfficeHud.filter_of(group)
+	if hud.overview_open():
+		_toggle_chip(keep)
+		return
+	_open_overview()
+	if hud.overview_open():
+		hud.overview.set_filter(keep)
 
 
-## WORKING or IDLE pressed under the overview: its chip, or ALL again.
+## `13 panes` pressed: the overview opens, or closes.
+func _on_panes() -> void:
+	if hud.overview_open():
+		_close_overview()
+	else:
+		_open_overview()
+
+
+## A fold pressed under the overview: its chip, or ALL again.
 func _toggle_chip(keep: OverviewModel.Filter) -> void:
 	hud.overview.set_filter(OverviewModel.Filter.ALL if hud.overview.filter() == keep else keep)
-
-
-## Select the next agent in `state` (OfficeNavigator.next_of()), show its floor
-## and reveal its desk, then as NEXT does (_open_card_for()): a blocked one's
-## panel opens and answer mode once it shows the question, a done one's panel
-## opens; an office that may not write only picks. Nothing is sent. Not while
-## the monitor is open.
-func _jump_to_state(state: String) -> void:
-	if hud.monitor_open() or not navigator.next_of(frame, state):
-		return
-	camera.cancel_press()
-	hud.inspector.leave_answer()
-	_refresh()
-	_open_card_for(frame.pane(navigator.picked_key))
 
 
 func _on_liveness_changed() -> void:
@@ -933,7 +914,7 @@ func _refresh() -> void:
 	_show_spaces()
 	_marks.show(frame, navigator.shown_key)
 	_show_bar(live)
-	_show_totals()
+	_show_portraits()
 	_show_staff()
 	_show_news()
 	_show_events()
@@ -1323,16 +1304,20 @@ static func bar_status(read_only: bool, live: int, total: int) -> String:
 	return "LIVE / " + mode
 
 
-## The top bar's counters, from the machines answering now (OfficeTotals), and
-## the blocked panes whose longest wait attention ticks in the BLOCKED counter.
-func _show_totals() -> void:
-	var totals := OfficeTotals.of(frame, _machine_rows(), fleet.state_log())
-	hud.show_totals(totals)
-	attention.watch_blocked(totals.blocked_tracks)
+## The top bar's portrait strip, from the machines answering now
+## (PortraitBarModel, the selection ringed), its `13 panes` and the status
+## line's hover (OfficeTotals), and the blocked cards whose waits attention ticks.
+func _show_portraits() -> void:
+	var portraits := PortraitBarModel.of(frame, navigator.active_key)
+	hud.show_portraits(portraits, OfficeTotals.of(frame, _machine_rows()))
+	var blocked := PackedStringArray()
+	for card in portraits.of_group(PortraitBarModel.Group.BLOCKED):
+		blocked.append(card.key)
+	attention.watch_waits(blocked)
 
 
-## Every machine in the fleet, Local first, as the MACHINES counter's hover
-## tells it: how it answers, when it was last heard from, and why not.
+## Every machine in the fleet, Local first, as the status line's hover tells
+## it: how it answers, when it was last heard from, and why not.
 func _machine_rows() -> Array[OfficeTotals.MachineRow]:
 	var rows: Array[OfficeTotals.MachineRow] = []
 	for key in fleet.keys():

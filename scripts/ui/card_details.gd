@@ -146,23 +146,15 @@ func _show_portrait(art: ArtPack, header: CardPicture.Header) -> void:
 	badge.visible = person
 	if not person:
 		return
+	var holder: Node2D = %PortraitHolder
 	var look := JSON.stringify([header.person_provider, art.base_path, header.key])
 	if look != _portrait_look:
 		_portrait_look = look
-		if _actor == null:
-			_actor = OfficeDraw.PERSON_SCENE.instantiate()
-			%PortraitHolder.add_child(_actor)
-			# Not part of any floor: the portrait's feet never collide.
-			var feet: CollisionShape2D = _actor.get_node("Feet")
-			feet.disabled = true
-		# PixelPerson.configure() re-dresses the layers it has; a new provider or
-		# a new pack is new textures on the same nodes, never a new person.
-		_actor.vary_by(header.key)
-		_actor.configure(art.people, header.person_provider, AvatarLook.facing(AvatarLook.STAND, AvatarLook.FRONT))
+		# A new provider or a new pack is new textures on the same person.
+		_actor = OfficeDraw.seat_face(holder, _actor, art, header.person_provider, header.key)
 	var animation := art.animation_for_state(header.person_state, header.starting)
 	if _actor.animation != animation:
 		_actor.play_state(animation)
-	var holder: Node2D = %PortraitHolder
 	holder.modulate = art.stale_tint if header.dimmed else Color.WHITE
 	if header.dimmed:
 		_actor.pause()

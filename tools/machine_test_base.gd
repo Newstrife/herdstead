@@ -194,9 +194,22 @@ func _bar_text(office: OfficeDouble) -> String:
 	return office.hud.bar.status_line()
 
 
-## The number a top-bar counter shows (OfficeCounter.id `id`).
+## What the top bar says the old counter `id` said (S3 BAR-a, 2026-10-27: the
+## portrait strip replaces the counters): `&"machines"` as `live/all` from the
+## status line's hover (a LIVE line per machine answering), `&"panes"` the
+## number `13 panes` says.
 func _counter(office: OfficeDouble, id: StringName) -> String:
-	return office.hud.bar.counter(id).value_text()
+	var bar := office.hud.bar
+	if id == &"panes":
+		return (bar.get_node("%Panes") as Button).text.trim_suffix(" panes")
+	var status: Control = bar.get_node("%StatusLine")
+	var lines := (
+		bar.get_tooltip(bar.get_global_transform().affine_inverse() * status.get_global_rect().get_center()).split("\n")
+	)
+	var live := 0
+	for line in lines:
+		live += 1 if " · LIVE · " in line else 0
+	return "%d/%d" % [live, lines.size()]
 
 
 ## Every seat with a pane on the shown floor, in tree order.

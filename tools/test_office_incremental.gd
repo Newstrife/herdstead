@@ -1498,6 +1498,10 @@ func test_hud_updates_in_place() -> void:
 	# counting, so the count holds it.
 	_set_online(office, false)
 	_set_online(office, true)
+	# The top bar's strip keeps a card node for every pane it has shown (S3 BAR-a,
+	# 2026-10-27): show the third blocked card once before counting, so the count holds it.
+	_feed(office, _with(fixture, "api:p1", {"agent_status": "blocked"}))
+	_feed(office, fixture)
 	await _frames(2)
 	var hud: OfficeHud = office.hud
 	var nodes := _hud_nodes(office)
@@ -1549,9 +1553,10 @@ func test_theme_switch_keeps_the_hud() -> void:
 	await _frames(2)
 	var after := _screen_of(hud).theme
 	_check(after != before, "a theme switch builds a new Theme")
-	# The dark HUD's text is paper; ink is still the loud counter's words.
+	# The dark HUD's text is paper; ink the words on a light chip (S3 BAR-a, 2026-10-27:
+	# the counters' loud words were this ink; the two packs share their paper).
 	_check(
-		after.get_color("font_color", "CounterTitle") != before.get_color("font_color", "CounterTitle"),
+		after.get_color("font_color", "LabelInk") != before.get_color("font_color", "LabelInk"),
 		"with the new pack's ink"
 	)
 	_eq(_hud_nodes(office), nodes, "and keeps every HUD node")

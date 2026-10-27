@@ -208,7 +208,8 @@ func test_conflicting_workspace_keeps_details_without_false_navigation() -> void
 	var item := _for_pane(office, "web:p1")
 	_check(item != null and item.available, "conflicting ownership keeps its details")
 	_eq(office.attention_store.current(Time.get_ticks_msec()).size(), 4, "conflict is counted once with live attention")
-	_eq(office.hud.bar.counter(&"blocked").value_text(), "2", "global blocked count still includes the conflict")
+	# S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+	_eq(office.hud.bar.count(PortraitBarModel.Group.BLOCKED), 2, "global blocked count still includes the conflict")
 	var pan := office.camera.pan
 	await _click_row(office, key)
 	_eq(
@@ -247,13 +248,18 @@ func test_local_hide_and_restore_leave_remote_counts_unchanged() -> void:
 	var office := await _listed_office()
 	var key := HerdrFleet.pane_key(LOCAL, "web:p1")
 	var item := _for_pane(office, "web:p1")
-	var bar_before := [office.hud.bar.counter(&"blocked").value_text(), office.hud.bar.counter(&"done").value_text()]
+	# S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+	var bar_before := [
+		office.hud.bar.count(PortraitBarModel.Group.BLOCKED), office.hud.bar.count(PortraitBarModel.Group.DONE)
+	]
 	var counts_before := office.attention_store.current(Time.get_ticks_msec()).size()
 	await _row_action(office, key, "Hide")
 	_check(item.hidden, "Hide acts on the pane's own record")
 	_eq(office.attention_store.current(Time.get_ticks_msec()).size(), counts_before - 1, "hidden locally")
 	_eq(office.hud.attention_count(), counts_before - 1, "the HUD's attention count drops")
-	var bar_after := [office.hud.bar.counter(&"blocked").value_text(), office.hud.bar.counter(&"done").value_text()]
+	var bar_after := [
+		office.hud.bar.count(PortraitBarModel.Group.BLOCKED), office.hud.bar.count(PortraitBarModel.Group.DONE)
+	]
 	_eq(bar_after, bar_before, "herdr's own counts on the bar do not")
 	_eq(office.hud.agent_list.entry_for(key).parent, AgentListModel.FLAT_MUTED, "the row steps down")
 	await _row_action(office, key, "Restore")
