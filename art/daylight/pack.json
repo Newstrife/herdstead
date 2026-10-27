@@ -646,10 +646,18 @@
     }
   },
   "font": {
-    "path": "fonts/NunitoSans.ttf",
-    "license": "fonts/NunitoSans-OFL.txt"
+    "path": "fonts/fusion-pixel-10px-proportional-zh_hans.otf.woff2",
+    "license": "fonts/FusionPixel-10px-LICENSES.txt"
   },
   "display_font": {
+    "path": "fonts/fusion-pixel-8px-proportional-zh_hans.otf.woff2",
+    "license": "fonts/FusionPixel-8px-LICENSES.txt"
+  },
+  "heading_font": {
+    "path": "fonts/fusion-pixel-12px-proportional-zh_hans.otf.woff2",
+    "license": "fonts/FusionPixel-12px-LICENSES.txt"
+  },
+  "figures_font": {
     "path": "fonts/Tiny5-Regular.ttf",
     "license": "fonts/OFL.txt"
   }
