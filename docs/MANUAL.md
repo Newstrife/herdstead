@@ -5,7 +5,7 @@ a user sees and every switch they can flip; the [README](../README.md) is the sh
 The rules for writing to herdr are in [the write boundary](WRITE_BOUNDARY.md); what each thing on screen stands for
 is in [the visual language](VISUAL_LANGUAGE.md).
 
-Contents: [Running](#running) · [The office](#the-office) · [Top bar](#top-bar) · [SPACES and edge arrows](#spaces-and-edge-arrows) ·
+Contents: [Running](#running) · [The office](#the-office) · [Top bar](#top-bar) · [Machines, spaces and edge arrows](#machines-spaces-and-edge-arrows) ·
 [Agent list](#agent-list-drawer) · [Staff panel](#staff-panel-and-agent-card) · [Answer mode](#answer-mode) ·
 [Start agent, New pane, Close, New space, Worktree](#start-agent-new-pane-close-new-space-worktree) ·
 [Terminal monitor](#terminal-monitor) · [NEWS, EVENTS, OVERVIEW](#news-events-and-overview) · [Lens](#lens) ·
@@ -136,12 +136,12 @@ showing herdr's focused pane and whether its tab is the one open in its workspac
 **Selection.** herdr's focused pane is selected by default. Click a seat to select it yourself; when the selected pane
 disappears, selection returns to herdr's focus. Clicking a seat never changes the map or pans.
 
-**Which map is shown, and where.** One machine's map at a time: the machine you went to (its SPACES heading, a SPACES row of
-one of its zones, PageUp / PageDown, `N`, a list pick) while it exists; otherwise the selected pane's machine (your
-pick, else herdr's focus, Local first); otherwise the first machine with a workspace; otherwise Local's empty map. A
-row click pans to its zone, its sign at the top of the world. While you have picked nothing, or the pane you picked is
-gone, herdr's focus moving pans to the new desk as far as it takes (and to another machine's map if it is there); a
-heading or an edge arrow you click at the same moment wins, and the next move of the focus is followed again. A map
+**Which map is shown, and where.** One machine's map at a time: the machine you went to (its chip in the top bar, a
+card's place in one of its zones, PageUp / PageDown, `N`, a list pick) while it exists; otherwise the selected pane's
+machine (your pick, else herdr's focus, Local first); otherwise the first machine with a workspace; otherwise Local's
+empty map. A place click pans to its zone, its sign at the top of the world. While you have picked nothing, or the pane
+you picked is gone, herdr's focus moving pans to the new desk as far as it takes (and to another machine's map if it is
+there); a chip or an edge arrow you click at the same moment wins, and the next move of the focus is followed again. A map
 seen for the first time opens on the selected pane's pod, else on its first zone; each map keeps where you left it
 panned.
 
@@ -167,7 +167,8 @@ chip's `12m`, the lens line's `4s+`): it is Tiny5 at 8, whose narrower digits fi
 
 ## Top bar
 
-After the wordmark, the **portrait strip** shows who needs you, as faces: every agent of the online machines, the
+After the wordmark come, with more than Local, a **chip per machine** (see [below](#machines-spaces-and-edge-arrows)),
+then the **portrait strip**, who needs you, as faces: every agent of the online machines, the
 blocked first in the order `N` walks them (the leftmost is whom `N` picks, with how long it has waited: `12m`, `+` after
 a time means "at least"), then the done (UNREAD) oldest first, then the working and the idle in place order. A card is
 the seat's person, the pane's name, and its space after a tag in the colour of its worktree group's carpet; its frame
@@ -177,7 +178,8 @@ is its state's colour, and the selected pane's card has a white ring. A dropped 
   (`+12` over `working`), then the done and the blocked into faces alone, then the done into a fold, then tallies
   (`+12`), and last only as many blocked faces as fit before a `+N`. The longest-waiting blocked fold last.
 - Hover a card: its whole name, provider, state, wait, space / tab (and machine). Hover a fold: who is in it.
-- Click a card: select that agent (its map, its desk on screen), as a row of the agent list does.
+- Click a card's face or name: select that agent (its map, its desk on screen), as a row of the agent list does.
+- Click a card's place (the colour tag and the space under its name): pan to that space; nothing is selected.
 - Click a fold or a tally: open OVERVIEW on that state; while it is open, the same click sets or clears that chip.
 - **`13 panes`**, right of the strip, opens or closes OVERVIEW.
 - **CHIME OFF / CHIME ON** after it switches alert tones (see [Alerts](#alerts-when-the-window-is-in-the-background)).
@@ -187,33 +189,33 @@ The top-right corner shows the pack's name and the light: `STUDIO · DAY  [T]` o
 [Day and night](#themes-and-art)), and how the office runs (`LIVE / READ ONLY`, `1 OFFLINE / OPERATOR` in the blocked
 colour while a machine is down). Hover that line: each machine, whether it is online and how long ago its snapshot arrived.
 
-## SPACES and edge arrows
+## Machines, spaces and edge arrows
 
-The left column is the SPACES rail. With more than Local, each machine has a heading (name and online icon): **click a
-heading to show that machine's map** (a machine that never connected opens as an empty map that says why), and the
-heading of the machine shown is highlighted. One row per space, **in ascending number**; mezzanines come right after
-their source, indented, and are named after their checkout directory. Each row has the number as the zone's sign writes
-it (`3`, a mezzanine's `3A`), the sign's words, and blocked / UNREAD icons with counts when non-zero; below it one window per
-seated pane, lit by state (working / blocked / UNREAD in their colours, idle and starting warm white, shell dark), `+N`
-past 8. Hover a window for agent and state, a row for its repository and checkout. A space with no agents has a grey
-name. **The rows whose zone is in view have a slim bar at their left edge**, which moves as you pan. Click a row (or a
-window) to pan to that zone; the wheel scrolls the list, and the first row in view always scrolls into sight. There is
-no lift car. Because other zones are out of sight, these icons pulse on the same clock as the badges on the seats. An
-offline machine's section dims, freezes, drops its counts to zero and darkens every window.
+There is no left column: the world starts 16 units in from the left, as the staff panel does, and getting around is in
+the top bar and on the keys.
 
-Below 1280 logical units of screen width, SPACES is a 72-unit narrow rail: number, blocked badge and count, the
-windows right under the number; name, UNREAD count and mezzanine indent move into the tooltip
-(`3 INFRA · 1 blocked · 1 UNREAD`), and machine names are truncated with the full name in the tooltip.
+- **Machines.** With more than Local, each machine has a chip after the wordmark: its name (cut short on a narrow bar,
+  whole in the tooltip, which also says whether it is online and how long ago its snapshot arrived). **Click a chip to
+  show that machine's map** (a machine that never connected opens as an empty map that says why); the chip of the
+  machine shown stands on a darker ground. An offline machine's chip is red (connecting: grey) and none of its agents
+  has a card. Many machines on a short bar: the row of chips is cut where the strip would get too short to show the
+  longest-waiting blocked agent; the machines past the cut are reached by their cards and PageUp / PageDown.
+- **Spaces.** A card's place (its colour tag and its space) is a button: hover it for the space as its sign reads
+  (`3 INFRA`, a mezzanine's `3A HUD-LANE`) and its repository and checkout; click it to pan to that space, its sign at
+  the top of the world, on its machine's map. It selects nothing. A space nobody is waiting in has no card: **PageUp /
+  PageDown** walk every space of every machine in ascending number, mezzanines right after their source; a drag and
+  the wheel pan; `S` shows them all at once. While a text box (the card's branch name, the list's filter) has the
+  keyboard, the page keys are its: click the world first.
 
 **Edge arrows.** A zone of the shown map with a blocked desk out of view gets an arrow on the edge of the world toward
 it: `↓ 3 ! 2` (the way, the zone's number, how many blocked desks are out of view). Hover it for the zone's name and the
-longest wait (`3 INFRA · 2 blocked · longest 12m`), which also outlines that zone's SPACES row. Click it to pan to the
+longest wait (`3 INFRA · 2 blocked · longest 12m`), which also rings that zone's blocked cards in the top bar. Click it to pan to the
 longest-waiting of those desks; it selects nothing. The arrows follow a drag or the wheel at once. At most 8, longest
 wait first; the eighth says `+N` and lists the rest in its tooltip. Arrows never overlap: an edge too short for all of
 its arrows keeps the longest waits and ends in its own `+N` for the rest, and shows them again when the world is wider.
-An arrow covers the world where it stands, so a chip under it cannot be clicked. When the world is narrower than 360 units (the 480×320 minimum screen) an arrow drops the
-number (way, badge, count). Arrows are for the map shown only: **another machine's blocked agents show as its SPACES
-rows' counts**, and NEXT and the top bar reach them.
+An arrow covers the world where it stands, so a chip under it cannot be clicked. When the world is narrower than 440 units (the 480×320 minimum screen) an arrow drops the
+number (way, badge, count). Arrows are for the map shown only: **another machine's blocked agents show as cards in the
+top bar**, and NEXT reaches them.
 
 ## Agent list drawer
 
@@ -436,24 +438,25 @@ answer mode `Esc` leaves answer mode first. `M` does nothing while it is open.
 Hold `L`. The world becomes a data view until you let go: every agent's seat gets one line of how
 long it has been in this state (the same number as OVERVIEW's FOR, `+` = at least; shells and offline machines show none,
 no track shows `?`), chips are hidden, every seat's name plate shows, the floor under each pod is washed with its most
-urgent state (the SPACES window colours), furniture dims, and the theme cell in the top bar reads `LENS · hold L`. It does not light while the monitor, OVERVIEW or
+urgent state (the strategic view's cell colours), furniture dims, and the theme cell in the top bar reads `LENS · hold L`. It does not light while the monitor, OVERVIEW or
 the strategic view is open or a text box has the keyboard; a press that started there has to be released first.
 
-**Pointing.** Hovering a HUD line about a pane (a NEWS entry, an agent list row, an EVENTS row) draws a still dashed frame
-in `ink` / `paper` around that seat; for a pane on another machine, SPACES outlines its zone's row instead. Hovering an edge
-arrow outlines its zone's row. Pointing never selects, reads, writes, pans or changes map.
+**Pointing.** Hovering a HUD line about a pane (a NEWS entry, an agent list row, an EVENTS row, a portrait card) draws a
+still dashed frame in `ink` / `paper` around that seat; for a pane on another machine, its portrait card gets a white
+ring instead. Hovering an edge arrow rings its zone's blocked cards. Pointing never selects, reads, writes, pans or changes map.
 
 ## Strategic view
 
-`S` replaces the world area with a diagram of the shown machine's map: a section per space, in SPACES order, captioned
+`S` replaces the world area with a diagram of the shown machine's map: a section per space, in PageUp / PageDown order, captioned
 as its sign reads (`3 INFRA`; a section too tall for the room runs on into the next column under `3 INFRA …`), and in it
-one box per tab (name on top), one cell per seated pane in the SPACES colours, and the wait written in each blocked cell.
+one box per tab (name on top), one cell per seated pane in its state's colour (working, blocked, UNREAD in their colours,
+idle and starting warm white, shell dark), and the wait written in each blocked cell.
 It shows at a glance who on the machine is blocked / done / working / idle and where they sit. The hover tip gives
 provider, state, time and place; over a caption, the space's repository and checkout (a caption too long for its column
 is cut, never shrinking the cells, and its tip starts with the whole name). Click a cell to select that pane,
-close the view and pan its seat into view. `S` or `Esc` closes it. SPACES, the drawer, the staff panel, NEWS, `N` and
-PageUp / PageDown keep working (a SPACES row or a page key scrolls the diagram to that space's section; another
-machine's row or heading redraws it for that machine); arrows and the wheel do not pan the world. The top bar's theme cell reads
+close the view and pan its seat into view. `S` or `Esc` closes it. The top bar, the drawer, the staff panel, NEWS, `N`
+and PageUp / PageDown keep working (a card's place or a page key scrolls the diagram to that space's section; another
+machine's place or chip redraws it for that machine); arrows and the wheel do not pan the world. The top bar's theme cell reads
 `STRATEGIC · S`, the panel title shows `S · Esc`, and a machine whose map has no pods shows `No desks on this machine`. `S` does
 nothing while the monitor or OVERVIEW is open or a text box has the keyboard.
 
@@ -462,7 +465,7 @@ nothing while the monitor or OVERVIEW is open or a text box has the keyboard.
 | Key | Effect |
 |---|---|
 | Drag, arrows, wheel (outside panels) | Pan |
-| `PageUp` / `PageDown` | Pan to the previous / next row in SPACES order (a zone of the map; the map of another machine only past its ends). The rail is ascending, so **PageUp goes to the lower-numbered space and PageDown to the higher** (the reverse of the FLOORS minimap, which listed the highest first): from a source zone down into its mezzanines, from a mezzanine up to its source; PageDown from a machine's last zone into the next machine's first, PageUp the other way; stops at the ends |
+| `PageUp` / `PageDown` | Pan to the previous / next space (a zone of the map; the map of another machine only past its ends). The order is ascending, so **PageUp goes to the lower-numbered space and PageDown to the higher** (the reverse of the FLOORS minimap, which listed the highest first): from a source zone down into its mezzanines, from a mezzanine up to its source; PageDown from a machine's last zone into the next machine's first, PageUp the other way; stops at the ends |
 | `N` | Next agent that needs you, across every online machine and zone: only blocked ones while any are blocked, otherwise UNREAD (longest wait first; unknown start counts as longest). Selects it, shows its machine's map, pans to it and expands the panel per NEXT's verb. Never sends. To see done agents while some are blocked, click DONE |
 | `Enter` (or keypad Enter) | Expand the staff panel; on an answerable picked agent whose question shows, press again for answer mode |
 | `1`–`9`, `y` | In answer mode: send that key |
@@ -478,7 +481,7 @@ nothing while the monitor or OVERVIEW is open or a text box has the keyboard.
 
 Digit keys never change zone or map (`1`–`9` are answer keys). Outside answer mode, and while the reply box has no focus, the
 card takes no office keys. While the terminal monitor is open it is the reverse: every key goes to the terminal. The top
-bar, SPACES, edge arrows, drawer and staff panel stay fixed on screen; only the world pans.
+bar, edge arrows, drawer and staff panel stay fixed on screen; only the world pans.
 
 ## Window, zoom and frame rate
 
@@ -666,8 +669,8 @@ godot --path . scenes/preview.tscn -- --record-dir=/absolute/path/frames
 
 `make capture` shoots the showrooms, the live office against a fake herdr (read-only) at 2× and 4× (4× in a 1920×1280
 window) and the 480×320 minimum screen, and every panel and state worth looking at: agent list views and History, drawer
-scrollbars, NEWS and EVENTS, OVERVIEW, lens and pointing, strategic view, SPACES and edge arrows with mezzanines and an
-offline machine, the agent card in answer mode, START AGENT, NEW PANE BESIDE, Close and Worktree, and launches in
+scrollbars, NEWS and EVENTS, OVERVIEW, lens and pointing, strategic view, machine chips and edge arrows with mezzanines and
+an offline machine (`spaces-*`), the agent card in answer mode, START AGENT, NEW PANE BESIDE, Close and Worktree, and launches in
 progress. A missing image fails the run. Every step has a watchdog: a step that outlives its own `--wait=` plus
 `CAPTURE_MARGIN` seconds (default 60) is killed and the run fails naming that image. `CAPTURE_SET=ci` shoots only
 both showrooms, the pixel people and the live office at 2× and 4× (about half a minute on CI; the whole set takes over
@@ -687,7 +690,7 @@ make perf WALKS=1             # also people walking on the stress map
 ```
 
 Extra rows: `spaces30` (30 workspaces of one tab each on one map, 189 panes, ten of them mezzanines: many zones, signs
-and SPACES rows), `overview` (the stress map zoomed out so the whole map is on screen; unrelated to OVERVIEW),
+and cards), `overview` (the stress map zoomed out so the whole map is on screen; unrelated to OVERVIEW),
 `stress+overview`, `stress+lens`, `stress+strategic`, `stress400` / `stress400+strategic` (400 panes) and
 `stress400+drawer`. `refresh_ms` counts only `office.refresh()`, not the fleet feeding the state log. In the
 foreground the default cap is 30 and in the background 12; `max_fps` in the output says which was measured.
@@ -823,8 +826,8 @@ data/agent_catalog.json  herdr agent IDs, display names, badge sources, each pro
 scenes/office.tscn       main scene, connects to herdr
 scenes/preview.tscn      mock showroom (no herdr)
 scenes/avatar_studio.tscn, scenes/people_showroom.tscn
-scenes/ui/               HUD scenes: hud.tscn (layout lives here), bar (portrait_card, portrait_fold), spaces (the SPACES rail: space_row,
-                         machine_heading), edge_arrows / edge_arrow, inspector (staff panel),
+scenes/ui/               HUD scenes: hud.tscn (layout lives here), bar (portrait_card, portrait_fold, machine_chip),
+                         edge_arrows / edge_arrow, inspector (staff panel),
                          agent list, news, event list, overview, strategic, terminal_monitor
 scenes/world/            world prefabs: table (a pod), station, decor, chip, machine_plate, zone_sign
 scenes/people/           pixel_person.tscn and the showroom cells
@@ -835,7 +838,7 @@ scripts/herdr_fleet.gd   Local + SSH machines; the only thing the office reads d
 scripts/machine_link.gd, machine_roster.gd, child_process.gd   ssh -L forwards, herdr machine list, bounded child processes
 scripts/office_projection.gd  pure projection: typed snapshot → OfficeFrame
 scripts/office_*.gd      navigator, camera, lens, alerts, draw helpers, window (fill the screen, bar as title bar),
-                         question tips, new-pane follow, view marks (the rail's in-view marks and the edge arrows)
+                         question tips, new-pane follow, view marks (the edge arrows, as the view moves)
 scripts/model/           typed models: HerdrSnapshot (the only reader of raw snapshots), OfficeFrame, StateLog,
                          command context / ticket / refusal / answers / results, layout plans
                          PickFollowsWrite (pure: where the pick goes after a write the office sent),
@@ -844,7 +847,7 @@ scripts/model/           typed models: HerdrSnapshot (the only reader of raw sna
 scripts/layout/          map and zone planning, seat planning, walk graph, validation
 scripts/world/           pods (table.gd), stations, chips, the floor view, machine plate, zone signs, shell,
                          presentation (walking), pointer
-scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait fold), spaces (the SPACES rail), edge arrows, agent list, staff
+scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait fold, machine chip), edge arrows, agent list, staff
                          panel (inspector writes what card_picture, pure, says it shows; card_details, card_words,
                          card_actions, launch_block), monitor, NEWS, EVENTS, OVERVIEW, strategic view
 scripts/art/             typed art pack models; the only readers of manifest JSON

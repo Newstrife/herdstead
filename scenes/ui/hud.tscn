@@ -1,8 +1,7 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/bar.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/ui/spaces.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/inspector.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/ui/agent_list.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/ui/terminal_monitor.tscn" id="6_monitor"]
@@ -29,10 +28,8 @@ staff_tall_from = 400.0
 staff_next_from = 640.0
 next_width = 128.0
 next_wide_width = 244.0
-spaces_rail_right = 88.0
-spaces_named_right = 136.0
-spaces_named_from = 960.0
-edge_arrows_compact_from = 360.0
+world_left = 16.0
+edge_arrows_compact_from = 440.0
 bar_titles_from = 640.0
 news_top = -24.0
 news_gap = 4.0
@@ -44,9 +41,6 @@ offset_bottom = 480.0
 mouse_filter = 2
 
 [node name="Bar" parent="Screen" instance=ExtResource("2")]
-
-[node name="Spaces" parent="Screen" instance=ExtResource("3")]
-unique_name_in_owner = true
 
 [node name="RightColumn" type="Control" parent="Screen"]
 unique_name_in_owner = true

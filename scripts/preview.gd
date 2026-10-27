@@ -147,7 +147,7 @@ func _ready() -> void:
 	# comes from the fleet): two hours, a pane that appeared, a machine that dropped.
 	var mock := _mock_office()
 	var portraits := PortraitBarModel.of(mock.frame, "")
-	hud.show_portraits(portraits, OfficeTotals.of(mock.frame, _mock_machines(mock)))
+	hud.show_portraits(portraits, OfficeTotals.of(mock.frame, _mock_machines(mock)), "local")
 	var blocked := PackedStringArray()
 	for card in portraits.of_group(PortraitBarModel.Group.BLOCKED):
 		blocked.append(card.key)
@@ -361,9 +361,9 @@ func legend(area: Rect2, left: float) -> void:
 
 
 ## The showroom shows the office's own bar and staff panel, fed mock data, so a
-## HUD change is visible here without a herdr session. The SPACES rail and the
-## agent list's drawer need a fleet to say anything, so they stay out, and the
-## world's room keeps their place.
+## HUD change is visible here without a herdr session. The agent list's drawer
+## needs a fleet to say anything, so it stays out, and the world's room keeps
+## its place.
 func _hud() -> OfficeHud:
 	var hud: OfficeHud = HUD_SCENE.instantiate()
 	add_child(hud)
@@ -372,7 +372,6 @@ func _hud() -> OfficeHud:
 	# before fit(), so the staff panel is laid out without it.
 	hud.news_wanted = false
 	hud.fit(HUD_SCREEN)
-	hud.spaces.visible = false
 	hud.right_column.visible = false
 	hud.show_bar(art.display_name.to_upper(), "PREVIEW / MOCK DATA", false)
 	var pane := PaneModel.new()
@@ -514,14 +513,17 @@ func _mock_office() -> MockOffice:
 	return mock
 
 
-## The mock's machines as the status line's hover says them: Local answering
-## now, bee last heard from when it dropped.
+## The mock's machines as the status line's hover and the machine chips say
+## them: Local answering now (its chip the current one), bee last heard from
+## when it dropped.
 func _mock_machines(mock: MockOffice) -> Array[OfficeTotals.MachineRow]:
 	var local := OfficeTotals.MachineRow.new()
+	local.key = "local"
 	local.label = "Local"
 	local.state = MachineLiveness.State.LIVE
 	local.heard_since = Time.get_unix_time_from_system()
 	var bee := OfficeTotals.MachineRow.new()
+	bee.key = "bee"
 	bee.label = "bee"
 	bee.state = MachineLiveness.State.OFFLINE
 	bee.heard_since = mock.start_unix + BEE_GONE_AT * 60.0

@@ -23,6 +23,8 @@ const MACHINE_WORDS: Dictionary[MachineLiveness.State, String] = {
 ## the model never reaches a connection (AGENTS.md invariant 1).
 class MachineRow:
 	extends RefCounted
+	## Its machine key (HerdrFleet's): what its chip in the top bar is kept by and picks.
+	var key := ""
 	var label := ""
 	var state := MachineLiveness.State.OFFLINE
 	## Unix time the machine's client last read a snapshot or applied a status

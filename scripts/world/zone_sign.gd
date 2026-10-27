@@ -46,14 +46,11 @@ static func carpet_of(group: String) -> StringName:
 	return ArtContract.CARPETS[accent_of(group)]
 
 
-## The number a zone is known by: herdr's workspace number (`3`), a mezzanine
-## its source's number and a letter (`3A`, ZoneModel.level_label). The one place
-## it is written: the sign says it, and so do the SPACES rail's chip, the edge
-## arrows and the strategic view's captions.
+## The number a zone is known by (ZoneModel.number_text(), the one place it
+## is worked out): the sign says it, and so do a portrait card's place, the
+## edge arrows and the strategic view's captions.
 static func number_text(zone: ZoneModel) -> String:
-	if not zone.mezzanine_of.is_empty() and not zone.level_label.is_empty():
-		return zone.level_label
-	return str(zone.number)
+	return zone.number_text()
 
 
 ## The name beside it, upper case: the workspace's label, a mezzanine its

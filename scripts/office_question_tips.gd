@@ -182,21 +182,11 @@ static func seat_text(pane: PaneModel, live: bool, pack: ArtPack) -> String:
 	return "%s\n%s\n%s" % [pane.name, " · ".join(who), pane.place()]
 
 
-## What a zone's sign tooltip says: `repo · checkout · worktree of 3`, each
-## part only when it has one; a zone with none of them says so. The SPACES
-## rail's row and the strategic view's caption say it too.
+## What a zone's sign tooltip says (ZoneRef.sign_text(), the one place it is
+## worked out): `repo · checkout · worktree of 3`. A portrait card's place and
+## the strategic view's caption say it too.
 static func sign_text(found: ZoneRef) -> String:
-	var zone := found.zone_model
-	var parts := PackedStringArray()
-	if not zone.repo.is_empty():
-		parts.append(zone.repo)
-	if not zone.worktree.is_empty():
-		parts.append(zone.worktree)
-	if not zone.mezzanine_of.is_empty():
-		for other in found.building.zones:
-			if other.key == zone.mezzanine_of:
-				parts.append("worktree of " + OfficeZoneSign.number_text(other))
-	return "No repository" if parts.is_empty() else " · ".join(parts)
+	return found.sign_text()
 
 
 ## Take the tooltip away (a drag, another map, the overview, the lens, ...).

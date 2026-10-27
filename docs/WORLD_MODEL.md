@@ -100,7 +100,7 @@ corridor (2) and the other side wall: **5L + 3 cells** for L lanes; lane i cover
 aisle after it is column 5 + 5i, and the main corridor is columns 5L and 5L + 1. A lane holds the narrowest pod (2
 columns, 3 cells) right of its zone's pad. Down it: the top wall (2 cells),
 the entry band (2), then the zones from row 5. A map's first plan picks L = max(2, ⌊(width − 3) / 5⌋) from the
-viewport width available at that moment (the default 1920×960 window at 2x: 772 units, 24 cells: four lanes, 23 cells);
+viewport width available at that moment (the default 1920×960 window at 2x: 900 units, 28 cells: five lanes, 28 cells);
 after that, window or zoom changes only change how much is visible, and nothing reflows. L is raised only when a zone
 needs more lanes than the map has. Never fewer than two lanes (13 cells): the smallest window (480×320 units) keeps the
 top wall's window and its picture.

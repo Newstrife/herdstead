@@ -44,19 +44,19 @@ pane IDs are unique only within one server (two machines can both have `w1:p1`).
   objects are dropped, fields are read as their expected type and a wrong type counts as missing, control characters
   are stripped from id / label), so one machine returning odd data cannot break the display of the others.
 
-On screen: each machine is one open-plan map, every workspace a zone on it. The SPACES rail lists Local first,
-then each machine under a heading with a mark for how it is answering; a heading click shows that machine's map (a
-machine that never connected opens as an empty map that says why), a row pans to its zone, and a zone on another
-machine shows that machine's map first. The machine plate names the machine (`@ name` once there is more than Local),
+On screen: each machine is one open-plan map, every workspace a zone on it. The top bar has a chip per machine, Local
+first, its words in the colour of how it is answering; a chip click shows that machine's map (a machine that never
+connected opens as an empty map that says why), a portrait card's place pans to its zone, and a zone on another machine
+shows that machine's map first. The machine plate names the machine (`@ name` once there is more than Local),
 LIVE / OFFLINE / CONNECTING, the ssh error, and any zone its map cannot be laid out for. A disconnected machine only
-greys out and freezes its own map (the plate stays readable); in the SPACES rail its section is dimmed, with no counts
-and no lit windows, and everything else carries on. A machine that has never connected has an empty map (no zone), and its plate's note shows the full error. Status text is rewritten in place; a
+greys out and freezes its own map (the plate stays readable); its chip turns the alarm colour and none of its agents
+has a card, and everything else carries on. A machine that has never connected has an empty map (no zone), and its plate's note shows the full error. Status text is rewritten in place; a
 disconnect and reconnect does not rebuild the picture. The top bar's portrait strip shows the agents of every machine
 that answers (a dropped machine's have no card); its status line turns the alarm colour while a machine is down
 (`1 OFFLINE / …`), and its tooltip lists each machine with its state, when it was last heard from and its error. The window title adds `N OFFLINE`, and the agent card adds an
 `@ machine` line. Selection, click picking and attention timing are keyed by the composite `(machine, pane_id)`,
-zones by `(machine, workspace_id)`, maps (their plan, world and pan) by the machine. With only Local, the SPACES rail has
-no machine headings and the plate names the machine without `@`.
+zones by `(machine, workspace_id)`, maps (their plan, world and pan) by the machine. With only Local, the top bar has no
+machine chips and the plate names the machine without `@`.
 
 Prerequisites:
 

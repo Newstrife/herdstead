@@ -1206,18 +1206,28 @@ func _known_blocked(office: OfficeDouble) -> void:
 
 ## A real pointer motion onto the middle of `control`.
 func _hover(control: Control) -> void:
-	var at := control.get_global_rect().get_center()
+	var at := _aim(control)
 	var motion := InputEventMouseMotion.new()
 	motion.position = at
 	motion.global_position = at
 	await _parsed(motion)
 
 
-## A real left click on the middle of `control`.
+## A real left click on `control`, where _aim() points.
 func _press(control: Control) -> void:
-	var at := control.get_global_rect().get_center()
+	var at := _aim(control)
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
+
+
+## Where a real pointer aims at `control`: its middle, but a portrait card's
+## face (S3 BAR-b, 2026-10-27: the lower half of a card's words is its place,
+## a button of its own that pans to the zone; the face is the card's own).
+func _aim(control: Control) -> Vector2:
+	if control is PortraitCard:
+		var face: Control = control.get_node("%Face")
+		return face.get_global_rect().get_center()
+	return control.get_global_rect().get_center()
 
 
 ## The tooltip `control` gives with the pointer resting on it, a line each.

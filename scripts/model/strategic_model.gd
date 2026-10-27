@@ -1,12 +1,12 @@
 class_name StrategicModel
 extends RefCounted
 ## What the strategic view (`S`, OfficeStrategic) draws for the shown machine's
-## map: its title, and a section per zone, in the SPACES rail's order
-## (OfficeNavigator.section()), captioned with the words on the zone's sign
-## (`3 INFRA`). A section holds its zone's pods (each pod row of the plan in
-## `index` order, empty rows left out, each row's pods left to right) with the
-## seats that have a pane, in the look of that pane's SPACES window
-## (OfficeSpaceRow.window_look(), the one colour scale) and, for an agent that
+## map: its title, and a section per zone, in the order PageUp / PageDown
+## step through them (OfficeNavigator.section()), captioned with the words on
+## the zone's sign (`3 INFRA`). A section holds its zone's pods (each pod row
+## of the plan in `index` order, empty rows left out, each row's pods left to
+## right) with the seats that have a pane, in the look of that pane's state
+## (window_look(), the one colour scale) and, for an agent that
 ## asks on a machine that answers, how long it has waited (StateLog.wait_of()
 ## in OfficeAttention.wait_text(): the OVERVIEW's FOR, the lens's line). A seat
 ## whose pane is gone is a vacancy, drawn as none; a pane the plan does not
@@ -14,6 +14,18 @@ extends RefCounted
 ##
 ## Pure: built by the office from the plan, the frame's building (the machine),
 ## its state and the state log at a clock it is handed, never Time.*.
+
+## herdr's agent state -> its look on the one colour scale
+## (HudTheme.SECTION_PANELS). A state the office does not know is lit as
+## unknown; a shell, a pane still starting its agent and every pane of a
+## machine that is not answering are handled before this table (see
+## window_look()).
+const WINDOW_LOOKS: Dictionary[String, StringName] = {
+	"working": &"WindowWorking",
+	"blocked": &"WindowBlocked",
+	"done": &"WindowDone",
+	"idle": &"WindowIdle",
+}
 
 
 ## One zone of the map: a caption and the pods under it.
@@ -56,7 +68,7 @@ class Seat:
 	var column := 0
 	## `far` or `near`.
 	var side := "far"
-	## The SPACES window's look (HudTheme.SECTION_PANELS key).
+	## Its look on the one colour scale (window_look(), a HudTheme.SECTION_PANELS key).
 	var look: StringName = &"WindowDark"
 	## The agent kind; empty for a shell.
 	var provider := ""
@@ -83,7 +95,7 @@ var title := ""
 var state_text := ""
 ## The machine is not answering: every seat dark, no wait (invariant 4).
 var stale := false
-## The map's zones that have a pod, in the rail's order.
+## The map's zones that have a pod, in OfficeNavigator.section()'s order.
 var sections: Array[Section] = []
 ## Every section's tables, in order: the view's rows top to bottom.
 var tables: Array[Table] = []
@@ -123,7 +135,7 @@ static func of(
 			rooms[room.key] = room
 			for pane in room.panes:
 				panes[pane.key] = pane
-	# The rail's order; a zone the plan still places after it left the map
+	# The page keys' order; a zone the plan still places after it left the map
 	# (a plan kept through a failing input) follows, uncaptioned.
 	var placed: Dictionary[String, bool] = {}
 	var order: Array[Section] = []
@@ -236,7 +248,7 @@ static func _seat(
 	made.key = pane.key
 	made.column = placed.column
 	made.side = placed.side
-	made.look = OfficeSpaceRow.window_look(pane, not dropped)
+	made.look = window_look(pane, not dropped)
 	made.provider = pane.provider
 	made.name = pane.name
 	made.who = pane.who()
@@ -250,3 +262,17 @@ static func _seat(
 		if track != null:
 			made.wait = OfficeAttention.wait_text(StateLog.wait_of(track, clock))
 	return made
+
+
+## How a pane is lit on the one colour scale.
+## Dark for a shell and for every pane of a machine that is not answering
+## (`live` false); a pane still starting its agent is lit plainly, as an idle
+## one is, unless it already asks (PaneModel.launching()); otherwise its agent
+## state's own colour. The strategic view's squares and the lens's washes
+## (OfficeLens.tone_for()) both ask this.
+static func window_look(pane: PaneModel, live: bool) -> StringName:
+	if not live or pane.provider.is_empty():
+		return &"WindowDark"
+	if pane.launching():
+		return &"WindowIdle"
+	return WINDOW_LOOKS.get(pane.state, &"WindowUnknown")

@@ -15,7 +15,7 @@ var repo := ""
 ## worktree of that repository; empty for every other workspace. The plate shows
 ## it after the repo name.
 var worktree := ""
-## The zone's number as its sign and the SPACES rail write it: herdr's number
+## The zone's number as its sign writes it (number_text()): herdr's number
 ## ("3"), or, for a mezzanine, its source zone's number and a letter ("3A").
 ## See OfficeProjection.group_worktrees().
 var level_label := ""
@@ -34,6 +34,16 @@ var agents := 0
 var blocked := 0
 var done := 0
 var rooms: Array[RoomModel] = []
+
+
+## The number a zone is known by: herdr's workspace number (`3`), a mezzanine
+## its source's number and a letter (`3A`, level_label). The one place it is
+## worked out: the zone's sign (OfficeZoneSign.number_text()), a portrait
+## card's place, the edge arrows and the strategic view's captions all say it.
+func number_text() -> String:
+	if not mezzanine_of.is_empty() and not level_label.is_empty():
+		return level_label
+	return str(number)
 
 
 ## Changes that may require planning. Display data never invalidates a plan.

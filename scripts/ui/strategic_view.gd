@@ -2,17 +2,19 @@ class_name OfficeStrategic
 extends HdPanel
 ## The strategic view (scenes/ui/strategic.tscn): press
 ## `S` and the world rect shows a flat schematic of the shown machine's map
-## instead of the world: a captioned section per zone, in the SPACES rail's
-## order, every pod a box with its tab's name, every seated pane a square
-## in its SPACES window's colour, a blocked one saying how long it has waited
+## instead of the world: a captioned section per zone, in the page keys'
+## order (OfficeNavigator.section()), every pod a box with its tab's name,
+## every seated pane a square in its state's colour (StrategicModel.window_look()),
+## a blocked one saying how long it has waited
 ## (OfficeStrategicPlan). A click on a square picks that pane, and the office
 ## closes the view and pans its desk into sight; `S` and Escape close it too.
-## A SPACES row picked while it is open scrolls it to that zone's section
-## (reveal_section()), or draws it again for that row's machine.
+## A zone picked while it is open (a card's place, PageUp / PageDown) scrolls
+## it to that zone's section (reveal_section()), or draws it again for that
+## zone's machine.
 ##
 ## It covers only the world rect (OfficeHud.show_strategic() places it there),
 ## over the hidden world and under the OVERVIEW, the world tooltip and the
-## monitor: SPACES, the drawer, the staff panel and NEWS stay usable beside it.
+## monitor: the top bar, the drawer, the staff panel and NEWS stay usable beside it.
 ## On the pack's panel, like the OVERVIEW, so its ink reads in every pack (the
 ## bare backdrop was near ink in the retired dusk pack). A view mode, not a layer: while it is
 ## open the world's nameplates, badges and chips are hidden with the world,

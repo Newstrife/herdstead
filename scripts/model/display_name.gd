@@ -2,7 +2,7 @@ class_name DisplayName
 extends RefCounted
 ## What every surface calls a pane, worked out in this one place: the world's
 ## plate, the card's title, NEXT, the agent list, NEWS / EVENTS, the OVERVIEW,
-## the strategic view, the SPACES rail's windows and the monitor's caption.
+## the strategic view, the portrait cards and the monitor's caption.
 ## Pure: OfficeProjection names the panes it seats (PaneModel.name) and
 ## HerdrFleet the panes it hands the state log (StateLog.Sighting.name), both
 ## through of_pane(), so a pane is called the same everywhere.

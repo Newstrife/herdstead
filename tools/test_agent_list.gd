@@ -521,7 +521,8 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_check(next.is_visible_in_tree(), "NEXT is on it")
 	_check(hud.inspector.get_global_rect().encloses(next.get_global_rect()), "inside the panel")
 	_check(not preview.is_visible_in_tree(), "the preview is out of it")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "the world stops above the line, beside the rail and the drawer")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "the world stops above the line, beside the drawer")
 	_eq(holder.size.y, 208.0, "the drawer takes the whole column")
 	# F1 (2026-10-27): the HUD wears Fusion Pixel's 10px cut; the drawer's tab
 	# bar is 14 tall (measured; 17 in Nunito Sans), so the list starts 3 higher.
@@ -543,13 +544,13 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_check(detail.is_visible_in_tree() and not line.is_visible_in_tree(), "with its details")
 	_check(hud.inspector.get_global_rect().encloses(preview.get_global_rect()), "the preview inside it")
 	_check(holder.visible, "and the list where it was")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 112), "the world gives it the room")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 112), "the world gives it the room")
 	_eq(rooms.size(), 1, "said once")
 	hud.compact_card()
 	await _frames(2)
 	_check(hud.card_compact() and line.is_visible_in_tree(), "folded back to its line")
 	_eq(hud.inspector.size, Vector2(448, 28), "one line again")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "and the world has its room back")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "and the world has its room back")
 	_eq(rooms.size(), 2, "said once more")
 	# Taking the keyboard shows the flat view but keeps the viewer's own choice.
 	hud.agent_list.set_view(AgentListModel.View.TREE)
@@ -566,7 +567,8 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_eq(hud.inspector.size, Vector2(768, 80), "the panel one line along the bottom")
 	_eq(holder.size, Vector2(144, 316), "the drawer above it")
 	_eq(hud.agent_list.size.y, 299.0, "the list under the drawer's tabs (F1: tabs 14 tall, were 17)")
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world between them")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "the world between them")
 
 
 ## The staff panel is compact at every size until it is opened: a card at
@@ -587,10 +589,11 @@ func test_the_staff_panel_is_compact_at_every_size_until_opened() -> void:
 	var open: Button = hud.inspector.get_node("%CompactOpen")
 	var fold: Button = hud.inspector.get_node("%FoldButton")
 	var words: Control = hud.inspector.get_node("%CompactLine")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
 	var sizes := {
-		Vector2i(800, 480): [Vector2(768, 80), Rect2(96, 48, 660, 308), Vector2(768, 128), Rect2(96, 48, 660, 260)]
+		Vector2i(800, 480): [Vector2(768, 80), Rect2(16, 48, 740, 308), Vector2(768, 128), Rect2(16, 48, 740, 260)]
 	}
-	sizes[Vector2i(480, 320)] = [Vector2(448, 28), Rect2(96, 48, 340, 200), Vector2(448, 128), Rect2(96, 48, 340, 112)]
+	sizes[Vector2i(480, 320)] = [Vector2(448, 28), Rect2(16, 48, 420, 200), Vector2(448, 128), Rect2(16, 48, 420, 112)]
 	for screen: Vector2i in sizes:
 		var wanted: Array = sizes[screen]
 		root.size = screen
@@ -732,8 +735,9 @@ func test_the_drawer_starts_closed_and_floors_are_planned_for_its_tab() -> void:
 	_check(not hud.drawer_open(), "the drawer starts closed")
 	_check(tab.is_visible_in_tree() and not holder.is_visible_in_tree(), "to its tab")
 	_eq(hud.placed(hud.right_column), Rect2(764, 40, 20, 316), "a strip at the screen's right edge")
-	_eq(hud.world_rect(), Rect2(96, 48, 660, 308), "the world takes the room")
-	_eq(hud.plan_width(), 660.0, "a first plan is made for it")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 740, 308), "the world takes the room")
+	_eq(hud.plan_width(), 740.0, "a first plan is made for it")
 	var scene: Control = HUD_SCENE.instantiate().get_node("Screen/RightColumn")
 	_eq(scene.offset_left, hud.drawer_closed_left, "the scene's drawer is closed")
 	_check(not (scene.get_node("ListHolder") as Control).visible, "with no list")
@@ -742,11 +746,11 @@ func test_the_drawer_starts_closed_and_floors_are_planned_for_its_tab() -> void:
 	await _click(tab)
 	await _frames(2)
 	_check(hud.drawer_open() and holder.is_visible_in_tree(), "a click on the tab opens it")
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world stops at the open drawer")
-	_eq(hud.plan_width(), 660.0, "and a first plan is still made for the drawer closed")
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "the world stops at the open drawer")
+	_eq(hud.plan_width(), 740.0, "and a first plan is still made for the drawer closed")
 	hud.fit(Vector2(480, 320))
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "480x320, open: the world")
-	_eq(hud.plan_width(), 340.0, "and the plan for the drawer closed")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "480x320, open: the world")
+	_eq(hud.plan_width(), 420.0, "and the plan for the drawer closed")
 
 
 ## The one-line row keeps Monitor: offered exactly when the full panel's
@@ -808,15 +812,16 @@ func test_the_drawer_closes_to_a_tab_and_opens_again_by_click_and_by_a() -> void
 	_check(tab.is_visible_in_tree() and not holder.is_visible_in_tree(), "to its tab")
 	_check(tab.text.replace("\n", "").begins_with("◀AGENTS"), "which says AGENTS: %s" % tab.text.c_escape())
 	_eq(tab.get_global_rect(), Rect2(764, 40, 20, 316), "a strip at the screen's right edge")
-	_eq(hud.world_rect(), Rect2(96, 48, 660, 308), "the world takes the room")
-	_eq(hud.plan_width(), 660.0, "a first plan is made for the drawer closed")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 740, 308), "the world takes the room")
+	_eq(hud.plan_width(), 740.0, "a first plan is made for the drawer closed")
 	_eq([rooms.size(), remembered.size()], [1, 1], "said once, and remembered")
 	await _click(tab)
 	await _frames(2)
 	_check(hud.drawer_open() and holder.is_visible_in_tree() and not tab.is_visible_in_tree(), "the tab opens it")
 	_check(not hud.agent_list.has_keyboard(), "and gives the list no keyboard")
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world gives the room back")
-	_eq(hud.plan_width(), 660.0, "and a first plan is still made for the drawer closed")
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "the world gives the room back")
+	_eq(hud.plan_width(), 740.0, "and a first plan is still made for the drawer closed")
 	_eq([rooms.size(), remembered.size()], [2, 2], "said once more, and remembered")
 	await _click(collapse)
 	await _frames(2)
@@ -988,7 +993,8 @@ func test_world_rect_keeps_clear_of_the_column_and_the_list_takes_the_wheel() ->
 	await _hud()
 	hud.show_agents(_frame([_machine(LOCAL, _snapshot(FLOORS))]), [], [], "", 0)
 	await _frames(2)
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world stops where the column starts")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "the world stops where the column starts")
 	# The panel opened, as while a card is read: the list is shorter than its rows.
 	await _open_staff()
 	var scroll: ScrollContainer = hud.agent_list.get_node("%Scroll")
@@ -1015,18 +1021,17 @@ func test_a_hidden_slot_takes_no_room_and_a_shown_one_does() -> void:
 	await _hud()
 	var changes: Array[bool] = []
 	hud.room_changed.connect(func() -> void: changes.append(true))
-	var shown := Rect2(96, 48, 536, 308)
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	var shown := Rect2(16, 48, 616, 308)
 	_eq(hud.world_rect(), shown, "shown, the world stops above the staff panel's card")
-	_eq(hud.spaces.offset_bottom, -124.0, "and so does the left column")
-	_eq(hud.right_column.offset_bottom, -124.0, "and the right one")
+	_eq(hud.right_column.offset_bottom, -124.0, "and so does the right column")
 	_eq(hud.right_column.get_global_rect().end.y, 356.0, "the column really ends there")
 	var staff: Control = hud.get_node("%Staff")
 	staff.visible = false
 	hud.fit(Vector2(800, 480))
 	# 456 - 16: the NEWS strip still stands along the bottom.
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 392), "hidden, the room comes back")
-	_eq(hud.spaces.offset_bottom, -40.0, "to the left column")
-	_eq(hud.right_column.offset_bottom, -40.0, "and the right one")
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 392), "hidden, the room comes back")
+	_eq(hud.right_column.offset_bottom, -40.0, "to the right column")
 	_eq(changes.size(), 1, "said once")
 	hud.fit(Vector2(800, 480))
 	_eq(changes.size(), 1, "the same room again is not a change")
@@ -1056,20 +1061,21 @@ func test_the_news_slot_takes_the_bottom_and_moves_the_staff_panel_up() -> void:
 	_eq(news.get_global_rect(), Rect2(16, 456, 768, 20), "and really stands there")
 	_eq(hud.placed(hud.staff), Rect2(16, 372, 768, 80), "the staff panel's card 4 above it")
 	_eq(hud.staff.get_global_rect(), Rect2(16, 372, 768, 80), "and it really does")
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world 16 above that")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "the world 16 above that")
 	await _click_at(news.get_global_rect().get_center())
 	_eq(recorder.wheels, 0, "a click on the strip goes no further")
 	hud.fit(Vector2(480, 320))
 	_check(news.visible and hud.card_compact(), "at 480x320 the strip stays, under the compact line")
 	_eq(hud.placed(news), Rect2(16, 296, 448, 20), "along that bottom")
 	_eq(hud.placed(hud.staff), Rect2(16, 264, 448, 28), "the compact line 4 above it")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "the world 216x200, the drawer open")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "the world 296x200, the drawer open")
 	# The card became the line: its edge moved with the window, said once.
 	_eq(changes.size(), 1, "the card's edge moved to the line's")
 	hud.expand_card()
 	_check(not news.visible, "the panel opened to full height there takes the strip's room")
 	_eq(hud.placed(hud.staff), Rect2(16, 176, 448, 128), "and stands where it did without it")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 112), "the world 216x112 above it")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 112), "the world 296x112 above it")
 	_eq(changes.size(), 2, "said once")
 	hud.compact_card()
 	_check(news.visible, "folded back, the strip is back")
@@ -1078,7 +1084,7 @@ func test_the_news_slot_takes_the_bottom_and_moves_the_staff_panel_up() -> void:
 	hud.fit(Vector2(800, 480))
 	_check(news.visible, "and at 800x480")
 	_eq(hud.placed(hud.staff), Rect2(16, 372, 768, 80), "the panel's card stands above it")
-	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "and the world is 536x308")
+	_eq(hud.world_rect(), Rect2(16, 48, 616, 308), "and the world is 616x308")
 	_eq(changes.size(), 4, "the line became the card again: said once more")
 
 

@@ -1,7 +1,7 @@
 class_name StatusBadge
 extends Sprite2D
-## The mark that says a pane needs a human: the badge over a seat, the two icons
-## on a SPACES row, an edge arrow's and the inspector's portrait badge are all this node.
+## The mark that says a pane needs a human: the badge over a seat, an edge
+## arrow's and the inspector's portrait badge are all this node.
 ##
 ## What OfficeAttention has to know to step a badge — whose machine, which pane,
 ## which state — are typed fields here, and the pulse itself is one call: the
@@ -15,8 +15,8 @@ const GROUP := &"office_badges"
 ## The machine whose connection freezes this badge. Empty while it pulses for
 ## nobody, which is also when it is out of GROUP.
 var machine := ""
-## The pane this badge sits over; empty on a SPACES row's or an edge arrow's icon,
-## which stands for a whole zone rather than one seat.
+## The pane this badge sits over; empty on an edge arrow's icon, which stands
+## for a whole zone rather than one seat.
 var pane_id := ""
 ## The herdr state being waited on, `&""` while the badge pulses for nobody.
 var state := &""
@@ -26,8 +26,8 @@ var state := &""
 var rest_offset := Vector2.ZERO
 ## The label beside this badge saying how long its agent has been waiting (an
 ## agent list row's tail); the attention clock writes it on the same beat as
-## the inspector's. A SPACES row's icon stands for a whole zone, which nobody is
-## waiting on, so not every badge has one, and every writer checks.
+## the inspector's. An edge arrow's icon stands for a whole zone, which nobody
+## is waiting on, so not every badge has one, and every writer checks.
 var wait: Label
 ## A seat's badge says the same in the chip on its blocked agent's tag row
 ## (OfficeChip: the wait, in the compact form), on the same beat.
@@ -51,8 +51,8 @@ func clear(art: ArtPack) -> void:
 	visible = false
 
 
-## Pulse for `for_pane` on `for_machine`, in `for_state`. A SPACES row's or an
-## edge arrow's icon stands for a zone rather than a seat and passes an empty pane.
+## Pulse for `for_pane` on `for_machine`, in `for_state`. An edge arrow's icon
+## stands for a zone rather than a seat and passes an empty pane.
 func pulse_for(for_machine: String, for_pane: String, for_state: StringName) -> void:
 	machine = for_machine
 	pane_id = for_pane

@@ -742,7 +742,6 @@ func _panels_apart(office: OfficeDouble, what: String) -> void:
 	var shown: Array[Control] = []
 	for panel: Control in [
 		hud.bar,
-		hud.spaces,
 		hud.get_node("%ListHolder"),
 		hud.get_node("%DrawerTab"),
 		hud.staff,
@@ -754,7 +753,8 @@ func _panels_apart(office: OfficeDouble, what: String) -> void:
 	if hud.edge_arrows.is_visible_in_tree():
 		for arrow in hud.edge_arrows.shown():
 			shown.append(arrow)
-	_check(shown.size() >= 4, "%s: the bar, the minimap, the list and the staff panel are shown" % what)
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone, so one panel fewer.
+	_check(shown.size() >= 3, "%s: the bar, the list and the staff panel are shown" % what)
 	for i in shown.size():
 		var rect := shown[i].get_global_rect()
 		_check(room.encloses(rect), "%s: %s stays on screen: %s" % [what, shown[i].name, rect])

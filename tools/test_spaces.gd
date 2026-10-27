@@ -585,7 +585,9 @@ func test_a_mezzanine_source_is_off_and_herdrs_git_refusals_show_one_line() -> v
 	_check("linked worktree" in trees.tooltip_text, "the tooltip says why: " + trees.tooltip_text)
 	await _click_control(trees)
 	await _frames(2)
-	await _zone_pick(office, hs)
+	# S3 BAR-b (2026-10-27): the SPACES rail's row is gone, and the page keys are
+	# the branch box's while it holds the keyboard: 1 is on the same map, and the
+	# wheel brings its shell's desk into view (_click_visible_pane()).
 	await _click_visible_pane(office, hs_p3)
 	await _open_panel(office)
 	await _until(trees.is_visible_in_tree, "the repo's own floor")
@@ -825,11 +827,12 @@ func _manage_note(office: OfficeDouble) -> String:
 	return note.text if note.is_visible_in_tree() else ""
 
 
-## The FLOORS column's chips, top to bottom (`5F`, `1A` …).
+## Every zone's number as its sign writes it (`5`, `1A` …), in the page keys'
+## order (S3 BAR-b, 2026-10-27: the SPACES rail is gone; its chips said the
+## signs' numbers, OfficeZoneSign.number_text()).
 func _chips(office: OfficeDouble) -> Array:
-	var minimap := office.hud.spaces
-	return minimap.row_keys().map(
-		func(key: String) -> String: return (minimap.row_for(key).get_node("%Number") as Label).text
+	return office.frame.zone_order.map(
+		func(key: String) -> String: return OfficeZoneSign.number_text(office.frame.find_zone(key).zone_model)
 	)
 
 

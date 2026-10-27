@@ -531,7 +531,7 @@ positions, pauses motion, dims the picture and says STALE; idle never stands in 
    `scripts/world/table.gd` looks only at this key, **never at the pack's name**.
    **Optional display and heading cuts**: top-level `"display_font": {"path", "license"}` and
    `"heading_font": {"path", "license"}`, like `font`, name the pack's small cut (native 8: the world's labels, the HUD's
-   8-unit rows, the wordmark at 16) and its heading cut (native 12: headings, the counters' numbers, SPACES, NEWS,
+   8-unit rows, the wordmark at 16) and its heading cut (native 12: headings, NEWS,
    NEXT). Read through `ArtPack.display_font` / `ArtPack.heading_font`; every cut, `font` included, is drawn with
    antialiasing, hinting and subpixel positioning off. `OfficeDraw.cut_for()` is the one place a size picks its cut
    (multiples of 8 the display cut, of 10 `font`, of 12 the heading cut; any other size is an error); a pack that

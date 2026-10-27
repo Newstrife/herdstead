@@ -214,7 +214,7 @@ func test_shells_have_no_wait_line_and_unknown_tracks_say_question_mark() -> voi
 
 ## Held, each pod's floor is washed in its most urgent pane's state, on the
 ## FLOORS windows' own scale (HudTheme.SECTION_PANELS through
-## OfficeSpaceRow.WINDOW_LOOKS): blocked, then done (UNREAD), working, idle or
+## StrategicModel.WINDOW_LOOKS): blocked, then done (UNREAD), working, idle or
 ## starting (cream), unknown (muted); a table of shells only is slate. The wash
 ## covers the cells under the pod's drawing and its title and lies first in its
 ## background, under the shadows, the sign and the title. (It used to lie over a rug; the
@@ -617,12 +617,12 @@ func test_hovering_a_news_item_points_at_its_desk_without_selecting() -> void:
 	_done(office)
 
 
-## A list row for a pane on another machine outlines its zone's SPACES row (a
-## 1-unit paper edge, SpaceRowPointed) and draws nothing in the world; the rows
-## marked as in view keep their marks, and leaving puts the row back. A row for
-## a pane in another zone of the shown map points at its desk, as for any desk
-## of the map.
-func test_hovering_a_row_for_another_floor_marks_its_floors_row() -> void:
+## A list row for a pane on another machine outlines that pane's card in the
+## top bar (a 1-unit paper ring, PortraitPointed) and draws nothing in the
+## world; leaving puts the card back. A row for a pane in another zone of the
+## shown map points at its desk, as for any desk of the map. (S3 BAR-b,
+## 2026-10-27: it outlined the zone's SPACES row, whose in-view marks are gone.)
+func test_hovering_a_row_for_another_machine_outlines_its_card() -> void:
 	var office := await _two_machine_office()
 	var key := HerdrFleet.pane_key(BEE, "hive:p1")
 	var strip: Control = office.hud.get_node("%DrawerTab")
@@ -635,28 +635,27 @@ func test_hovering_a_row_for_another_floor_marks_its_floors_row() -> void:
 		return
 	var hive := office.frame.zone_of(key)
 	_check(office.frame.find_zone(hive).building.key != office.navigator.shown_key, "hive is on another machine")
-	var floor_row := office.hud.spaces.row_for(hive)
-	var in_view := Array(office.hud.spaces.in_view())
-	_check(not in_view.is_empty() and not in_view.has(hive), "Local's zones in view are marked, hive is not")
-	_eq(floor_row.theme_type_variation, &"SpaceRow", "hive's row as usual")
+	var card := office.hud.bar.card_for(key)
+	_check(card != null, "hive:p1 has a card in the bar")
+	var ring: Control = card.get_node("%Pointed")
+	_eq(_outlined(office), [], "no card outlined")
 	await _hover(row.get_global_rect().get_center())
-	_eq(floor_row.theme_type_variation, &"SpaceRowPointed", "hive's SPACES row is outlined")
-	_eq(Array(office.hud.spaces.in_view()), in_view, "the rows in view keep their marks")
+	_eq(_outlined(office), [key], "hive:p1's card is outlined, alone")
+	_check(ring.visible, "by its ring")
 	_check(not office.floor_view.pointer.visible, "nothing is pointed at in the world")
 	_eq(office.navigator.shown_key, LOCAL, "no map change")
 	await _hover(office.hud.world_rect().position + Vector2(4, 4))
-	_eq(floor_row.theme_type_variation, &"SpaceRow", "leaving restores it")
+	_eq(_outlined(office), [], "leaving restores it")
 	var web := office.hud.agent_list.row_for(_pk("web:p1"))
-	var web_row := office.hud.spaces.row_for(office.frame.zone_of(_pk("web:p1")))
 	await _hover(web.get_global_rect().get_center())
 	_check(office.floor_view.pointer.visible, "a row for web:p1, another zone of this map: its desk is pointed at")
 	_eq(office.floor_view.pointer.key, _pk("web:p1"), "that desk")
-	_eq(web_row.theme_type_variation, &"SpaceRow", "and web's SPACES row is not outlined")
+	_eq(_outlined(office), [], "and no card is outlined")
 	_done(office)
 
 
 ## An EVENTS row points like a NEWS item, and an edge arrow outlines its
-## zone's SPACES row.
+## zone's blocked cards (S3 BAR-b, 2026-10-27: its zone's SPACES row).
 func test_events_rows_and_signposts_point_too() -> void:
 	var office := await _live_office()
 	await _frames(2)
@@ -664,12 +663,13 @@ func test_events_rows_and_signposts_point_too() -> void:
 	_check(not arrows.is_empty(), "web and infra wait off screen: edge arrows")
 	if not arrows.is_empty():
 		var arrow := arrows[0]
-		var floor_row := office.hud.spaces.row_for(arrow.zone_key())
+		var cards := _blocked_cards_of(office, arrow.zone_key())
+		_check(not cards.is_empty(), "the arrow's zone has a blocked card")
 		await _hover(arrow.get_global_rect().get_center())
-		_eq(floor_row.theme_type_variation, &"SpaceRowPointed", "the arrow outlines its zone's row")
+		_eq(_outlined(office), cards, "the arrow outlines its zone's blocked cards")
 		_check(not office.floor_view.pointer.visible, "and nothing in the world")
 		await _hover(office.hud.world_rect().get_center())
-		_eq(floor_row.theme_type_variation, &"SpaceRow", "leaving restores it")
+		_eq(_outlined(office), [], "leaving restores them")
 	var key := _pk("api:p4")
 	_feed(office, _with(fixture, "api:p4", {"agent_status": "done"}))
 	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
@@ -729,9 +729,7 @@ func test_a_pointed_pane_that_goes_drops_the_mark() -> void:
 	_feed(office, _without(done, "api:p4"))
 	await _frames(2)
 	_check(not office.floor_view.pointer.visible, "the pane went, and the mark with it")
-	for key: Variant in office.hud.spaces.row_keys():
-		var row := office.hud.spaces.row_for(str(key))
-		_check(row.theme_type_variation != &"SpaceRowPointed", "no SPACES row outlined: " + str(key))
+	_eq(_outlined(office), [], "no card outlined")
 	await _hover(office.hud.world_rect().get_center())
 	for index in OfficeNews.ITEMS:
 		var gone := office.hud.news.item(index)
@@ -839,14 +837,20 @@ func test_arrows_changing_pool_places_say_the_zone_under_the_pointer_once() -> v
 ## standing. The arrows say "no zone any more" a frame after the pointer left
 ## one (another arrow may be entered in the same motion), by when the row has
 ## already pointed at its pane: that late word takes back only what an arrow
-## pointed at. So a row for a pane on another machine keeps its zone's SPACES
-## row outlined, and a row for a pane of the shown map keeps its desk's dashed
+## pointed at. So a row for a pane on another machine keeps its card
+## outlined, and a row for a pane of the shown map keeps its desk's dashed
 ## frame, through the frames after and through a refresh. The reverse, from a
-## row straight onto an arrow, outlines the arrow's zone and nothing else; one
-## arrow to the next says the next zone and never "none" between; and off
-## everything, nothing is pointed at.
+## row straight onto an arrow, outlines the arrow's zone's blocked cards and
+## nothing else; one arrow to the next says the next zone and never "none"
+## between; and off everything, nothing is pointed at. (S3 BAR-b, 2026-10-27:
+## the outlines were the zones' SPACES rows.)
 func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
 	var office := await _two_machine_office()
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	# web's blocked desk is on screen beside the open drawer now: data:p1 waits
+	# off screen below, beside infra:p1, for the two arrows.
+	_feed(office, _with(fixture, "data:p1", {"agent_status": "blocked"}))
+	await _frames(2)
 	var strip: Control = office.hud.get_node("%DrawerTab")
 	await _press(strip)
 	await _frames(3)
@@ -864,6 +868,8 @@ func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
 	var hive := office.frame.zone_of(key)
 	var zone := arrows[0].zone_key()
 	_check(zone != hive, "the arrow is for a zone of the shown map, the row for hive")
+	var zone_cards := _blocked_cards_of(office, zone)
+	_check(not zone_cards.is_empty(), "the arrow's zone has blocked cards")
 	var on_arrow := arrows[0].get_global_rect().get_center()
 	var on_row := row.get_global_rect().get_center()
 	var off := office.hud.world_rect().position + Vector2(4, 4)
@@ -872,36 +878,40 @@ func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
 	var said: Array[String] = []
 	office.hud.zone_pointed.connect(func(zone_key: String) -> void: said.append(zone_key))
 	await _hover(on_arrow)
-	_eq(_outlined(office), [zone], "on the arrow: its zone's SPACES row is outlined")
+	_eq(_outlined(office), zone_cards, "on the arrow: its zone's blocked cards are outlined")
 	# Arrow, then straight onto the row of another zone.
 	await _hover(on_row)
 	_eq(said, [zone, ""] as Array[String], "the arrows said their zone, then none, once each")
-	_eq(_outlined(office), [hive], "straight onto hive's row: hive's SPACES row is outlined")
+	_eq(_outlined(office), [key], "straight onto hive's row: hive:p1's card is outlined")
 	await _frames(3)
-	_eq(_outlined(office), [hive], "and stays outlined once the arrow's late word has come")
+	_eq(_outlined(office), [key], "and stays outlined once the arrow's late word has come")
 	office.refresh()
 	await _frames(2)
-	_eq(_outlined(office), [hive], "and through a refresh")
+	_eq(_outlined(office), [key], "and through a refresh")
 	# The reverse: the row, then straight onto the arrow.
 	await _hover(on_arrow)
-	_eq(_outlined(office), [zone], "from the row straight onto the arrow: the arrow's zone, and only it")
+	_eq(_outlined(office), zone_cards, "from the row straight onto the arrow: the arrow's zone's, and only they")
 	_check(not office.floor_view.pointer.visible, "and nothing in the world")
 	# Arrow, then straight onto a row for a desk of the shown map.
 	await _hover(near.get_global_rect().get_center())
 	await _frames(3)
 	_check(office.floor_view.pointer.visible, "straight onto web:p1's row: its desk keeps the dashed frame")
 	_eq(office.floor_view.pointer.key, _pk("web:p1"), "that desk")
-	_eq(_outlined(office), [], "and no SPACES row is outlined")
+	_eq(_outlined(office), [], "and no card is outlined")
 	await _hover(on_arrow)
-	_eq(_outlined(office), [zone], "back on the arrow: its zone")
+	_eq(_outlined(office), zone_cards, "back on the arrow: its zone's")
 	_check(not office.floor_view.pointer.visible, "and the desk's frame is gone")
 	# One arrow to the next: the next zone, never "none" between.
-	_check(arrows.size() > 1 and arrows[1].zone_key() != zone, "web and infra both wait off screen: two arrows")
+	_check(arrows.size() > 1 and arrows[1].zone_key() != zone, "infra and data both wait off screen: two arrows")
 	if arrows.size() > 1:
 		said.clear()
 		await _hover(arrows[1].get_global_rect().get_center())
 		_eq(said, [arrows[1].zone_key()] as Array[String], "arrow to arrow: one word, the next zone")
-		_eq(_outlined(office), [arrows[1].zone_key()], "and that zone is the one outlined")
+		_eq(
+			_outlined(office),
+			_blocked_cards_of(office, arrows[1].zone_key()),
+			"and that zone's cards are the ones outlined"
+		)
 	await _hover(off)
 	_eq(_outlined(office), [], "off everything: nothing is outlined")
 	_check(not office.floor_view.pointer.visible, "and nothing is pointed at in the world")
@@ -930,10 +940,28 @@ func _pk(pane_id: String) -> String:
 	return HerdrFleet.pane_key(LOCAL, pane_id)
 
 
-## The zones whose SPACES rows are outlined as pointed at.
+## The panes whose portrait cards are outlined as pointed at (S3 BAR-b,
+## 2026-10-27: it was the zones whose SPACES rows were).
 func _outlined(office: OfficeDouble) -> Array:
-	var rail := office.hud.spaces
-	return rail.row_keys().filter(func(key: String) -> bool: return rail.row_for(key).pointed())
+	return (
+		office
+		. hud
+		. bar
+		. cards()
+		. filter(func(card: PortraitCard) -> bool: return card.pointed())
+		. map(func(card: PortraitCard) -> String: return card.key)
+	)
+
+
+## The blocked agents of zone `zone` that have a card in the bar, as an edge
+## arrow for that zone outlines them.
+func _blocked_cards_of(office: OfficeDouble, zone: String) -> Array:
+	var found: Array = []
+	for card in office.hud.bar.cards():
+		var shown := card.shown_card()
+		if shown.group == PortraitBarModel.Group.BLOCKED and shown.zone_key == zone:
+			found.append(card.key)
+	return found
 
 
 func _l_key(down: bool) -> InputEventKey:

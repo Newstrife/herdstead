@@ -694,27 +694,38 @@ func _under_arrow(office: OfficeScene, at: Vector2) -> bool:
 	return false
 
 
-## A real click on the SPACES row of zone `key`, scrolled into the rail first.
+## Visit zone `key` without the mouse (S3 BAR-b, 2026-10-27: the SPACES rail
+## is gone): real PageDown / PageUp presses, the direction from
+## OfficeFrame.zone_order, until it is the zone the page keys stand on
+## (OfficeNavigator.current_zone()). Each press is the pick_zone() a SPACES row
+## click took. Nothing is pressed when it is already; fails after as many
+## presses as there are zones.
 func _visit_zone(office: OfficeScene, key: String) -> void:
-	var row := office.hud.spaces.row_for(key)
-	var scroll: ScrollContainer = office.hud.spaces.get_node("%Scroll")
-	scroll.ensure_control_visible(row)
-	await _frames(2)
-	var at := row.get_global_rect().get_center()
-	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
-	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
-
-
-## A real left click on machine `key`'s SPACES heading.
-func _click_heading(office: OfficeDouble, key: String) -> void:
-	var heading := office.hud.spaces.heading_for(key)
-	if heading == null:
-		_fail("no heading for " + key)
+	if office.hud.agent_list.has_keyboard():
+		_fail("the agent list holds the keyboard: the page keys would not reach the office")
 		return
-	var scroll: ScrollContainer = office.hud.spaces.get_node("%Scroll")
-	scroll.ensure_control_visible(heading)
-	await _frames(2)
-	await _click_at(heading.button().get_global_rect().get_center())
+	var order := office.frame.zone_order
+	if not order.has(key):
+		_fail("no zone " + key)
+		return
+	for press in order.size():
+		var standing := office.navigator.current_zone(office.frame)
+		if standing == key:
+			return
+		var down := standing.is_empty() or order.find(key) > order.find(standing)
+		await _office_key(office, KEY_PAGEDOWN if down else KEY_PAGEUP)
+	if office.navigator.current_zone(office.frame) != key:
+		_fail("the page keys never reached " + key)
+
+
+## A real left click on machine `key`'s chip in the top bar (S3 BAR-b,
+## 2026-10-27: the SPACES rail's headings are gone).
+func _click_heading(office: OfficeDouble, key: String) -> void:
+	var chip := office.hud.bar.chip_for(key)
+	if chip == null:
+		_fail("no machine chip for " + key)
+		return
+	await _click_at(chip.get_global_rect().get_center())
 
 
 ## Each shown arrow's words, glyph to count, as one string.

@@ -2,9 +2,9 @@ class_name OfficeScene
 extends Node2D
 ## The live office: every herdr machine is one open-plan map, each workspace a
 ## zone on it, each tab a pod of desks, each pane a seat. One machine's map is
-## drawn at a time; the SPACES rail on the left lists every zone of every
-## machine and who needs a human: a heading shows its machine's map, and a row
-## pans to its zone.
+## drawn at a time; the top bar has a chip per machine (a click shows its map)
+## and a card per agent, who needs a human first: a card's place pans to its
+## zone, and PageUp / PageDown step through every zone of every machine.
 ## This scene sends herdr nothing itself: the agent card's terminal preview and
 ## its one write go through HerdrFleet to HerdrCommands, which `--read-only`
 ## never constructs.
@@ -35,7 +35,7 @@ const PACK_ROOT := "res://assets"
 const DEFAULT_MANIFEST := PACK_ROOT + "/daylight/manifest.json"
 ## Where the last picked theme is remembered between runs.
 const SETTINGS_PATH := "user://herdstead.cfg"
-## The bar, the SPACES rail and the inspector, laid out in their own scenes; where
+## The bar, the drawer and the inspector, laid out in their own scenes; where
 ## they stand is what leaves the world its room (see OfficeCamera.free_rect()).
 const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
 const PLATE_SCENE := preload("res://scenes/world/machine_plate.tscn")
@@ -183,8 +183,7 @@ var _new_pane: OfficeNewPaneFollow
 ## zone (an edge arrow); empty for none.
 var _pointed_pane := ""
 var _pointed_zone := ""
-## What follows the view as it moves: the rail's in-view marks and the edge
-## arrows (OfficeViewMarks).
+## What follows the view as it moves: the edge arrows (OfficeViewMarks).
 var _marks: OfficeViewMarks
 ## The lens was last drawn held, so letting go has something to put back.
 var _lens_shown := false
@@ -731,16 +730,16 @@ func _on_card_closed() -> void:
 	_refresh()
 
 
-## A row of the SPACES rail: its zone panned to at once, on its machine's map
-## (another machine's is shown first). Under the strategic view, the schematic
-## scrolls to that zone's section.
+## A card's place in the top bar: its zone panned to at once, on its machine's
+## map (another machine's is shown first). Under the strategic view, the
+## schematic scrolls to that zone's section. Nothing is selected.
 func _pick_zone(key: String) -> void:
 	navigator.pick_zone(key)
 	_refresh()
 	_reveal_section(key)
 
 
-## A heading of the SPACES rail: that machine's map, at once (a machine that
+## A machine chip of the top bar: that machine's map, at once (a machine that
 ## never connected is an empty map saying why). Nothing for a machine gone since.
 func _pick_machine(key: String) -> void:
 	if frame.building_of(key) == null:
@@ -758,8 +757,8 @@ func _pan_to_desk(key: String) -> void:
 	_refresh()
 
 
-## PageUp (-1) / PageDown (+1): the zone one row up or down the rail, from a
-## machine's last zone into the next machine's first. Stops at either end.
+## PageUp (-1) / PageDown (+1): the zone one back or on in OfficeFrame.zone_order,
+## from a machine's last zone into the next machine's first. Stops at either end.
 func _step_zone(direction: int) -> void:
 	if navigator.step_zone(frame, direction):
 		_refresh()
@@ -852,7 +851,7 @@ func _on_liveness_changed() -> void:
 ## machine's map by stable tab and pane identity (status and label changes keep
 ## its geometry, structural changes keep the nodes they do not touch, a
 ## workspace coming or going is a zone arriving or leaving), the plate, the
-## SPACES rail and the edge arrows, the bar, the inspector and attention.
+## edge arrows, the bar, the inspector and attention.
 func _refresh() -> void:
 	_refreshing = true
 	# Whatever the fleet said before this point is drawn by this refresh.
@@ -911,7 +910,6 @@ func _refresh() -> void:
 		navigator.revealed()
 	# After the camera is placed for this map: which chips are on screen.
 	_watch_questions()
-	_show_spaces()
 	_marks.show(frame, navigator.shown_key)
 	_show_bar(live)
 	_show_portraits()
@@ -1272,16 +1270,6 @@ func _app_args() -> AppArgs:
 # --- screen-space UI ----------------------------------------------------------
 
 
-## Each machine for the SPACES rail: label, live state, and its zones' rows;
-## the heading of the machine whose map is shown is the highlighted one. Which
-## rows are in view is OfficeViewMarks's, after this.
-func _show_spaces() -> void:
-	var rows: Array[SpaceRows] = []
-	for building in frame.buildings:
-		rows.append(SpaceRows.of(building, _building_state(building.key)))
-	hud.spaces.show_machines(rows, navigator.shown_key, frame.several_machines())
-
-
 ## The right-hand lines: the pack, and how the office runs. The bar's labels
 ## are permanent: this writes text into them, it never rebuilds them.
 func _show_bar(live: int) -> void:
@@ -1305,23 +1293,25 @@ static func bar_status(read_only: bool, live: int, total: int) -> String:
 
 
 ## The top bar's portrait strip, from the machines answering now
-## (PortraitBarModel, the selection ringed), its `13 panes` and the status
-## line's hover (OfficeTotals), and the blocked cards whose waits attention ticks.
+## (PortraitBarModel, the selection ringed), its `13 panes`, the status line's
+## hover and the machine chips (OfficeTotals; the shown map's chip the current
+## one), and the blocked cards whose waits attention ticks.
 func _show_portraits() -> void:
 	var portraits := PortraitBarModel.of(frame, navigator.active_key)
-	hud.show_portraits(portraits, OfficeTotals.of(frame, _machine_rows()))
+	hud.show_portraits(portraits, OfficeTotals.of(frame, _machine_rows()), navigator.shown_key)
 	var blocked := PackedStringArray()
 	for card in portraits.of_group(PortraitBarModel.Group.BLOCKED):
 		blocked.append(card.key)
 	attention.watch_waits(blocked)
 
 
-## Every machine in the fleet, Local first, as the status line's hover tells
-## it: how it answers, when it was last heard from, and why not.
+## Every machine in the fleet, Local first, as the status line's hover and the
+## machine chips tell it: how it answers, when it was last heard from, and why not.
 func _machine_rows() -> Array[OfficeTotals.MachineRow]:
 	var rows: Array[OfficeTotals.MachineRow] = []
 	for key in fleet.keys():
 		var row := OfficeTotals.MachineRow.new()
+		row.key = key
 		row.label = fleet.label(key)
 		row.state = _building_state(key)
 		row.heard_since = fleet.heard_since(key)
@@ -1457,8 +1447,8 @@ func _show_overview() -> void:
 ## Open the strategic view over the world rect (`S`, `--strategic=open`): the
 ## world hides (the people keep walking under it), and so do the edge arrows and
 ## the world tooltip; the chips' reader stops (it reads nothing the view
-## covers) and the lens cannot come on (_may_lens()). SPACES, the drawer, the
-## staff panel and NEWS stay where they are and keep working. Not under the
+## covers) and the lens cannot come on (_may_lens()). The top bar, the drawer,
+## the staff panel and NEWS stay where they are and keep working. Not under the
 ## terminal monitor.
 func _open_strategic() -> void:
 	if hud.monitor_open() or hud.strategic_open():
@@ -1767,25 +1757,28 @@ func _point_at_zone(key: String) -> void:
 
 
 ## Show what the hovered HUD line names: a pane seated on the shown map gets
-## the dashed frame (OfficeFloorView.point()); one on another machine, or a
-## zone (an edge arrow's), outlines that zone's SPACES row; the strategic
-## view dashes the same pane's square. Nothing under the monitor or the
-## OVERVIEW, and nothing for a pane that has gone. Only points: no selection,
-## no map change, no pan, nothing read or written.
+## the dashed frame (OfficeFloorView.point()); one seated on another machine
+## outlines its portrait card in the top bar; a zone (an edge arrow's) outlines
+## that zone's blocked cards; the strategic view dashes the same pane's square.
+## A pane folded into a fold or a tally has no card to outline. Nothing under
+## the monitor or the OVERVIEW, and nothing for a pane that has gone. Only
+## points: no selection, no map change, no pan, nothing read or written.
 func _show_pointer() -> void:
 	if floor_view == null:
 		return
 	var desk := ""
-	var zone_key := ""
+	var cards := PackedStringArray()
 	if not hud.monitor_open() and not hud.overview_open():
 		if not _pointed_pane.is_empty() and frame.pane(_pointed_pane) != null:
 			var on := frame.find_zone(frame.zone_of(_pointed_pane))
 			if on != null and on.building.key == navigator.shown_key:
 				desk = _pointed_pane if floor_view.seats.has(_pointed_pane) else ""
 			elif on != null:
-				zone_key = on.zone_model.key
+				cards.append(_pointed_pane)
 		elif not _pointed_zone.is_empty() and frame.find_zone(_pointed_zone) != null:
-			zone_key = _pointed_zone
+			for card in hud.bar.portraits().of_group(PortraitBarModel.Group.BLOCKED):
+				if card.zone_key == _pointed_zone:
+					cards.append(card.key)
 	floor_view.point(desk)
 	hud.point_strategic(desk)
-	hud.spaces.point(zone_key)
+	hud.point_cards(cards)

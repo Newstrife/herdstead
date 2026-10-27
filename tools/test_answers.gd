@@ -1323,13 +1323,10 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	await _open_answer(office)
 	await _frames(3)
 	_eq(office.hud.placed(card).size, Vector2(448, 272), "the card at 480x320 in answer mode, the modal's whole height")
-	_eq(office.hud.world_rect().size, Vector2(216, 112), "the world above it keeps a desk's room, the drawer open")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(office.hud.world_rect().size, Vector2(296, 112), "the world above it keeps a desk's room, the drawer open")
+	_eq(office.hud.world_rect().position.x, 16.0, "16 in from the left, where the rail stood")
 	_fits(card, "answer mode")
-	# The minimap keeps to the room between the bar and the panel, and scrolls.
-	var floors := office.hud.spaces
-	_eq(floors.get_global_rect(), Rect2(16, 40, 72, 120), "the rail stands left 40..160, grown neither way")
-	var rows: ScrollContainer = floors.get_node("%Scroll")
-	_check(rows.get_v_scroll_bar().max_value > rows.size.y, "and scrolls the rows it has no room for")
 	_panels_apart(office, "answer mode")
 	await _click_control(_key_button(office, "Key1"))
 	await _until(func() -> bool: return card.outcome_text().begins_with("Not sent: the terminal"), "a refusal")

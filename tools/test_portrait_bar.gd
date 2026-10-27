@@ -507,6 +507,16 @@ func test_a_card_frame_says_the_state_and_the_selected_one_its_ring() -> void:
 	var ring := bar.card_for(_pane("api:p1")).get_node("%Selected") as Control
 	var frame := bar.card_for(_pane("api:p1")).get_global_rect()
 	_eq(ring.get_global_rect(), frame.grow(-1.0), "inside the state's edge, which still shows")
+	# S3 BAR-b ruling 1 (2026-10-27): the pointed ring nests inside the selection's, so the state's edge,
+	# the selection and the pointing all show at once.
+	bar.point(PackedStringArray([_pane("api:p1")]))
+	var pointed := bar.card_for(_pane("api:p1")).get_node("%Pointed") as Control
+	_check(pointed.visible and ring.visible, "pointed at and selected together")
+	_eq(pointed.get_global_rect(), frame.grow(-2.0), "the pointed ring inside the selection's")
+	_eq(pointed.theme_type_variation, &"PortraitPointed", "in its own look")
+	var face := bar.card_for(_pane("api:p1")).get_node("%Face") as Control
+	_check(pointed.get_index() < face.get_index(), "drawn under the face: the head's top, at its row, stays whole")
+	bar.point(PackedStringArray())
 	await _click_desk(office, _pane("web:p2"))
 	await _frames(2)
 	_eq(_ringed(bar), [_pane("web:p2")], "and the ring follows")
@@ -559,7 +569,10 @@ func test_hovering_a_card_points_at_its_desk() -> void:
 ## writes nothing (S3 BAR-a ruling 1): the same snapshot again, the same model
 ## handed to the bar again, and attention's beat (which writes only the waits)
 ## leave the lay-out count and every card's and fold's words, look, size and
-## place as they were. A real change lays it out once.
+## place as they were. A real change lays it out once. Among several machines
+## (S3 BAR-b, 2026-10-27), the chips and a card's pointed ring are written apart,
+## each on its own change: the same snapshots leave the chips as they were, and
+## pointing at a card writes its ring alone and lays nothing out.
 func test_an_unchanged_strip_lays_nothing_out() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
@@ -580,13 +593,42 @@ func test_an_unchanged_strip_lays_nothing_out() -> void:
 	_eq(bar.layouts(), count + 1, "a real change: laid out once")
 	_check(bar.card_for(_pane("infra:p1")) == null, "infra:p1 is no longer a blocked card")
 	_done(office)
+	var two := await _two_machine_office()
+	bar = two.hud.bar
+	await _text_tick()
+	count = bar.layouts()
+	before = _strip_picture(bar)
+	var chips := _chip_picture(bar)
+	_eq(chips.size(), 2, "two machines: a chip each")
+	_feed(two, fixture)
+	# bee's client is stopped and online already (_two_machine_office()): the
+	# same snapshot applied again, as a reply would be.
+	_bee(two)._apply_snapshot(_bee_snapshot("blocked"))
+	await _frames(2)
+	_eq(bar.layouts(), count, "the same two snapshots again: no lay-out")
+	_eq(_chip_picture(bar), chips, "the chips as they were, on the same nodes")
+	_eq(_strip_picture(bar), before, "and the strip too")
+	var hive := HerdrFleet.pane_key(BEE, "hive:p1")
+	bar.point(PackedStringArray([hive]))
+	await _frames(2)
+	_eq(bar.layouts(), count, "pointing at a card lays nothing out")
+	_check(bar.card_for(hive).pointed(), "it writes that card's ring")
+	before[before.find(before.filter(func(row: Array) -> bool: return row[0] == hive)[0])][8] = true
+	_eq(_strip_picture(bar), before, "and nothing else on the strip")
+	bar.point(PackedStringArray())
+	await _frames(2)
+	_check(not bar.card_for(hive).pointed(), "pointing at nothing takes the ring away")
+	_eq(bar.layouts(), count, "and lays nothing out either")
+	_eq(_chip_picture(bar), chips, "the chips untouched throughout")
+	_done(two)
 
 
 # --- helpers ------------------------------------------------------------------
 
 
-## Every shown card's and visible fold's words, look, size and place, but the
-## waits, which tick on their own beat.
+## Every shown card's and visible fold's words, look, size and place, its
+## place's tooltip and its pointed ring, but the waits, which tick on their own
+## beat.
 func _strip_picture(bar: OfficeBar) -> Array:
 	var picture := []
 	for card in bar.cards():
@@ -601,6 +643,8 @@ func _strip_picture(bar: OfficeBar) -> Array:
 					(card.get_node("%Tag") as Control).theme_type_variation,
 					card.get_global_rect(),
 					card.face_only(),
+					(card.get_node("%PlaceButton") as Control).tooltip_text,
+					card.pointed(),
 				]
 			)
 		)
@@ -608,6 +652,14 @@ func _strip_picture(bar: OfficeBar) -> Array:
 		if fold.visible:
 			picture.append([fold.name, fold.count_text(), fold.theme_type_variation, fold.get_global_rect()])
 	return picture
+
+
+## Every machine chip's key, words, look, rect and node.
+func _chip_picture(bar: OfficeBar) -> Array:
+	return bar.chips().map(
+		func(chip: MachineChip) -> Array:
+			return [chip.key, chip.text, chip.theme_type_variation, chip.get_global_rect(), chip.get_instance_id()]
+	)
 
 
 ## `count` of attention's text beats.
@@ -772,11 +824,21 @@ func _fits_label(label: Label) -> bool:
 
 ## A real pointer motion onto the middle of `control`.
 func _hover(control: Control) -> void:
-	await _pointer_to(control.get_global_rect().get_center())
+	await _pointer_to(_aim(control))
 
 
-## A real left click on the middle of `control`.
+## A real left click on `control`, where _aim() points.
 func _press(control: Control) -> void:
-	var at := control.get_global_rect().get_center()
+	var at := _aim(control)
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
+
+
+## Where a real pointer aims at `control`: its middle, but a portrait card's
+## face (S3 BAR-b, 2026-10-27: the lower half of a card's words is its place,
+## a button of its own that pans to the zone; the face is the card's own).
+func _aim(control: Control) -> Vector2:
+	if control is PortraitCard:
+		var face: Control = control.get_node("%Face")
+		return face.get_global_rect().get_center()
+	return control.get_global_rect().get_center()

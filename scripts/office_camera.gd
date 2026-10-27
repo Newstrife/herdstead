@@ -48,8 +48,8 @@ func _process(delta: float) -> void:
 	position = pan.round()
 
 
-## The screen area the HUD leaves the world: right of the SPACES rail, left of the
-## inspector, below the bar. Where those panels stand is `hud.tscn`'s business,
+## The screen area the HUD leaves the world: 16 in from the left (the staff
+## panel's inset), left of the drawer, below the bar, above the staff panel. Where those panels stand is `hud.tscn`'s business,
 ## so changing the window changes the visible area while the plan stays fixed.
 ## The panels' rectangle depends on the screen size alone and _process() asks
 ## for it every frame, so the HUD is laid out again only when that size moves.

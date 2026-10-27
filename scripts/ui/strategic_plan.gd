@@ -3,8 +3,8 @@ extends Control
 ## The strategic view's schematic (`%Plan` in scenes/ui/strategic.tscn): the
 ## shown machine's map as a section per zone, captioned with the words on the
 ## zone's sign (`3 INFRA`); under a caption every pod of that zone as a box with
-## its tab's name above it, and one square per seated pane in its SPACES
-## window's colour, a blocked one writing its wait where the square has room.
+## its tab's name above it, and one square per seated pane in its state's
+## colour (StrategicModel.window_look()), a blocked one writing its wait where the square has room.
 ## A caption is plain text (paper, the sign's face; never the zone's accent,
 ## which is structure in the world) with a rule on to its column's edge; a
 ## section that runs on into another column repeats it with `…`; hovering one

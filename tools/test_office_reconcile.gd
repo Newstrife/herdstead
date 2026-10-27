@@ -403,7 +403,8 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 		policy.map_width(policy.lanes_for(floori(hud.plan_width() / FloorLayoutPolicy.GRID))),
 		"the floor is planned for the drawer closed"
 	)
-	_eq(hud.plan_width(), 660.0, "660 wide at 800x480")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.plan_width(), 740.0, "740 wide at 800x480")
 	var world_id := office.world.get_instance_id()
 	var attempts := office.plans.attempt_count()
 	var plan := office.layout_plan().geometry_signature()
@@ -780,7 +781,7 @@ func _wide_api(count: int) -> Dictionary:
 ## plan (test_render_budget_failure_keeps_old_nodes_and_first_failure_is_empty).
 ## A second machine's map is first planned when it is first shown. So the first
 ## failure here is bee's: fed a workspace no map can hold while Local's map is
-## shown, then shown by a real click on its row.
+## shown, then shown by a real click on its machine chip.
 func test_first_budget_failure_is_cached_until_geometry_changes_or_floor_closes() -> void:
 	var invalid := {
 		"workspaces": [{"workspace_id": "oversized", "number": 1}],
@@ -805,8 +806,10 @@ func test_first_budget_failure_is_cached_until_geometry_changes_or_floor_closes(
 	# refresh that shows Local keeps the model it last drew Local from.)
 	var local_model := office.plans.planned_model(LOCAL)
 	var attempts := office.layout_attempt_count()
-	await _visit_zone(office, oversized)
-	_eq(office.navigator.shown_key, BEE, "a real click on its row shows bee's map")
+	# S3 BAR-b (2026-10-27): the SPACES rail's row is gone; bee's chip is one click
+	# to its map, as the row was (the page keys would draw Local's zones on the way).
+	await _click_heading(office, BEE)
+	_eq(office.navigator.shown_key, BEE, "a real click on bee's chip shows bee's map")
 	_eq(office.layout_attempt_count(), attempts + 2, "first failure plans once and constructs one bounded fallback")
 	var fallback := office.layout_plan()
 	var problems := office.layout_problems()
@@ -1036,8 +1039,9 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 
 
 ## PLAN_R2 §1.10, density: 1920×960 at 2x (the 960×480 view), the drawer
-## closed, the staff card one line; a real click on the first zone's FLOORS
-## row; the seats whose click rect (target_rect(), no chip) is wholly inside
+## closed, the staff card one line; the first zone visited (S3 BAR-b: by the
+## page keys, not its SPACES row; herdr's focus is there already, so the view
+## is the one it opens on); the seats whose click rect (target_rect(), no chip) is wholly inside
 ## world_rect() are counted. Two workspaces, each of four tabs of 8, 4, 8 and 4
 ## working agents (pods of 4, 2, 4 and 2 columns: two pod rows in a lane of 9
 ## before Z1, one row of four 4-cell lanes now), and again with the first two
@@ -1047,8 +1051,8 @@ func test_a_zone_call_shows_the_planned_density() -> void:
 	for rows: int in [2, 1]:
 		var office := await _live_office(_density(rows), Vector2(960, 480))
 		_check(not office.hud.drawer_open() and office.hud.card_compact(), "drawer closed, card one line")
-		# The SPACES column says the zones' names from 960 units on: 48 more are its.
-		_eq(office.hud.world_rect(), Rect2(144, 48, 772, 308), "the world's room at 1920×960, 2x")
+		# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+		_eq(office.hud.world_rect(), Rect2(16, 48, 900, 308), "the world's room at 1920×960, 2x")
 		var plan := office.layout_plan()
 		var a := plan.zone(HerdrFleet.pane_key(LOCAL, "a"))
 		var b := plan.zone(HerdrFleet.pane_key(LOCAL, "b"))

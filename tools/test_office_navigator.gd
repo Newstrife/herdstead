@@ -260,10 +260,10 @@ func test_a_zone_on_the_shown_machine_pans_and_another_machine_switches() -> voi
 	_eq(navigator.pan_zone, _local("notes"), "panning to that one")
 
 
-## PageUp (-1) and PageDown (+1) walk every zone as the rail draws them, from
+## PageUp (-1) and PageDown (+1) walk every zone in OfficeFrame.zone_order, from
 ## the current one, from a machine's last zone into the next machine's first,
-## and stop at either end, where they pick and count nothing. (The SPACES rail
-## is ascending, so PageUp goes to the lower number and PageDown to the higher,
+## and stop at either end, where they pick and count nothing. (The order is
+## ascending, as the retired SPACES rail drew it, so PageUp goes to the lower number and PageDown to the higher,
 ## the other way round from the FLOORS minimap, which drew the highest on top;
 ## across machines Local's last zone leads down into bee's first.)
 func test_page_up_and_down_walk_the_buildings_and_stop_at_the_ends() -> void:
@@ -607,7 +607,11 @@ func test_the_queue_is_the_blocked_while_anyone_is_blocked() -> void:
 		[_local("infra:p1"), _local("web:p1"), _local("infra:p1"), _local("web:p1")],
 		"‹ and › go round the blocked too"
 	)
-	_check(navigator.next_of(frame, "done"), "DONE still reaches a done agent while someone is blocked")
+	# S3 BAR-b (2026-10-27): next_of() retired with the top-bar counters; the
+	# done cards stand in waiting()'s order and a click on one locates it.
+	var done := OfficeNavigator.waiting(frame, "done")
+	_check(not done.is_empty(), "the done keep their order while someone is blocked")
+	navigator.locate(frame, done[0])
 	_eq(navigator.picked_key, _local("infra:p2"), "the oldest UNREAD")
 
 
@@ -664,12 +668,12 @@ func test_from_outside_the_queue_next_is_the_longest_waiting_blocked() -> void:
 	_eq(navigator.reveal_on_arrival, _local("infra:p1"), "and reveals it")
 
 
-## The top bar's BLOCKED and DONE (next_of()): only that state, longest wait
-## first by state_since, the pane no floor seats ranked with the seated,
-## then round again; a
-## selection outside the queue starts from the top. A dropped machine and a
-## shell are never in it; an agent still launching is, once it asks.
-func test_next_of_walks_one_state_and_done_starts_from_the_oldest() -> void:
+## The top bar's blocked and done cards (waiting(), S3 BAR-b, 2026-10-27:
+## next_of() retired with the counters): only that state, longest wait first by
+## state_since, the pane no floor seats ranked with the seated; a click on a
+## card locates its pane. A dropped machine and a shell are never in it; an
+## agent still launching is, once it asks.
+func test_waiting_orders_one_state_and_done_starts_from_the_oldest() -> void:
 	var local := _with(floors, "notes:p1", {"workspace_id": "gone", "agent": "pi", "agent_status": "blocked"})
 	local = _with(_with(local, "data:p2", {"agent_status": "blocked"}), "api:p3", {"agent_status": "blocked"})
 	var frame := _frame(local, basic, true)
@@ -682,37 +686,39 @@ func test_next_of_walks_one_state_and_done_starts_from_the_oldest() -> void:
 	}
 	_stamp(frame, starts)
 	var navigator := OfficeNavigator.new()
+	var keys := func(panes: Array[PaneModel]) -> Array:
+		return panes.map(func(pane: PaneModel) -> String: return pane.key)
+	var blocked := OfficeNavigator.waiting(frame, "blocked")
+	var cards: Array = PortraitBarModel.of(frame, "").of_group(PortraitBarModel.Group.BLOCKED).map(
+		func(card: PortraitBarModel.Card) -> String: return card.key
+	)
+	_eq(cards, keys.call(blocked), "the blocked cards stand in that order")
 	var walked: Array = []
-	for press in 5:
-		_check(navigator.next_of(frame, "blocked"), "press %d finds somebody blocked" % press)
+	for pane in blocked:
+		navigator.locate(frame, pane)
 		walked.append([navigator.picked_key, navigator.picked_machine, navigator.reveal_on_arrival])
 	# Blocked comes first: data:p2, blocked while still launching, is in the
-	# queue, its start unknown, so first.
+	# queue, its start unknown, so first. A pane no zone seats leaves the
+	# machine as it was (locate()).
 	_eq(
 		walked,
 		[
 			[_local("data:p2"), LOCAL, _local("data:p2")],
 			[_local("infra:p1"), LOCAL, _local("infra:p1")],
-			[_local("notes:p1"), "", _local("notes:p1")],
+			[_local("notes:p1"), LOCAL, _local("notes:p1")],
 			[_local("web:p1"), LOCAL, _local("web:p1")],
-			[_local("data:p2"), LOCAL, _local("data:p2")],
 		],
-		"unknown start first, then longest wait, the unseated pane by its wait too, then round; no shell or dropped bee"
+		"unknown start first, then longest wait, the unseated pane by its wait too; no shell or dropped bee"
 	)
 	# notes:p1, which no floor seats, ranks by its wait like the seated:
 	# blocked since 150, it comes between infra:p1 (100) and web:p1 (200).
-	navigator.picked_key = _local("api:p1")
-	navigator.next_of(frame, "blocked")
-	_eq(navigator.picked_key, _local("data:p2"), "a selection outside the queue starts from the top")
-	navigator.picked_key = ""
-	_check(navigator.next_of(frame, "done"), "somebody is UNREAD")
-	_eq(navigator.picked_key, _local("infra:p2"), "DONE starts from the oldest")
-	navigator.next_of(frame, "done")
-	_eq(navigator.picked_key, _local("web:p2"), "then the next")
+	_eq(
+		keys.call(OfficeNavigator.waiting(frame, "done")),
+		[_local("infra:p2"), _local("web:p2")],
+		"DONE starts from the oldest, then the next"
+	)
 	var quiet := _frame(_with(basic, "bravo:p1", {"agent_status": "working"}))
-	navigator.picked_key = ""
-	_check(not navigator.next_of(quiet, "blocked"), "nobody blocked: nothing to walk")
-	_eq(navigator.picked_key, "", "and nothing picked")
+	_eq(OfficeNavigator.waiting(quiet, "blocked"), [] as Array[PaneModel], "nobody blocked: nothing to walk")
 
 
 ## Give the panes of `frame`, seated or not, the state starts in `starts` (pane
@@ -751,7 +757,7 @@ func test_locating_a_pane_selects_it_and_reveals_it_on_arrival() -> void:
 
 ## Every navigation the viewer asks for counts one (nav_revision): a zone
 ## picked, PageUp/PageDown (step_zone(), which past either end picks and counts
-## nothing) and every locate: `N`, `‹ ›`, a counter, a list pick. A desk pick,
+## nothing) and every locate: `N`, `‹ ›`, a portrait card, a list pick. A desk pick,
 ## herdr's focus moving and the office's own pick of a new pane (follow_to())
 ## count none.
 func test_navigations_count_and_a_zone_is_picked_like_a_floor() -> void:
@@ -766,8 +772,9 @@ func test_navigations_count_and_a_zone_is_picked_like_a_floor() -> void:
 	_eq(navigator.nav_revision, revision + 2, "one more")
 	_check(navigator.step(frame, 1) and navigator.step(frame, -1), "`›` then `‹`")
 	_eq(navigator.nav_revision, revision + 4, "one each")
-	_check(navigator.next_of(frame, "blocked"), "BLOCKED")
-	_eq(navigator.nav_revision, revision + 5, "one")
+	# S3 BAR-b (2026-10-27): next_of() retired with the counters; a blocked card's click locates.
+	navigator.locate(frame, OfficeNavigator.waiting(frame, "blocked")[0])
+	_eq(navigator.nav_revision, revision + 5, "a blocked card: one")
 	navigator.locate(frame, frame.pane(_local("api:p1")))
 	_eq(navigator.nav_revision, revision + 6, "a list pick: one")
 	navigator.pick_zone(_local("infra"))

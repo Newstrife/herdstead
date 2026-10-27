@@ -96,7 +96,12 @@ MIN_CASES_OFFICE_NAVIGATOR=26
 # SPACE RAIL 40 -> 20: the edge arrows' 20 cases moved, unchanged, to EDGE
 # ARROWS (tools/test_edge_arrows.gd), so both files stay under gdlint's
 # max-file-lines; the two floors still add up to 40.
-MIN_CASES_SPACE_RAIL=20
+# SPACE RAIL 20 -> MAP NAVIGATION 17 (S3 BAR-b, 2026-10-27): the SPACES rail
+# retired and its suite became tools/test_map_navigation.gd; 14 cases kept or
+# replaced (chips, a card's place, the page keys), six retired with the rail
+# (its windows, their cap, the in-view marks twice, the narrow rail, its
+# names), three added (the world's left edge, a card outlined, narrow chips).
+MIN_CASES_MAP_NAVIGATION=17
 MIN_CASES_EDGE_ARROWS=20
 MIN_CASES_ATTENTION_STORE=28
 # AGENT LIST 36 -> 38: the 37th case was already there; NEXT with nobody next
@@ -421,8 +426,8 @@ run_suites() {
 		--socket="$WORK/walking-nowhere.sock" --work="$WORK"
 	run_scene_suite test_office_rests "RESTS TESTS" "$MIN_CASES_OFFICE_RESTS" -- --read-only \
 		--socket="$WORK/rests-nowhere.sock" --work="$WORK"
-	run_scene_suite test_space_rail "SPACE RAIL TESTS" "$MIN_CASES_SPACE_RAIL" -- --read-only \
-		--socket="$WORK/space-rail-nowhere.sock" --work="$WORK"
+	run_scene_suite test_map_navigation "MAP NAVIGATION TESTS" "$MIN_CASES_MAP_NAVIGATION" -- --read-only \
+		--socket="$WORK/map-navigation-nowhere.sock" --work="$WORK"
 	run_scene_suite test_edge_arrows "EDGE ARROW TESTS" "$MIN_CASES_EDGE_ARROWS" -- --read-only \
 		--socket="$WORK/edge-arrows-nowhere.sock" --work="$WORK"
 	run_scene_suite test_attention_store "ATTENTION STORE TESTS" "$MIN_CASES_ATTENTION_STORE"

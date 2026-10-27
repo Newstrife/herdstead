@@ -93,8 +93,10 @@ func test_list_keeps_the_keyboard_across_a_floor_switch() -> void:
 	_eq(office.navigator.shown_key, LOCAL, "on the same map")
 	_check(list.has_keyboard(), "the pan and its refresh keep the list's keyboard")
 	_eq(list.cursor(), cursor, "and its cursor")
-	var row := office.hud.spaces.row_for(HerdrFleet.pane_key(LOCAL, "infra"))
-	_check(not row.disabled, "the zone rows stay enabled")
+	# S3 BAR-b (2026-10-27): the SPACES rail's rows are gone; a card's place is how the mouse reaches a zone.
+	for card in office.hud.bar.cards():
+		var place: Button = card.get_node("%PlaceButton")
+		_check(not place.disabled, "%s: the cards' places stay enabled" % card.key)
 	_done(office)
 
 

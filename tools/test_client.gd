@@ -1,7 +1,7 @@
 extends "res://tools/client_test_base.gd"
 ## Headless tests for HerdrClient against tools/fake_herdr.py, the typed
 ## snapshot it reads (HerdrSnapshot), plus the pure projection, layout and
-## minimap of office.gd. Run through tools/run_tests.sh. The client, the fake
+## machine chips of office.gd. Run through tools/run_tests.sh. The client, the fake
 ## herdr and the fixtures it stands on are tools/client_test_base.gd.
 ##
 ## godot --headless --path . --script tools/test_client.gd -- --socket=<fake herdr> --control=<fake control>
@@ -1608,187 +1608,169 @@ func test_office_floor_order_and_queue() -> void:
 	)
 
 
-## The SPACES rail: machines top to bottom, each one's zones ascending, the
-## shown machine's heading highlighted, the rows of the zones in view marked, a
-## row press names its zone and a heading press its machine, counts as pulsing
-## icons. The rows are scene nodes, so the panel has to be in the tree and laid
-## out. (It was the FLOORS minimap: highest floor on top, the shown floor's row
-## highlighted, headings that took no mouse.)
-func test_office_minimap() -> void:
-	# 1280 wide: the column says the zones' names (below it, the rail; tools/test_space_rail.gd).
+## The top bar's machine chips (S3 BAR-b, 2026-10-27: the SPACES rail is gone;
+## its machine headings are chips in the bar): one per machine in the fleet's
+## order, only among several; the shown machine's chip the only current one, a
+## dropped machine's in the blocked colour, one still connecting muted; the
+## label whole in the tooltip with how the machine answers; a release, not a
+## press, names its machine and no zone; kept by machine key, a machine that
+## goes taking only its own chip. (It was the SPACES rail's case, and before
+## that the FLOORS minimap's.)
+func test_office_machine_chips() -> void:
 	var hud := await _hud(Vector2(1280, 480))
-	var minimap: OfficeSpaces = hud.spaces
+	var bar := hud.bar
 	var picked: Array = []
 	hud.zone_picked.connect(func(key: String) -> void: picked.append(key))
 	var machines: Array = []
 	hud.machine_picked.connect(func(key: String) -> void: machines.append(key))
-	var tower: Array[ZoneModel] = [
-		_floor_row("a1", 1, 1, 0, 0), _floor_row("a2", 2, 0, 0, 0), _floor_row("a3", 3, 2, 1, 2)
+	var keys := func() -> Array: return bar.chips().map(func(chip: MachineChip) -> String: return chip.key)
+	var looks := func() -> Array:
+		return bar.chips().map(func(chip: MachineChip) -> StringName: return chip.theme_type_variation)
+	var model: Array[OfficeTotals.MachineRow] = [
+		_machine_row("local", "Local", MachineLiveness.State.LIVE),
+		_machine_row("machine:far", "far", MachineLiveness.State.OFFLINE),
 	]
-	var empty: Array[ZoneModel] = []
-	var model: Array[SpaceRows] = [
-		_building_rows("local", "Local", MachineLiveness.State.LIVE, tower),
-		_building_rows("machine:far", "far", MachineLiveness.State.OFFLINE, empty)
-	]
-	minimap.show_machines(model, "local", true)
+	bar.show_machines(model, "local", true)
 	await _frames(2)
-	_eq(minimap.row_keys(), ["a1", "a2", "a3"], "zones ascending, machines in order; an empty map has no row")
+	_eq(keys.call(), ["local", "machine:far"], "a chip per machine, in the fleet's order")
+	_eq(bar.chips().map(func(chip: MachineChip) -> String: return chip.text), ["Local", "far"], "each says its label")
 	_eq(
-		minimap.headings().map(func(h: OfficeMachineHeading) -> String: return _label_text(h, "%MachineLabel")),
-		["LOCAL", "FAR"],
-		"a heading per building with more than Local"
-	)
-	_eq(_row_numbers(minimap), ["1", "2", "3"], "zone numbers, as their signs write them")
-	var highlighted := (
-		minimap
-		. headings()
-		. filter(func(h: OfficeMachineHeading) -> bool: return h.is_current())
-		. map(func(h: OfficeMachineHeading) -> String: return h.key)
-	)
-	_eq(highlighted, ["local"], "the shown machine's heading is the only highlighted one")
-	_eq(Array(minimap.in_view()), [], "no row is marked before the office says which zones are in view")
-	minimap.set_in_view(PackedStringArray(["a2"]))
-	_eq(Array(minimap.in_view()), ["a2"], "the row of a zone in view is marked, alone")
-	_eq(_row_label(minimap, "a3").theme_type_variation, &"", "a zone with agents reads in ink")
-	_eq(_row_label(minimap, "a1").theme_type_variation, &"", "so does a zone with one")
-	# A quiet zone steps back, in view or not (a2 here): an empty machine has no row.
-	_eq(_row_label(minimap, "a2").theme_type_variation, &"LabelMuted", "a quiet zone steps back")
-	var badges := _floor_icons(minimap)
-	_eq(
-		badges.map(func(b: StatusBadge) -> Array: return [b.machine, str(b.state), b.pane_id]),
-		[["local", "blocked", ""], ["local", "done", ""]],
-		"icons only for non-zero counts, with machine and state, no pane id"
-	)
-	_check(badges.all(func(b: StatusBadge) -> bool: return b.rest_offset == b.offset), "icons rest at the pack's pivot")
-	_check(
-		badges.all(func(b: StatusBadge) -> bool: return b.is_in_group(StatusBadge.GROUP)),
-		"and they are the ones attention pulses"
-	)
-	# Every building says how its machine is answering with the pack's own icon,
-	# not with a coloured square nobody has a legend for.
-	var art: ArtPack = minimap.art
-	_eq(
-		minimap.headings().map(func(h: OfficeMachineHeading) -> Texture2D: return h.mark_icon().texture),
-		[ArtContract.UI_CONNECTED, ArtContract.UI_OFFLINE].map(
-			func(id: StringName) -> Texture2D: return art.sprite_texture(art.ui_sprite(id))
+		(
+			bar
+			. chips()
+			. filter(func(chip: MachineChip) -> bool: return chip.is_current())
+			. map(func(chip: MachineChip) -> String: return chip.key)
 		),
-		"a live machine is connected, a dropped one is offline"
+		["local"],
+		"the shown machine's chip is the only current one"
 	)
-	var connecting: Array[SpaceRows] = [
-		_building_rows("local", "Local", MachineLiveness.State.LIVE, tower),
-		_building_rows("machine:far", "far", MachineLiveness.State.CONNECTING, empty)
+	_eq(
+		looks.call(),
+		[&"MachineChipCurrent", &"MachineChipOffline"],
+		"current on slate, a dropped one in the blocked colour"
+	)
+	_eq(
+		bar.chip_for("machine:far").get_tooltip(Vector2.ZERO),
+		"far · OFFLINE · last snapshot never",
+		"its tooltip is its machine's line of the status line's hover"
+	)
+	var connecting: Array[OfficeTotals.MachineRow] = [
+		_machine_row("local", "Local", MachineLiveness.State.LIVE),
+		_machine_row("machine:far", "far", MachineLiveness.State.CONNECTING),
 	]
-	minimap.show_machines(connecting, "local", true)
+	bar.show_machines(connecting, "machine:far", true)
 	await _frames(1)
 	_eq(
-		minimap.headings()[1].mark_icon().texture,
-		art.sprite_texture(art.ui_sprite(ArtContract.UI_STARTING)),
-		"a machine still opening its forward is starting"
+		looks.call(),
+		[&"MachineChip", &"MachineChipConnectingCurrent"],
+		"a machine still connecting is muted, current too"
 	)
-	_check(
-		minimap.headings().all(
-			func(h: OfficeMachineHeading) -> bool: return h.mark_icon().position == h.mark_icon().offset / -art.density
-		),
-		"each icon stands at its own pivot, so the picture lands in the same square"
-	)
-	minimap.show_machines(model, "local", true)
+	bar.show_machines(model, "local", true)
 	await _frames(1)
-	# Real clicks: a press alone says nothing, the release on the same control does.
-	var row := minimap.row_for("a1")
-	await _mouse(row, true)
-	_eq([machines, picked], [[], []], "a press on a row says nothing yet")
-	await _mouse(row, false)
-	_eq(picked, ["a1"], "pressing a row names that zone")
-	var far := minimap.headings()[1].button()
+	# Real clicks: a press alone says nothing, the release on the same chip does.
+	var far := bar.chip_for("machine:far")
 	await _mouse(far, true)
+	_eq([machines, picked], [[], []], "a press on a chip says nothing yet")
 	await _mouse(far, false)
-	_eq([machines, picked], [["machine:far"], ["a1"]], "pressing a heading names its machine, and no zone")
-	var rows := minimap.row_keys().map(func(key: String) -> int: return minimap.row_for(key).get_instance_id())
-	minimap.show_machines(model, "local", true)
-	await _frames(1)
-	_eq(Array(minimap.in_view()), ["a2"], "the same model keeps the marks")
-	_eq(
-		minimap.row_keys().map(func(key: String) -> int: return minimap.row_for(key).get_instance_id()),
-		rows,
-		"the same model keeps every row node"
-	)
-	minimap.show_machines(model, "local", false)
-	await _frames(1)
-	_eq(minimap.row_keys(), ["a1", "a2", "a3"], "without headings the rows stay")
-	_eq(minimap.headings(), [], "but no machine heading")
-	# A machine that goes away loses its heading, while the others keep theirs.
-	minimap.show_machines(model, "local", true)
-	await _frames(1)
-	var kept := minimap.headings()[0]
-	var alone: Array[SpaceRows] = [_building_rows("local", "Local", MachineLiveness.State.LIVE, tower)]
-	minimap.show_machines(alone, "local", true)
+	_eq([machines, picked], [["machine:far"], []], "pressing a chip names its machine, and no zone")
+	var nodes: Array = bar.chips().map(func(chip: MachineChip) -> int: return chip.get_instance_id())
+	bar.show_machines(model, "local", true)
 	await _frames(1)
 	_eq(
-		minimap.headings().map(func(h: OfficeMachineHeading) -> String: return _label_text(h, "%MachineLabel")),
-		["LOCAL"],
-		"a machine that went away loses its heading"
+		bar.chips().map(func(chip: MachineChip) -> int: return chip.get_instance_id()),
+		nodes,
+		"the same model keeps every chip"
 	)
-	_eq(minimap.headings()[0], kept, "and the one that stayed keeps its node")
-	_eq(minimap.row_keys(), ["a1", "a2", "a3"], "with only its own zones left")
-	minimap.show_machines(model, "local", false)
+	var turned: Array[OfficeTotals.MachineRow] = [model[1], model[0]]
+	bar.show_machines(turned, "local", true)
 	await _frames(1)
-	# A floor that goes away loses its row; the rest keep theirs.
-	var short: Array[SpaceRows] = [
-		_building_rows("local", "Local", MachineLiveness.State.LIVE, [tower[1], tower[2]] as Array[ZoneModel])
+	_eq(keys.call(), ["machine:far", "local"], "the chips follow the fleet's order")
+	_eq(
+		bar.chips().map(func(chip: MachineChip) -> int: return chip.get_instance_id()),
+		[nodes[1], nodes[0]],
+		"on the same nodes"
+	)
+	bar.show_machines(model, "local", false)
+	await _frames(1)
+	_eq(bar.chips(), [], "one machine has nothing to switch to: no chip")
+	_check(not (bar.get_node("%Machines") as Control).visible, "and the chips' row gives its room back")
+	var three: Array[OfficeTotals.MachineRow] = [
+		model[0], model[1], _machine_row("machine:bee", "bee", MachineLiveness.State.LIVE)
 	]
-	minimap.show_machines(short, "local", false)
+	bar.show_machines(three, "local", true)
 	await _frames(1)
-	_eq(minimap.row_keys(), ["a2", "a3"], "a closed zone loses its row")
-	_check(minimap.row_for("a1") == null, "and nothing keeps it alive")
-	_eq(minimap.row_for("a2").get_instance_id(), rows[1], "the floors that stayed keep their row node")
+	var kept := bar.chip_for("machine:bee")
+	var two: Array[OfficeTotals.MachineRow] = [model[0], three[2]]
+	bar.show_machines(two, "local", true)
+	await _frames(1)
+	_eq(keys.call(), ["local", "machine:bee"], "a machine that went away loses its chip")
+	_eq(bar.chip_for("machine:bee"), kept, "and the ones that stayed keep their nodes")
+	_check(bar.chip_for("machine:far") == null, "and nothing keeps it alive")
 	hud.free()
 
 
-## A machine of many zones in a short panel: the list follows the first row in
-## view into sight, and the wheel scrolls the list in place.
-func test_office_minimap_scroll() -> void:
-	# 312 - 40 - 72 leaves a 200-tall panel: the staff panel's
-	# compact line over the NEWS strip, and its gap (72 in all), stand under the column.
-	var hud := await _hud(Vector2(800, 312))
-	var minimap: OfficeSpaces = hud.spaces
-	_eq(hud.placed(minimap).size.y, 200.0, "the minimap is the 200-tall panel")
-	var high: Array[ZoneModel] = []
-	for number in range(1, 31):
-		high.append(_floor_row("t%d" % number, number, 1, 0, 0))
-	var tall: Array[SpaceRows] = [_building_rows("local", "Local", MachineLiveness.State.LIVE, high)]
-	minimap.show_machines(tall, "local", false)
-	# The zone in view is the last of the ascending list, below the panel's fold.
-	minimap.set_in_view(PackedStringArray(["t30"]))
-	await _frames(2)
-	var list_height: float = minimap.list_height()
-	# The panel's heading is all it keeps above the list now: the lift's
-	# portal (108) and its footer (24) are gone, and the rows have that room.
-	_eq(list_height, 168.0, "the short panel keeps only its heading and gives the rest to the rows")
-	var bottom: Control = minimap.row_for("t30")
-	var offset := minimap.scroll_offset()
-	_check(
-		bottom.position.y >= offset and bottom.position.y + bottom.size.y <= offset + list_height,
-		"the row in view, at the bottom, is scrolled into sight"
-	)
-	var holder: Control = minimap.get_node("%Rows")
-	minimap.scroll_by(-10000)
-	await _frames(1)
-	_eq(minimap.scroll_offset(), 0.0, "scrolling stops at the top")
-	_check(minimap.get_node("%Rows") == holder, "scrolling is not a rebuild")
-	minimap.scroll_by(10000)
-	await _frames(1)
-	_eq(minimap.scroll_offset(), 30.0 * OfficeSpaces.ROW - list_height, "and at the bottom")
-	minimap.scroll_by(-100)
-	await _frames(1)
-	minimap.show_machines(tall, "local", false)
-	minimap.set_in_view(PackedStringArray(["t30"]))
-	await _frames(2)
-	_eq(
-		minimap.scroll_offset(),
-		30.0 * OfficeSpaces.ROW - list_height - 100,
-		"an unchanged model and view keep the viewer's scroll"
-	)
+## Many machines in a bar (S3 BAR-b, 2026-10-27: the SPACES rail's scrolling
+## list of machines is gone): the chips take their room from the strip, but
+## never so much that it is left less than the ladder's last rung (a tally per
+## group), so the row of chips is cut where its room ends; each chip says its
+## label cut to its width and whole in its tooltip; below the titles' width the
+## chips go narrow. Nothing leaves the bar or covers another part of it.
+func test_many_machine_chips_stay_inside_the_bar() -> void:
+	var hud := await _hud(Vector2(800, 480))
+	var bar := hud.bar
+	var model: Array[OfficeTotals.MachineRow] = []
+	for number in 12:
+		model.append(_machine_row("machine:%d" % number, "build-runner-%02d" % number, MachineLiveness.State.LIVE))
+	var clip: Control = bar.get_node("%Machines")
+	var strip: Control = bar.get_node("%Strip")
+	var wordmark: Control = bar.get_node("%Wordmark")
+	var made := bar.metrics()
+	var last_rung := made.tally * 4 + made.gap * 3
+	_eq(last_rung, 102.0, "the ladder's last rung: four tallies")
+	var two: Array[OfficeTotals.MachineRow] = [model[0], model[1]]
+	bar.show_machines(two, "machine:0", true)
+	await _frames(3)
+	_eq(clip.size.x, 82.0, "two wide chips (40 each, 2 apart) are whole")
+	_eq(strip.size.x, 413.0 - 4.0 - 82.0, "and the strip has the rest")
+	for screen: Vector2 in [Vector2(800, 480), Vector2(480, 320)]:
+		hud.fit(screen)
+		bar.show_machines(model, "machine:0", true)
+		await _frames(3)
+		var wide := screen.x >= hud.bar_titles_from
+		var width := 40.0 if wide else 20.0
+		var tag := "%d wide" % int(screen.x)
+		_eq(bar.chips().size(), 12, tag + ": a chip per machine")
+		_check(
+			bar.chips().all(func(chip: MachineChip) -> bool: return chip.size.x == width),
+			tag + ": each %d wide" % width
+		)
+		_check(
+			bar.chips().all(
+				func(chip: MachineChip) -> bool: return chip.get_tooltip(Vector2.ZERO).begins_with(chip.text)
+			),
+			tag + ": each names its machine whole in its tooltip"
+		)
+		var cut := clip.get_global_rect()
+		_eq(strip.size.x, last_rung, tag + ": the strip keeps the last rung, and the chips are cut there")
+		_check(cut.size.x < 12 * width + 11 * 2, tag + ": the row of chips is cut")
+		_check(wordmark.get_global_rect().end.x <= cut.position.x, tag + ": the chips start after the wordmark")
+		_check(cut.end.x <= strip.get_global_rect().position.x, tag + ": and end before the strip")
+		_check(Rect2(Vector2.ZERO, screen).encloses(cut), tag + ": inside the screen")
+		_check(cut.end.y <= hud.placed(bar).end.y, tag + ": inside the bar")
+		for part: String in ["%Panes", "%Chime", "%Lines"]:
+			var other: Control = bar.get_node(part)
+			if other.is_visible_in_tree():
+				_check(not cut.intersects(other.get_global_rect()), "%s: the chips do not cover %s" % [tag, part])
 	hud.free()
+
+
+## One machine as the top bar's chips and status line's hover have it.
+func _machine_row(key: String, label: String, state: MachineLiveness.State) -> OfficeTotals.MachineRow:
+	var row := OfficeTotals.MachineRow.new()
+	row.key = key
+	row.label = label
+	row.state = state
+	return row
 
 
 func test_office_arrange() -> void:
@@ -1822,13 +1804,13 @@ func test_office_arrange() -> void:
 ## land exactly on these values.
 func test_hud_free_area() -> void:
 	var hud := await _hud(Vector2(800, 480))
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
 	_eq(
 		hud.world_rect(),
-		Rect2(96, 48, 660, 308),
-		"right of the SPACES rail, left of the drawer's tab, below the bar, above the staff panel's card"
+		Rect2(16, 48, 740, 308),
+		"16 in from the left as the staff panel is, left of the drawer's tab, below the bar, above the staff panel's card"
 	)
 	_eq(hud.placed(hud.bar), Rect2(0, 0, 800, 32), "the bar spans the top")
-	_eq(hud.placed(hud.spaces), Rect2(16, 40, 72, 316), "the minimap is a 72-wide rail, 16 in from the left")
 	_eq(
 		hud.placed(hud.right_column),
 		Rect2(764, 40, 20, 316),
@@ -1838,8 +1820,9 @@ func test_hud_free_area() -> void:
 	_eq(hud.placed(hud.staff), Rect2(16, 372, 768, 80), "the staff panel's card slot spans the bottom, 16 in")
 	_eq(hud.placed(hud.news), Rect2(16, 456, 768, 20), "the NEWS strip under it, along the bottom")
 	hud.fit(Vector2(1600, 960))
-	_eq(hud.placed(hud.spaces).size.x, 120.0, "from 1280 wide the minimap names its floors")
-	_eq(hud.world_rect(), Rect2(144, 48, 1412, 788), "a bigger window is more office, not a bigger HUD")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.world_rect(), Rect2(16, 48, 1540, 788), "a bigger window is more office, not a bigger HUD")
+	_eq(hud.world_rect().position.x, hud.placed(hud.staff).position.x, "the world's left edge is the staff panel's")
 	await _frames(2)
 	var lines: Control = hud.bar.get_node("%Lines")
 	var at := lines.get_global_rect()
@@ -1861,7 +1844,7 @@ func test_hud_free_area() -> void:
 	_eq(panes.get_global_rect().end.x + 4.0, room.position.x, "`13 panes` stands before the switch")
 	_eq(strip.get_global_rect().end.x + 4.0, panes.get_global_rect().position.x, "and the strip has the rest, up to it")
 	# Every panel swallows the mouse, so nothing over one reaches the office.
-	for panel: Control in [hud.bar, hud.spaces, hud.inspector, hud.agent_list]:
+	for panel: Control in [hud.bar, hud.inspector, hud.agent_list]:
 		_eq(panel.mouse_filter, Control.MOUSE_FILTER_STOP, "%s stops the mouse" % panel.name)
 	hud.free()
 

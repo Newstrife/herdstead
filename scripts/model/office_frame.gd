@@ -2,7 +2,7 @@ class_name OfficeFrame
 extends RefCounted
 ## One refresh's whole projection, made once by OfficeProjection.frame() and
 ## read by everything that refresh draws: the navigator, the map, the plate,
-## the SPACES rail, the inspector, attention and the `N` queue. Nothing in a
+## the top bar, the inspector, attention and the `N` queue. Nothing in a
 ## refresh projects a snapshot a second time or scans the machines for a key.
 
 ## One BuildingModel per machine, Local first; each is one map (BuildingModel.map).
@@ -18,8 +18,7 @@ var zone_of_pane: Dictionary[String, String] = {}
 var zone_by_key: Dictionary[String, ZoneRef] = {}
 ## Machine key -> its building.
 var building_by_key: Dictionary[String, BuildingModel] = {}
-## Every zone as the SPACES rail draws it, top to bottom, machine after machine
-## in fleet order (OfficeNavigator.section() per machine: ascending, mezzanines
+## Every zone, first to last, machine after machine in fleet order (OfficeNavigator.section() per machine: ascending, mezzanines
 ## after their source): what PageUp (one back) and PageDown (one on) step
 ## through, across machines.
 var zone_order: Array[String] = []

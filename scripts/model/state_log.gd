@@ -113,8 +113,8 @@ class Track:
 
 
 ## How long a pane has been in the state it is in now, as this log saw it:
-## what the OVERVIEW's FOR, the top bar's `max` and the counters' hover all
-## say (wait_of(), longest()), so they never disagree.
+## what the OVERVIEW's FOR, the portrait cards' waits and their tooltips all
+## say (wait_of()), so they never disagree.
 class Wait:
 	## The open segment's observed length; 0 when none is open or it is unobserved.
 	var msec := 0
@@ -287,21 +287,6 @@ static func wait_of(of: Track, now_msec: int) -> Wait:
 	wait.msec = maxi(now_msec - open.start_msec, 0)
 	wait.plus = not open.observed_start
 	return wait
-
-
-## The longest wait_of() among `of`, `plus` when any of them began unwatched
-## (a null track, one the log never saw, counts as that): a longer one may hide
-## behind it, so the longest is only a lower bound. The top bar's `max`.
-static func longest(of: Array[Track], now_msec: int) -> Wait:
-	var result := Wait.new()
-	for kept in of:
-		if kept == null:
-			result.plus = true
-			continue
-		var wait := StateLog.wait_of(kept, now_msec)
-		result.msec = maxi(result.msec, wait.msec)
-		result.plus = result.plus or wait.plus
-	return result
 
 
 ## Observed blocked time on the track: its closed blocked segments and the open one.

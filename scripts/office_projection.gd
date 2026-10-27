@@ -14,7 +14,7 @@ extends RefCounted
 
 
 ## One refresh's whole projection: every machine as a building, Local first, and
-## the lookups the office, the SPACES rail, the inspector, attention and the `N`
+## the lookups the office, the top bar, the inspector, attention and the `N`
 ## queue make, so nothing is projected twice. `states` are the states the art
 ## pack has a badge for.
 static func frame(machines: Array[MachineView], states: PackedStringArray) -> OfficeFrame:
@@ -231,7 +231,7 @@ static func mezzanine_letters(index: int) -> String:
 	return letters
 
 
-## `floors` in tree order, the order the SPACES rail lists them in: every
+## `floors` in tree order, the order PageUp / PageDown step through: every
 ## zone that is no mezzanine in the order given, each followed by its mezzanines
 ## in theirs. A mezzanine whose parent is not among `floors` stands on its own.
 static func floor_tree(floors: Array[ZoneModel]) -> Array[ZoneModel]:
@@ -256,9 +256,9 @@ static func floor_tree(floors: Array[ZoneModel]) -> Array[ZoneModel]:
 
 ## A zone's own counts of the agents that need a human (OfficeAttention.count()
 ## over its seated panes), each pane key once, and a key the zone carries twice,
-## which it cannot seat, not at all. The one count the SPACES row
-## reads; the world draws the same done panes one by one, as the paper on
-## their desks.
+## which it cannot seat, not at all (ZoneModel.blocked / done; the SPACES
+## rail's rows read them, and since it retired no HUD part does); the world
+## draws the same done panes one by one, as the paper on their desks.
 static func floor_counts(floor_model: ZoneModel) -> Dictionary:
 	var repeated := floor_model.repeated_keys()
 	var counted: Array[PaneModel] = []
@@ -449,8 +449,8 @@ static func choose_machine(buildings: Array[BuildingModel], picked_machine: Stri
 	return frame_of(buildings).choose_machine(picked_machine, active_key)
 
 
-## Every zone as the SPACES rail draws it, machine after machine: the
-## PageUp/PageDown order (see OfficeFrame.zone_order).
+## Every zone in tree order, machine after machine: the PageUp/PageDown order
+## (see OfficeFrame.zone_order).
 static func zone_order(buildings: Array[BuildingModel]) -> Array[String]:
 	return frame_of(buildings).zone_order
 

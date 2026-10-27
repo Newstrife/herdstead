@@ -136,47 +136,45 @@ func _actors_playing(office: OfficeDouble) -> Array:
 	return seen.keys()
 
 
-func _floors_text(office: OfficeDouble) -> String:
-	var texts := PackedStringArray()
-	for label: Label in office.hud.spaces.find_children("*", "Label", true, false):
-		if label.is_visible_in_tree():
-			texts.append(label.text)
-	return " | ".join(texts)
-
-
-## [machine, state] of every icon the minimap shows now. A floor without a
-## count keeps its icon node, hidden.
-func _floor_badges(office: OfficeDouble) -> Array:
-	# A building heading's mark is a plain sprite, not a badge: it stands for a
-	# machine answering, which nobody is waiting on, so it never pulses.
-	var icons: Array = office.hud.spaces.find_children("*", "StatusBadge", true, false)
-	return (
-		icons
-		. filter(func(b: StatusBadge) -> bool: return b.is_visible_in_tree())
-		. map(func(b: StatusBadge) -> Array: return [b.machine, str(b.state)])
-	)
-
-
-## Click through real GUI input, including scrolling tall panels into view.
+## Pick zone `key` without the mouse (S3 BAR-b, 2026-10-27: the SPACES rail
+## is gone): real PageDown / PageUp presses, the direction from
+## OfficeFrame.zone_order, until it is the zone the page keys stand on
+## (OfficeNavigator.current_zone()). Each press is the pick_zone() a SPACES row
+## click took. Nothing is pressed when it is already; fails after as many
+## presses as there are zones. A case that needs a click on the zone uses a
+## portrait card's place instead (_place_click()).
 func _zone_pick(office: OfficeDouble, key: String) -> void:
-	var row: OfficeSpaceRow = office.hud.spaces.row_for(key)
-	if row == null:
-		_fail("no minimap row for " + key)
+	if office.hud.agent_list.has_keyboard():
+		_fail("the agent list holds the keyboard: the page keys would not reach the office")
 		return
-	var scroll: ScrollContainer = office.hud.spaces.get_node("%Scroll")
-	scroll.ensure_control_visible(row)
+	var order := office.frame.zone_order
+	if not order.has(key):
+		_fail("no zone " + key)
+		return
+	for press in order.size():
+		var standing := office.navigator.current_zone(office.frame)
+		if standing == key:
+			return
+		var down := standing.is_empty() or order.find(key) > order.find(standing)
+		await _navigate_key(office, KEY_PAGEDOWN if down else KEY_PAGEUP)
+	if office.navigator.current_zone(office.frame) != key:
+		_fail("the page keys never reached " + key)
+
+
+## A real click on the place (zone tag and space) of pane `pane_key`'s
+## portrait card: it pans to that pane's zone and selects nothing.
+func _place_click(office: OfficeDouble, pane_key: String) -> void:
+	var card := office.hud.bar.card_for(pane_key)
+	if card == null:
+		_fail("no portrait card for " + pane_key)
+		return
+	var place: Button = card.get_node("%PlaceButton")
+	if not place.is_visible_in_tree():
+		_fail("the card of %s shows no place" % pane_key)
+		return
+	_press(place.get_global_rect().get_center(), MOUSE_BUTTON_LEFT)
 	await process_frame
 	await process_frame
-	for down: bool in [true, false]:
-		var event := InputEventMouseButton.new()
-		event.button_index = MOUSE_BUTTON_LEFT
-		event.position = row.get_global_rect().get_center()
-		event.global_position = event.position
-		event.pressed = down
-		Input.parse_input_event(event)
-		Input.flush_buffered_events()
-		await physics_frame
-		await physics_frame
 
 
 func _navigate_key(_to: OfficeDouble, code: Key) -> void:
@@ -265,17 +263,14 @@ func _pane_state(office: OfficeDouble, key: String) -> String:
 	return ""
 
 
-## A real click on machine `key`'s SPACES heading, through the GUI.
+## A real click on machine `key`'s chip in the top bar, through the GUI
+## (S3 BAR-b, 2026-10-27: the SPACES rail's headings are gone).
 func _heading_pick(office: OfficeDouble, key: String) -> void:
-	var heading := office.hud.spaces.heading_for(key)
-	if heading == null:
-		_fail("no SPACES heading for " + key)
+	var chip := office.hud.bar.chip_for(key)
+	if chip == null:
+		_fail("no machine chip for " + key)
 		return
-	var scroll: ScrollContainer = office.hud.spaces.get_node("%Scroll")
-	scroll.ensure_control_visible(heading)
-	await process_frame
-	await process_frame
-	_press(heading.button().get_global_rect().get_center(), MOUSE_BUTTON_LEFT)
+	_press(chip.get_global_rect().get_center(), MOUSE_BUTTON_LEFT)
 	await process_frame
 	await process_frame
 
@@ -286,16 +281,6 @@ func _held_status(office: OfficeDouble, machine: String, pane_id: String) -> Str
 		if pane.pane_id == pane_id:
 			return pane.agent_status
 	return ""
-
-
-## Where a floor's row sits in the viewport.
-func _row_position(office: OfficeDouble, key: String) -> Vector2:
-	var row: OfficeSpaceRow = office.hud.spaces.row_for(key)
-	if row == null:
-		_fail("no minimap row for " + key)
-		return Vector2.ZERO
-	return row.get_global_rect().get_center()
-	return Vector2.ZERO
 
 
 ## Press and release a mouse button at a viewport position, through the GUI.
