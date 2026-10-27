@@ -608,7 +608,7 @@ func test_labels_clear_the_heads_they_hang_on() -> void:
 			_check(mark.encloses(figure), "%s: the selection mark %s frames the figure %s" % [where, mark, figure])
 			# Without the lens the plate takes the lens row's slot, next to the tag
 			# row; with it, the lens line takes that slot and the plate moves out.
-			var slot: Vector2 = station.rest_position() + OfficeStation.LENS_AT[side]
+			var slot: Vector2 = OfficeStation.LENS_AT[side]
 			_eq(_plate_of(station).position, slot, "%s: unheld, the plate in the lens row's slot" % where)
 			# The lens line clears the figure and the badge as the plate does.
 			station.show_lens(true, "99m+")
@@ -659,10 +659,10 @@ func test_labels_clear_the_heads_they_hang_on() -> void:
 		station.free()
 
 
-## The lens line on each side and over a worker resting away: its row is the
-## one between the tag row and the plate row (far pod [-102, -90), near
-## [40, 52), past the tab label), its text clears the badge at the top of its pulse and the
-## plate's text, and away it is centred over the worker, above their badge.
+## The lens line on each side, an idle worker's included (at their seat: D2,
+## 2026-10-27): its row is the one between the tag row and the plate row (far
+## pod [-102, -90), near [40, 52), past the tab label), its text clears the
+## badge at the top of its pulse and the plate's text.
 ## While it shows the chip draws nothing and the badge is back in the middle of
 ## its row; let go, the line is gone and the chip is drawn again. (The line
 ## used to be inside the pod's render_rect, beside the badge; at the 32-unit
@@ -698,24 +698,17 @@ func test_the_lens_line_stays_inside_the_desk_and_off_the_badge() -> void:
 		_check(not line.visible, "%s: let go, no line" % side)
 		_eq(badge_node.position, chipped, "%s: and the badge is in the chip again" % side)
 		station.free()
-	var away := pen.station(sorted, table, 1, "far")
-	away.furnish("codex", ArtContract.STATE_IDLE, false)
-	away.rest_at(OfficeRests.Rest.PANTRY, away.position + Vector2(40, 180))
-	away.show_lens(true, "12m")
-	var lens := _lens_text(away)
-	var badge_node: Sprite2D = away.get_node("Overlay/Badge")
-	var badge := _in_station(away, badge_node, badge_node.get_rect())
-	_eq(lens.get_center().x, away.away_at.x, "away: centred over the worker")
-	_check(lens.end.y <= badge.position.y, "away: the text %s above the badge %s" % [lens, badge])
-	var figure := _drawn_figure(away)
-	_check(not lens.intersects(figure), "away: it clears the figure %s" % figure)
-	_check(not _plate_of(away).visible, "away: no plate even under the lens")
-	var mark_node: Sprite2D = away.get_node("Overlay/Selection")
-	away.select(true)
-	_check(
-		_in_station(away, mark_node, mark_node.get_rect()).encloses(figure), "away: the mark frames the standing figure"
-	)
-	away.free()
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
+	# An idle worker's line is on their own seat's lens row, as anyone's (it hung
+	# over the worker standing in the pantry before), and the plate shows with it.
+	var idle := pen.station(sorted, table, 1, "far")
+	idle.furnish("codex", ArtContract.STATE_IDLE, false)
+	idle.show_lens(true, "12m")
+	var idle_line: Label = idle.get_node("Overlay/Lens")
+	var idle_drawn := table.global_transform.affine_inverse() * idle_line.get_global_transform()
+	_eq(idle_drawn * Rect2(Vector2.ZERO, idle_line.size), Rect2(33, -102, 30, 12), "idle: its own seat's lens row")
+	_check(_plate_of(idle).visible, "idle: and its plate under the lens, at the desk")
+	idle.free()
 
 
 ## Where the lens line's text is drawn, in the station's coordinates: centred,
@@ -898,8 +891,8 @@ func test_the_paper_stack_sits_beside_the_laptop_and_off_the_neighbours() -> voi
 		for column in table.columns.size():
 			for side: String in OfficeTable.SIDES:
 				var where := "%d columns, column %d %s" % [capacity, column, side]
-				table.show_papers(column, side, true)
-				var paper := _opaque(table.papers(column, side))
+				table.show_item(column, side, ArtContract.PROP_DONE_STACK_SMALL)
+				var paper := _opaque(table.item(column, side))
 				var laptop := _opaque(table.monitor(column, side))
 				var plane: Rect2 = planes[side]
 				_check(plane.encloses(paper), "%s: the paper %s is on its plane %s" % [where, paper, plane])
@@ -920,7 +913,7 @@ func test_the_paper_stack_sits_beside_the_laptop_and_off_the_neighbours() -> voi
 							not paper.intersects(blocked[other]),
 							"%s: clear of blocked worker %s %s: %s" % [where, other, blocked[other], paper]
 						)
-				table.show_papers(column, side, false)
+				table.show_item(column, side, &"")
 
 
 ## The opaque pixels of `sprite`, a child of the table, in the table's coordinates.
@@ -1261,8 +1254,8 @@ func test_the_far_laptop_never_covers_the_far_worker() -> void:
 ## on an opaque chair texel and none under the near sitter, who sorts behind the
 ## chair, in every seated state. A shell, a launch whose kind is not known yet,
 ## an empty seat and a provider the pack has no mark for wear none, and a seat
-## that wears none holds no texture; the near mark stays while its agent is
-## away in the pantry. A provider change swaps the texture on the same node; a
+## that wears none holds no texture. (The near mark stayed while its agent was
+## away in the pantry; nobody is away since D2, 2026-10-27.) A provider change swaps the texture on the same node; a
 ## resize, a relocation and a move to another seat (OfficeDeskView's reconcile,
 ## with no furnish after it) keep the mark with its agent.
 func test_a_seat_wears_its_agents_mark() -> void:
@@ -1344,13 +1337,6 @@ func test_a_seat_wears_its_agents_mark() -> void:
 			station.furnish("codex", ArtContract.STATE_WORKING)
 			_eq(mark.texture, codex, "%s: a provider change swaps the mark" % where)
 			_eq(world.find_children("*", "", true, false).size(), nodes, "%s: and adds no node" % where)
-			if side == "near":
-				station.furnish("claude", ArtContract.STATE_IDLE)
-				station.rest_at(OfficeRests.Rest.PANTRY, station.position + Vector2(0, -200))
-				_check(
-					station.away() and mark.visible and mark.texture == claude, "%s: the agent away, it stays" % where
-				)
-				station.rest_at(OfficeRests.Rest.SEAT)
 			station.furnish("", ArtContract.STATE_IDLE)
 			_check(not mark.visible, "%s: a shell wears no mark" % where)
 			_eq(mark.texture, null, "%s: and holds none, as a rebuilt seat does" % where)
@@ -1592,7 +1578,7 @@ func test_the_near_paper_shows_beside_whoever_sits_there() -> void:
 					"claude", ArtContract.STATE_DONE if other == column else ArtContract.STATE_BLOCKED
 				)
 				_eq(
-					table.papers(other, "near").visible,
+					table.item(other, "near").visible,
 					other == column,
 					"%d columns, column %d: paper only at the done seat (%d)" % [capacity, column, other]
 				)
@@ -1601,7 +1587,7 @@ func test_the_near_paper_shows_beside_whoever_sits_there() -> void:
 					other != column,
 					"%d columns, column %d: the chip only at the blocked seats (%d)" % [capacity, column, other]
 				)
-			var paper := _texels(table.papers(column, "near"), to_pod)
+			var paper := _texels(table.item(column, "near"), to_pod)
 			_check(not paper.is_empty(), "%d columns, column %d: the paper is drawn" % [capacity, column])
 			for other: int in [column - 1, column, column + 1]:
 				if other < 0 or other >= stations.size():
@@ -1621,6 +1607,107 @@ func test_the_near_paper_shows_beside_whoever_sits_there() -> void:
 				)
 		for station in stations:
 			station.free()
+
+
+## The idle mug (ArtContract.PROP_IDLE_MUG) beside the laptop, on both sides
+## and at every column of pods of 2, 4 and 6: inside its side's working plane
+## (the last column's too), right of the laptop and clear of it, clear of the
+## pod's selection frame, and no texel of it under the idle sitter's desk_idle
+## frames (the near sitter sits over the near plane; the far one shows above
+## the far edge) or the near chair, nor under either neighbour at work. It
+## shows only for idle: hidden for done (the paper instead, on the same
+## sprite), blocked, working, a shell and a vacant seat; the swap adds no
+## node, and the mug is still there after a resize and a relocation.
+## D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
+func test_the_mug_sits_beside_the_laptop_and_off_the_neighbours() -> void:
+	var table := _table()
+	var mug_texture := art.sprite_texture(art.prop_sprite(ArtContract.PROP_IDLE_MUG))
+	_check(mug_texture != null, "the pack draws the idle mug")
+	for capacity: int in [2, 4, 6]:
+		_check(table.resize(capacity), "%d columns" % capacity)
+		var to_pod := table.global_transform.affine_inverse()
+		var w := table.width
+		var screen := -OfficeTable.SURFACE_DEPTH + OfficeTable.SCREEN_TOP
+		var planes := {
+			"far": Rect2(0, -OfficeTable.SURFACE_DEPTH, w, OfficeTable.SCREEN_TOP),
+			"near":
+			Rect2(
+				0,
+				screen + OfficeTable.SCREEN_HEIGHT,
+				w,
+				OfficeTable.NEAR_SURFACE_EDGE - screen - OfficeTable.SCREEN_HEIGHT
+			),
+		}
+		for side: String in OfficeTable.SIDES:
+			var stations: Array[OfficeStation] = []
+			for column in table.columns.size():
+				stations.append(pen.station(sorted, table, column, side))
+			for column in table.columns.size():
+				var where := "%d columns, column %d %s" % [capacity, column, side]
+				for other in stations.size():
+					stations[other].furnish(
+						"claude", ArtContract.STATE_IDLE if other == column else ArtContract.STATE_WORKING
+					)
+				var item := table.item(column, side)
+				_check(item.visible and item.texture == mug_texture, "%s: idle, the mug shows" % where)
+				for other in stations.size():
+					if other != column:
+						_check(
+							not table.item(other, side).visible, "%s: and no other seat's item (%d)" % [where, other]
+						)
+				var mug := _opaque(item)
+				var laptop := _opaque(table.monitor(column, side))
+				var plane: Rect2 = planes[side]
+				_check(plane.encloses(mug), "%s: the mug %s is on its plane %s" % [where, mug, plane])
+				_check(mug.position.x >= laptop.end.x + 2.0, "%s: 2 right of the laptop %s at least" % [where, laptop])
+				table.set_selected(true)
+				for bar in _frame_bars(table):
+					var local := to_pod * bar
+					_check(not local.intersects(mug), "%s: the frame's bar %s clears the mug" % [where, local])
+				table.set_selected(false)
+				var texels := _texels(item, to_pod)
+				_eq(texels.size(), 155, "%s: every texel of the mug is drawn" % where)
+				for other: int in [column - 1, column, column + 1]:
+					if other < 0 or other >= stations.size():
+						continue
+					var covers := _figure_texels(stations[other], to_pod)
+					if side == "near":
+						covers.merge(_chair_texels(stations[other], to_pod))
+					var hidden := 0
+					for texel: Vector2i in texels:
+						hidden += int(covers.has(texel))
+					_eq(hidden, 0, "%s: column %d's sitter and chair cover none of it" % [where, other])
+			# The one sprite swaps between the paper, the mug and nothing in place.
+			var station := stations[0]
+			var nodes := world.find_children("*", "", true, false).size()
+			var held := table.item(0, side)
+			for state: StringName in [
+				ArtContract.STATE_DONE, ArtContract.STATE_BLOCKED, ArtContract.STATE_WORKING, ArtContract.STATE_IDLE
+			]:
+				station.furnish("claude", state)
+				var want: StringName = OfficeStation.desk_item(true, state)
+				_eq(table.item(0, side), held, "%s %s: the same sprite" % [side, state])
+				_eq(table.item_piece(0, side), want, "%s %s: shows %s" % [side, state, want])
+				_eq(held.visible, want != &"", "%s %s: shown or not" % [side, state])
+				_eq(world.find_children("*", "", true, false).size(), nodes, "%s %s: no node added" % [side, state])
+			_eq(held.texture, mug_texture, "%s: idle again, the mug's picture" % side)
+			var at := held.position
+			_check(table.resize(capacity + 2), "%s: grown" % side)
+			_check(table.relocate(table.position + Vector2(32, 0)), "%s: moved" % side)
+			_check(
+				table.item(0, side) == held and held.visible and held.texture == mug_texture,
+				"%s: the mug kept across a resize and a relocation" % side
+			)
+			_eq(held.position, at, "%s: where it was on the pod" % side)
+			_check(table.resize(capacity), "%s: back to %d columns" % [side, capacity])
+			_check(table.relocate(table.position - Vector2(32, 0)), "%s: and back where it stood" % side)
+			station.furnish("", ArtContract.STATE_IDLE)
+			_check(not held.visible and held.texture == null, "%s: a shell has none and holds no texture" % side)
+			station.furnish("claude", ArtContract.STATE_IDLE)
+			station.vacate()
+			_check(not held.visible and held.texture == null, "%s: a vacant seat has none" % side)
+			for each in stations:
+				each.free()
 
 
 ## The near task lamp's wedge still reads with somebody at the desk: the sitter
@@ -1646,8 +1733,8 @@ func test_the_near_lamp_shows_on_both_sides_of_its_sitter() -> void:
 			var covers := _figure_texels(station, to_pod)
 			covers.merge(_chair_texels(station, to_pod))
 			covers.merge(_texels(table.monitor(column, "near"), to_pod))
-			if table.papers(column, "near").visible:
-				covers.merge(_texels(table.papers(column, "near"), to_pod))
+			if table.item(column, "near").visible:
+				covers.merge(_texels(table.item(column, "near"), to_pod))
 			var sides: Dictionary[String, int] = {"left": 0, "right": 0}
 			for y in range(floori(bounds.position.y * 2.0), ceili(bounds.end.y * 2.0)):
 				for x in range(floori(bounds.position.x * 2.0), ceili(bounds.end.x * 2.0)):

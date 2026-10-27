@@ -748,10 +748,10 @@ func _text_tick() -> void:
 
 ## `snapshot` with `count` more agents, idle, in a tab of the api floor of
 ## their own that is projected before the others (number 0): residents that
-## went idle first (their starts unknown, from the first snapshot they are in),
-## so they hold that many pantry spots before anyone a case watches. The
-## narrowest map's pantry holds five; three residents leave the two a case
-## fills and overfills.
+## went idle first (their starts unknown, from the first snapshot they are in):
+## more idle agents, each at their own seat with a mug, ahead of anyone a case
+## watches in the `N` order. (They held pantry spots before D2, 2026-10-27: idle
+## sits with a mug; the pantry is a nook nobody walks to.)
 func _with_residents(snapshot: Dictionary, count := 3) -> Dictionary:
 	var result: Dictionary = snapshot.duplicate(true)
 	_list(result, "tabs").append({"tab_id": "api:t0", "workspace_id": "api", "number": 0, "label": "residents"})
@@ -793,7 +793,8 @@ func _six_zones() -> Dictionary:
 
 ## Every piece of standing furniture on the shown map, in tree order: the
 ## top-wall run's plants and the lane gaps' plants and side tables, not the
-## entry band's pantry counter (_fixtures()), which stands in its walkway on purpose.
+## entry band's pantry counter (_fixtures()), which stands in its corner of the
+## walkway on purpose.
 func _decor(office: OfficeDouble) -> Array[OfficeDecor]:
 	var found: Array[OfficeDecor] = []
 	for node: Node in office.world.find_children("*", "OfficeDecor", true, false):

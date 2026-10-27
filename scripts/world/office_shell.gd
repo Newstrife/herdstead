@@ -47,20 +47,14 @@ const FRAME_FOOT := 48.0
 const FRAME_GAP := 8.0
 
 ## The entry band, measured from its top. Its first cell row is inside the top
-## wall's drawing clearance (a person's whole canvas stays off the wall), the
-## second is the fixture row, where the pantry's people stand, and the third is
-## the walking lane everyone steps up into it from: the centres of those two rows.
-const FIXTURE_ROW := 48.0
-const WALKING_LANE := 80.0
+## wall's drawing clearance (a person's whole canvas stays off the wall); the
+## second is the walking lane, the centre of that row.
+const WALKING_LANE := 48.0
 ## Where the pantry counter meets the floor, under the top wall: its footprint
-## ends 6 units short of the fixture row, which a person's feet (4 deep) keep clear of.
+## (14 deep) ends 6 units short of the walking lane's node centres, which a
+## person's feet (4 deep) keep clear of, so the lane is walked in front of it.
+## A corner nook: furniture, and nobody stands at it.
 const COUNTER_FOOT := 42.0
-## How far apart the pantry's people stand: a wait label 40 wide over the
-## badge and 8 between neighbours, 48.
-const SPOT_PITCH := 48.0
-const MAX_PANTRY := 24
-## Between the pantry's last spot and the main corridor, at the least.
-const FIXTURE_GAP := 16.0
 
 ## A zone's low partitions: bands PARTITION_THICKNESS thick inside its left,
 ## right and bottom edges (ZonePlacement.partitions()), drawn no taller than

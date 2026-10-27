@@ -47,8 +47,9 @@ at build time:
 | `wall` | — | the frame band's own planner checks where it fits |
 
 **Signals stay out of the pools.** Visual-language rule 1 is unchanged: an item in a pool is furniture, drawn at
-random, never from state. A signal (`done_stack_small`) has no `group`: it is placed by code by id, and `ArtContract`
-refuses it in a pool. `ArtContract.ITEM_GROUPS` names the pools scenes draw from (`desk`, `cat`, `plant`), each of
+random, never from state. A signal (`done_stack_small`, `idle_mug`: `ArtContract.DESK_SIGNALS`) has no `group`: it is
+placed by code by id, and `ArtContract` refuses it in a pool. (`idle_mug` is the desk pool's mug's picture as a prop
+of its own: on a side table a mug is furniture, beside a laptop it is idle's signal.) `ArtContract.ITEM_GROUPS` names the pools scenes draw from (`desk`, `cat`, `plant`), each of
 which must have a member standing where it is drawn; a pool's members count as used in `PACK_UNUSED`.
 
 ## New kinds (first batch, all furniture)

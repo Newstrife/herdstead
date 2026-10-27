@@ -1,11 +1,12 @@
 extends "res://tools/walking_test_base.gd"
 ## The people of the shown floor walking (OfficePresentation): in at the lift
-## door, out of it as a ghost, to the pantry and back, over to a new seat;
+## door, out of it as a ghost, over to a new seat (nobody walks for a state:
+## D2, 2026-10-27, idle sits with a mug; the pantry is a nook nobody walks to);
 ## one body per worker through every change of mind; cold wherever the floor is
 ## drawn afresh or the machine was away; frozen while it is. The office is real,
 ## its snapshots are handed to its stopped client, and time is stepped through
 ## the floor view's own walk(), so every position asserted is one a frame drew.
-## Who rests where (the seat, the pantry) has its own suite, tools/test_office_rests.gd.
+## What each state looks like at the seat has its own suite, tools/test_office_rests.gd.
 ##
 ## godot --headless --path . --script tools/test_office_walking.gd -- \
 ##     --read-only --socket=<a socket nobody listens on> --work=<short tmp dir>
@@ -40,7 +41,11 @@ func test_an_arrival_walks_in_from_the_door_to_the_seat() -> void:
 	_eq(_floor_point(office, body), _door(office), "the worker comes in at the lift door")
 	var route := _route(office, body)
 	_check(route.size() >= 3 and route[0] == _door(office), "and walks from there: %s" % [route])
-	_eq(_segment_of(_threshold(office), route), 0, "over the door's threshold, straight down from it")
+	# D2 (2026-10-27): the band is two cells (SEATED-Q2): the threshold is the
+	# walking lane's node under the door, where a way in may turn along the lane.
+	var threshold := _threshold(office)
+	_eq([route[1].x, threshold.y], [route[0].x, 112.0], "straight down from the door to the lane's threshold")
+	_check(route[1].y >= threshold.y, "and over it: %s" % [route])
 	_eq(_last(route), _seat_of(office, "api:p3"), "to the seat")
 	_eq(body.get_parent(), station, "the seat's own worker while they walk")
 	_eq([body.track, body.look.context], [ArtContract.TRACK_WALK, AvatarLook.STAND], "walking on their feet")
@@ -102,13 +107,13 @@ func test_a_departure_walks_out_as_a_ghost() -> void:
 		_done(office)
 
 
-## An idle agent walks from the seat to the pantry and back by the seat's own
-## leg: a far one straight out of the table along its column, a near one beside
-## the chair (a sidestep to the table's standing spot, then down that column),
-## never along the chair's column; back in the same way. The plate, badge and
-## click target move with the observation, the body catches up; the same node
-## throughout.
-func test_going_to_the_pantry_and_back_walks_the_seat_legs() -> void:
+## Going idle walks nobody, far or near: the same body stays in the chair,
+## playing desk_idle, and going back to work walks nobody either. D2
+## (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
+## Whoever leaves an idle seat walks out by the seat's own leg: a far one
+## straight out of the table along its column (a near one beside the chair:
+## test_a_near_seat_is_entered_and_left_beside_the_chair).
+func test_going_idle_walks_nobody() -> void:
 	var both_sides := _both_sides()
 	var office := await _live_office(both_sides)
 	var ids := {}
@@ -119,47 +124,27 @@ func test_going_to_the_pantry_and_back_walks_the_seat_legs() -> void:
 	for step: int in 2:
 		var out := step == 0
 		_feed(office, idle if out else both_sides)
-		var routes: Dictionary[String, PackedVector2Array] = {}
+		var when := "going idle" if out else "back at work"
+		_eq([_ids(_walkers(office)), _ids(_ghosts(office))], [[], []], when + ": nobody walks")
+		_check_routes(office.floor_view, office.art.people, when)
 		for pane_id: String in ["api:p1", "api:p3"]:
 			var station := _station(office, _pane(pane_id))
 			var body := station.actor()
-			var seat := _seat_of(office, pane_id)
-			var leg := _seat_leg_of(office.layout_plan(), _pane(pane_id))
-			var where := "%s (%s) %s" % [pane_id, station.side, "to the pantry" if out else "back to the seat"]
+			var where := "%s (%s) %s" % [pane_id, station.side, when]
 			sides[station.side] = true
 			_eq(body.get_instance_id(), ids[pane_id], where + ": the same worker")
-			_eq(station.away(), out, where + ": the seat's labels and click target move at once")
-			var route := _route(office, body)
-			routes[pane_id] = route
-			if out:
-				_eq(route[0], seat, where + ": from the seat")
-				_eq(_last(route), station.position + station.rest_position(), where + ": to the pantry spot")
-			else:
-				_eq(_last(route), seat, where + ": to the seat")
-			if station.side == "near":
-				var inward := leg.slice(1)
-				var outward := inward.duplicate()
-				outward.reverse()
-				if out:
-					_eq(route.slice(0, 3), outward, where + ": a sidestep to the spot, then down its column")
-				else:
-					_eq(route.slice(route.size() - 3), inward, where + ": up the spot's column, a sidestep in")
-				_check(not _runs_along(route, seat.x), where + ": never along the chair's column: %s" % [route])
-			else:
-				var next := route[1] if out else route[route.size() - 2]
-				_eq(next.x, seat.x, where + ": straight along the seat's own column, out of the table")
-		_check_routes(office.floor_view, office.art.people, "to the pantry" if out else "back to the seats")
-		for pane_id: String in ["api:p1", "api:p3"]:
-			var station := _station(office, _pane(pane_id))
-			var body := station.actor()
-			var where := "%s (%s) %s" % [pane_id, station.side, "to the pantry" if out else "back to the seat"]
-			_walk_along(office, body, routes[pane_id], 1.0 / FPS)
-			var goal := station.position + station.rest_position()
-			_eq(_floor_point(office, body), goal, where + ": ends where they belong")
-			_eq(str(body.look.context), "stand" if out else "desk", where + ": standing or sitting")
-			if out:
-				_eq(str(body.facing), "front", where + ": facing the viewer")
+			_eq(_floor_point(office, body), _seat_of(office, pane_id), where + ": in the chair")
+			_eq(str(body.look.context), "desk", where + ": sitting")
+			_eq(body.animation, &"idle" if out else &"working", where + ": playing its state")
 	_eq(sides.keys().size(), 2, "one worker on each side of the table")
+	_feed(office, idle)
+	var leaving := _station(office, _pane("api:p1")).actor()
+	_feed(office, _with(idle, "api:p1", {"agent": "codex"}))
+	_eq(_ids(_ghosts(office)), _ids([leaving]), "another agent in the idle far seat: the idle one leaves")
+	var route := _route(office, leaving)
+	_eq(route[0], _seat_of(office, "api:p1"), "from the chair")
+	_eq(route[1].x, route[0].x, "straight along the seat's own column, out of the table")
+	_check_routes(office.floor_view, office.art.people, "leaving an idle far seat")
 	_done(office)
 
 
@@ -243,14 +228,20 @@ func test_turning_round_keeps_one_body() -> void:
 
 ## Status flapping within a walk walks the same worker wherever the latest
 ## observation says, and nothing an earlier one started lands them anywhere
-## else: idle, working, idle, blocked ends blocked, back in the chair with a
-## hand up (a blocked agent sits; idle is the one that walks away).
+## else: a worker walking in while its state goes idle, working, idle, blocked
+## ends blocked, in the chair with a hand up. D2 (2026-10-27): idle sits with
+## a mug; the pantry is a nook nobody walks to, so the walk is an arrival's
+## (idle used to walk away and back).
 func test_flapping_states_end_where_the_last_one_says() -> void:
-	var office := await _live_office()
+	var office := await _live_office(_with(fixture, "api:p1", {"agent": null}))
+	office.settle()
+	var arriving := _with(fixture, "api:p1", {"agent": "codex"})
+	_feed(office, arriving)
 	var body := _station(office, _pane("api:p1")).actor()
 	var id := body.get_instance_id()
+	_check(_walkers(office).has(body), "api:p1's worker walks in")
 	for state: String in ["idle", "working", "idle", "blocked"]:
-		_feed(office, _with(fixture, "api:p1", {"agent_status": state}))
+		_feed(office, _with(arriving, "api:p1", {"agent_status": state}))
 		_check(
 			_walkers(office).has(body),
 			"%s: walks where the latest word sends them, from %s" % [state, _floor_point(office, body)]
@@ -403,10 +394,12 @@ func test_a_new_workspace_is_a_zone_its_people_walk_into() -> void:
 ## so it is no cold pass: whoever was walking walks on, along the same route.
 func test_a_pagedown_pans_without_rebuilding() -> void:
 	var office := await _live_office()
-	_feed(office, _with(fixture, "api:p1", {"agent_status": "idle"}))
-	var body := _station(office, _pane("api:p1")).actor()
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to:
+	# the walk is an arrival's.
+	_feed(office, _with(fixture, "api:p3", {"agent": "codex"}))
+	var body := _station(office, _pane("api:p3")).actor()
 	_step(office, 1.0 / FPS, 3)
-	_check(_walkers(office).has(body), "api:p1 is on its way to the pantry")
+	_check(_walkers(office).has(body), "api:p3 is on its way in")
 	var route := _route(office, body)
 	var world := office.world.get_instance_id()
 	var pan := office.camera.pan
@@ -414,7 +407,7 @@ func test_a_pagedown_pans_without_rebuilding() -> void:
 	_eq(office.navigator.current_zone(office.frame), HerdrFleet.pane_key(LOCAL, "web"), "PageDown pans to web")
 	_check(office.camera.pan != pan, "the camera moved")
 	_eq(office.world.get_instance_id(), world, "the world is not built again")
-	_check(_walkers(office).has(body), "api:p1 still walks: no cold pass")
+	_check(_walkers(office).has(body), "api:p3 still walks: no cold pass")
 	_eq(_route(office, body), route, "along the same route")
 	_done(office)
 
@@ -424,23 +417,24 @@ func test_a_pagedown_pans_without_rebuilding() -> void:
 ## the same map is no longer drawn afresh: test_a_pagedown_pans_without_rebuilding.)
 func test_a_new_theme_or_floor_walks_nobody() -> void:
 	var office := await _two_machine_office(fixture, PLAN_SCREEN)
-	_feed(office, _without(_with(fixture, "api:p1", {"agent_status": "idle"}), "api:p2"))
-	_check(_walkers(office).size() == 2 and _ghosts(office).size() == 1, "one worker goes to the pantry, one leaves")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to:
+	# the walker is an arrival.
+	_feed(office, _without(_with(fixture, "api:p3", {"agent": "codex"}), "api:p2"))
+	_check(_walkers(office).size() == 2 and _ghosts(office).size() == 1, "one worker walks in, one leaves")
 	_step(office, 1.0 / FPS, 5)
 	office.switch_theme(_second_pack())
 	_eq([_ids(_walkers(office)), _ids(_ghosts(office))], [[], []], "a new theme walks nobody")
-	var body := _station(office, _pane("api:p1")).actor()
-	var resting := _station(office, _pane("api:p1"))
-	_eq(_floor_point(office, body), resting.position + resting.rest_position(), "the idle worker is in the pantry")
+	var body := _station(office, _pane("api:p3")).actor()
+	_eq(_floor_point(office, body), _seat_of(office, "api:p3"), "the arriving worker is in the chair")
 	_feed(office, fixture)
-	_check(_walkers(office).size() == 2, "going back to the seat walks, and so does coming back")
+	_check(_walkers(office).size() == 2 and _ghosts(office).size() == 1, "coming back walks, and so does leaving")
 	await _visit_zone(office, HerdrFleet.pane_key(BEE, "hive"))
 	_eq(office.navigator.shown_key, BEE, "bee's map")
 	await _visit_zone(office, HerdrFleet.pane_key(LOCAL, "api"))
 	_eq(office.navigator.shown_key, LOCAL, "and Local's again")
 	_eq([_ids(_walkers(office)), _ids(_ghosts(office))], [[], []], "another machine and back walks nobody")
-	body = _station(office, _pane("api:p1")).actor()
-	_eq(_floor_point(office, body), _seat_of(office, "api:p1"), "the worker sits where they belong")
+	body = _station(office, _pane("api:p2")).actor()
+	_eq(_floor_point(office, body), _seat_of(office, "api:p2"), "the worker sits where they belong")
 	_done(office)
 
 
@@ -481,13 +475,11 @@ func test_a_refresh_after_a_layout_problem_walks_nobody() -> void:
 	_feed(office, _with(_with(fixture, "api:p3", {"agent": "codex"}), "api:p1", {"agent_status": "idle"}))
 	_check(office.layout_problems().is_empty(), "the corrected input can")
 	_eq([_ids(_walkers(office)), _ids(_ghosts(office))], [[], []], "and walks nobody")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
 	var station := _station(office, _pane("api:p1"))
-	_eq(
-		_floor_point(office, station.actor()),
-		station.position + station.rest_position(),
-		"the idle worker is in the pantry"
-	)
-	_eq(station.rest, OfficeRests.Rest.PANTRY, "placed there")
+	_eq(_floor_point(office, station.actor()), _seat_of(office, "api:p1"), "the idle worker is in the chair")
+	_eq(station.table.item_piece(station.column, station.side), ArtContract.PROP_IDLE_MUG, "with a mug")
+	_eq(_floor_point(office, arriving), _seat_of(office, "api:p3"), "the arrival placed at its seat")
 	_done(office)
 
 
@@ -951,7 +943,7 @@ func test_routing_stops_at_its_budget_and_places_the_rest() -> void:
 			var body := station.actor()
 			if body == null or presentation.walkers().has(body):
 				continue
-			_eq(body.position, station.rest_position(), "budget %d: %s, placed, is where they belong" % [budget, key])
+			_eq(body.position, Vector2.ZERO, "budget %d: %s, placed, is where they belong" % [budget, key])
 			_eq(body.paced(), 1.0, "budget %d: %s at rest at the family's pace" % [budget, key])
 		_check_routes(view, art.people, "budget %d, the floor widened" % budget)
 		print(

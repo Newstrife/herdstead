@@ -216,8 +216,9 @@ static func _zone_problems(value: FloorPlan, rules: FloorLayoutPolicy) -> Packed
 ## side, round the chair on the near side). The only obstacle a leg may enter
 ## is its own table, along that leg: the far seat is inside the footprint (the
 ## graph's entries). A leg from an approach nobody reaches is not looked at.
-## The pantry the same way: every spot's approach is reached from the
-## threshold's end, and its leg up to the fixture row is clear.
+## The pantry counter is an obstacle like any furniture: nobody walks to it,
+## so it has no approach of its own, and one that stands in a way is reported
+## as that way's (an approach it blocks is unreachable).
 static func _route_problems(value: FloorPlan, rules: FloorLayoutPolicy) -> PackedStringArray:
 	var found := PackedStringArray()
 	var graph := OfficeWalkGraph.build(value, rules.actor_footprint, rules.actor_draw_rect)
@@ -240,22 +241,13 @@ static func _route_problems(value: FloorPlan, rules: FloorLayoutPolicy) -> Packe
 				var seat := placed.origin + placed.measure.seat_position(column, side)
 				if not graph.clear_route(OfficeWalkGraph.leg_to_seat(approach, seat, standing, near)):
 					found.append("blocked seat leg: " + where)
-	for fixture in value.fixtures():
-		for index in fixture.spots.size():
-			var approach := fixture.approaches[index]
-			var cell := OfficeWalkGraph.cell_of(approach)
-			if not graph.reaches(cell) or not graph.clear(OfficeWalkGraph.centre(cell), approach):
-				found.append("unreachable %s approach: %d" % [fixture.key, index])
-			elif not graph.clear_route(OfficeWalkGraph.leg_to_fixture(approach, fixture.spots[index])):
-				found.append("blocked %s leg: %d" % [fixture.key, index])
 	return found
 
 
 ## Whether the pantry is where the fixture planner puts it: only on a map with
-## desks; its counter inside the entry band, left of the main corridor, its
-## drawing on the floor; its spots on the fixture row from the left wall on, a
-## pitch apart, ending FIXTURE_GAP at least before the main corridor, each
-## approach straight below its spot on the walking lane; 1 to MAX_PANTRY spots.
+## desks whose band has the walking lane under the wall's clearance; its
+## counter inside the entry band, left of the main corridor, its drawing on
+## the floor. It has no spots: nobody stands at it.
 static func _fixture_problems(value: FloorPlan) -> PackedStringArray:
 	var found := PackedStringArray()
 	var pantry := value.pantry
@@ -266,11 +258,8 @@ static func _fixture_problems(value: FloorPlan) -> PackedStringArray:
 	var grid := float(FloorLayoutPolicy.GRID)
 	var band := Rect2(value.entry_cells.position * grid, value.entry_cells.size * grid)
 	if band.size.y < OfficeShell.WALKING_LANE + grid / 2.0:
-		found.append("fixture: the entry band has no fixture row and walking lane")
+		found.append("fixture: the entry band has no walking lane")
 	var bay_end := value.main_corridor_cells.position.x * grid
-	var row_y := band.position.y + OfficeShell.FIXTURE_ROW
-	var lane_y := band.position.y + OfficeShell.WALKING_LANE
-	var half := OfficeShell.SPOT_PITCH / 2.0
 	if pantry.key != "pantry" or pantry.kind != FixturePlacement.Kind.PANTRY or pantry.piece == &"":
 		found.append("fixture: the pantry has no identity")
 	for bounds: Rect2 in [pantry.footprint, pantry.draw_rect]:
@@ -280,20 +269,6 @@ static func _fixture_problems(value: FloorPlan) -> PackedStringArray:
 		found.append("fixture: pantry stands outside the entry band's bay")
 	if not value.render_bounds.encloses(pantry.draw_rect):
 		found.append("drawing bounds omit the pantry")
-	if pantry.spots.size() < 1 or pantry.spots.size() > OfficeShell.MAX_PANTRY:
-		found.append("fixture: pantry holds %d" % pantry.spots.size())
-	if pantry.approaches.size() != pantry.spots.size():
-		found.append("fixture: pantry spots and approaches disagree")
-		return found
-	for index in pantry.spots.size():
-		var spot := pantry.spots[index]
-		if (
-			spot.y != row_y
-			or pantry.approaches[index] != Vector2(spot.x, lane_y)
-			or not is_equal_approx(spot.x, band.position.x + half + index * OfficeShell.SPOT_PITCH)
-			or spot.x + half + OfficeShell.FIXTURE_GAP > bay_end + 0.001
-		):
-			found.append("fixture: pantry spot %d is off its row" % index)
 	return found
 
 

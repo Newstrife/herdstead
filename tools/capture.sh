@@ -310,7 +310,7 @@ SHOTS="$SHOTS people-zoom2.png people-zoom4.png"
 SHOTS="$SHOTS preview-overview-daylight.png"
 SHOTS="$SHOTS office-overview-zoom2.png office-overview-zoom4.png office-overview-min.png"
 # The lens held (`--lens=held`) over a stage with blocked and done since
-# before the office watched, working, idle in the pantry and a shell: 2x, 4x, the
+# before the office watched, working, idle at the seat with a mug and a shell: 2x, 4x, the
 # minimum; and the hover mark (`--point=`) on a desk and on a desk in another
 # zone of the same map, 2x.
 SHOTS="$SHOTS office-lens-zoom2.png office-lens-zoom4.png office-lens-min.png"
@@ -894,7 +894,7 @@ done
 echo "== the lens (hold L) and the hover mark, against the same fake herdr"
 # Local's zone api as the office first sees it: api:p1 blocked and api:p4 done
 # before it watched (their lines say `+`), a new api:p5 working at api:p4's
-# pod, api:p2 idle (in the pantry), api:p3 a shell.
+# pod, api:p2 idle (at its seat, with a mug), api:p3 a shell.
 stage_lens() {
 	ctl reset '{"fixture": "snapshot_floors"}'
 	"$PYTHON" - "$WORK/herdr-ctl.sock" "$ROOT/tools/fixtures/snapshot_floors.json" <<'PY' || exit 2

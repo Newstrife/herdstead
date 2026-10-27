@@ -111,8 +111,8 @@ const PROP_SIDE_TABLE := &"side_table"
 ## A framed picture on the top wall: furnishing hung between the windows on a
 ## grid of the wall itself, never a signal.
 const PROP_WALL_FRAME := &"wall_frame"
-## The entry band's counter (docs/VISUAL_LANGUAGE.md): furniture only. Idle
-## agents rest at the pantry's spots.
+## The entry band's counter (docs/VISUAL_LANGUAGE.md): a corner nook, furniture
+## only. Nobody walks to it; an idle agent sits at their seat with a mug.
 const PROP_PANTRY := &"pantry"
 ## A zone's low partitions (OfficeShell.partition_pieces()): the side runs,
 ## the posts at the open top corners, the bottom corners and the bottom run.
@@ -123,9 +123,16 @@ const PROP_PARTITION_CORNER_BR := &"partition_corner_br"
 const PROP_PARTITION_H := &"partition_h"
 ## A signal, not furniture: the small stack of paper the pod puts beside the
 ## laptop of a seat whose agent is done and not yet looked at
-## (OfficeTable.show_papers()). Never in a pool (ITEM_GROUPS): it is placed by
+## (OfficeTable.show_item()). Never in a pool (ITEM_GROUPS): it is placed by
 ## code, by state.
 const PROP_DONE_STACK_SMALL := &"done_stack_small"
+## A signal, not furniture: the mug the pod puts beside the laptop of a seat
+## whose agent is idle (OfficeTable.show_item()), idle's own sign as the paper
+## is done's. The same picture as the `desk` pool's mug, a prop of its own so it
+## is never drawn from a pool (ITEM_GROUPS): it is placed by code, by state.
+const PROP_IDLE_MUG := &"idle_mug"
+## The desk items a state puts beside a laptop: signals, never in a pool.
+const DESK_SIGNALS: Array[StringName] = [PROP_DONE_STACK_SMALL, PROP_IDLE_MUG]
 const PROP_IDS: Array[StringName] = [
 	PROP_WINDOW,
 	PROP_WINDOW_NIGHT,
@@ -140,6 +147,7 @@ const PROP_IDS: Array[StringName] = [
 	PROP_PARTITION_CORNER_BR,
 	PROP_PARTITION_H,
 	PROP_SIDE_TABLE,
+	PROP_IDLE_MUG,
 ]
 ## The pools scenes draw furniture from by weight (ItemSpec.group in the pack,
 ## docs/ITEMS.md), and what their members must stand on: never agent states.
@@ -195,10 +203,6 @@ const ANIMATIONS: Array[StringName] = [ANIMATION_IDLE, ANIMATION_WORKING, ANIMAT
 ## their state: drawn from the front, the back and the side, since a route
 ## turns all four ways.
 const TRACK_WALK := &"walk"
-## The track whoever rests in the pantry plays (OfficeStation), by name rather
-## than through a state: `idle` is also who sits at a desk. Drawn from the
-## front, since they face the viewer there.
-const TRACK_DRINK := &"drink"
 
 # --- the shared table -----------------------------------------------------------
 
@@ -253,9 +257,10 @@ static func problems(pack: ArtPack) -> PackedStringArray:
 		for member in members:
 			if member.item.place != ITEM_GROUPS[group]:
 				found.append("props: %s is in the %s pool but stands on the %s" % [member.id, group, member.item.place])
-	var stack := pack.prop_sprite(PROP_DONE_STACK_SMALL)
-	if stack != null and stack.item != null and not stack.item.group.is_empty():
-		found.append("props: %s is a signal, never in a pool" % PROP_DONE_STACK_SMALL)
+	for signal_id in DESK_SIGNALS:
+		var shown := pack.prop_sprite(signal_id)
+		if shown != null and shown.item != null and not shown.item.group.is_empty():
+			found.append("props: %s is a signal, never in a pool" % signal_id)
 	for image in ui_ids():
 		if pack.ui_sprite(image) == null:
 			found.append("ui: no image named " + image)
@@ -343,8 +348,8 @@ static func mark_ids() -> Array[StringName]:
 ## promises: every semantic animation a state may name plays a track in both
 ## poses, drawn from the front for whoever faces the viewer, and at a desk from
 ## behind as well, because a near worker shows the viewer their back; and the
-## walk (TRACK_WALK) is drawn every way a route can turn, and the pantry's drink
-## (TRACK_DRINK) from the front.
+## walk (TRACK_WALK) is drawn every way a route can turn. The family's other
+## tracks (`drink` among them) are its own: the office plays none of them by name.
 static func _people_problems(people: PixelPeople) -> PackedStringArray:
 	var found := PackedStringArray()
 	if people == null:
@@ -367,10 +372,6 @@ static func _people_problems(people: PixelPeople) -> PackedStringArray:
 		for facing in PixelPeople.DRAWN:
 			if not people.tracks[TRACK_WALK].facings.has(facing):
 				found.append("people: %s has no %s, and a route turns every way" % [TRACK_WALK, facing])
-	if not people.tracks.has(TRACK_DRINK):
-		found.append("people: no %s track for whoever rests in the pantry" % TRACK_DRINK)
-	elif not people.tracks[TRACK_DRINK].facings.has(PixelPeople.FRONT):
-		found.append("people: %s has no front, and the pantry faces the viewer" % TRACK_DRINK)
 	return found
 
 

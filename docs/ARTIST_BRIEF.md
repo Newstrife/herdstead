@@ -58,7 +58,7 @@ pod family, not here):
 
 `plant` and `plant_b` are two pots of the same fixture; `window_night` is `window` with the view dark, its
 frame pixel for pixel the same. `pantry` stands in the entry
-band: its opaque width is the whole canvas (it is its footprint), the bottom outline sits one
+band's corner, furniture nobody walks to: its opaque width is the whole canvas (it is its footprint), the bottom outline sits one
 row above the foot point, and the foot point row and below stay transparent.
 
 **The partition kit** is the low wall round a workspace's zone, a U open at the top: `partition_v` runs down
@@ -76,6 +76,8 @@ top, so **opaque pixels may only fall on rows 3–21** (the top three rows and t
 foot point stay empty; rows 6–43 in the 2x PNG).
 `done_stack_small` is a signal, not decoration: it is the small paper stack beside a done agent's laptop (§5),
 6 units wide and 9 tall over its foot point, so it fits between the laptop and the edge of a 32-unit desk.
+`idle_mug` is idle's signal the same way: the `desk_mug` picture, pixel for pixel, beside an idle agent's laptop;
+repaint `desk_mug` and the tool's `IDLE_MUG` texel map together, or the two mugs drift apart.
 
 **The pod family** (`table/`): four desk modules, the low screen (three), the apron (three),
 the bracket, chair front and back,

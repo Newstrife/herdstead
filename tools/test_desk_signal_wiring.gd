@@ -16,6 +16,13 @@ extends "res://tools/office_test_base.gd"
 ##
 ## When a desk's rows (OfficeStation), a pod's measure or the map's plan change
 ## on purpose, these numbers change with them: a failure prints the new one.
+## D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to;
+## the band is two cells (SEATED-Q2). Every y below the band is 32 less (the
+## map one row shorter: 800x480 18x25, 480x320 13x32, 1280x720 33x18), x is
+## unchanged; api:p2 and infra:p3, idle, are revealed and framed at their own
+## seats (their pods' answers), no longer in the pantry. Re-pinned from the
+## run's print and checked by hand: api:p2 frames one column right of api:p1
+## (95 = 63 + 32), infra:p3 at its near seat.
 ## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it
 ## stands one row; the map replans. Re-pinned from the office's own answers
 ## (printed by a throwaway dump case) and checked against the plans: 800x480
@@ -28,153 +35,153 @@ extends "res://tools/office_test_base.gd"
 ## The pan after reveal(key) and reveal(key, true) from no pan, then the same
 ## two from the far corner of the map, before the camera's next frame clamps
 ## it: an 800x480 window (the world at (96, 48), 660x308 of it in view, a
-## three-lane map 576 wide, 832 deep).
+## three-lane map 576 wide, 800 deep since D2).
 const REVEAL_800: Dictionary[String, Array] = {
-	"api:p1": [Vector2(0, 12), Vector2(0, 76), Vector2(0, 230), Vector2(0, 230)],
-	"api:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 58), Vector2(0, 58)],
-	"api:p3": [Vector2(0, 76), Vector2(0, 76), Vector2(0, 296), Vector2(0, 230)],
-	"api:p4": [Vector2(0, 12), Vector2(0, 76), Vector2(0, 230), Vector2(0, 230)],
-	"data:p1": [Vector2(0, 236), Vector2(0, 300), Vector2(0, 454), Vector2(0, 454)],
-	"data:p2": [Vector2(0, 300), Vector2(0, 300), Vector2(0, 520), Vector2(0, 454)],
-	"infra:p1": [Vector2(0, 460), Vector2(0, 524), Vector2(0, 556), Vector2(0, 556)],
-	"infra:p2": [Vector2(0, 460), Vector2(0, 524), Vector2(0, 556), Vector2(0, 556)],
-	"infra:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 58), Vector2(0, 58)],
-	"notes:p1": [Vector2(0, 12), Vector2(0, 76), Vector2(0, 230), Vector2(0, 230)],
-	"web:p1": [Vector2(0, 236), Vector2(0, 300), Vector2(0, 456), Vector2(0, 454)],
-	"web:p2": [Vector2(0, 300), Vector2(0, 300), Vector2(0, 520), Vector2(0, 454)],
-	"web:p3": [Vector2(0, 236), Vector2(0, 300), Vector2(0, 454), Vector2(0, 454)],
+	"api:p1": [Vector2(0, 0), Vector2(0, 44), Vector2(0, 198), Vector2(0, 198)],
+	"api:p2": [Vector2(0, 0), Vector2(0, 44), Vector2(0, 198), Vector2(0, 198)],
+	"api:p3": [Vector2(0, 44), Vector2(0, 44), Vector2(0, 264), Vector2(0, 198)],
+	"api:p4": [Vector2(0, 0), Vector2(0, 44), Vector2(0, 198), Vector2(0, 198)],
+	"data:p1": [Vector2(0, 204), Vector2(0, 268), Vector2(0, 422), Vector2(0, 422)],
+	"data:p2": [Vector2(0, 268), Vector2(0, 268), Vector2(0, 488), Vector2(0, 422)],
+	"infra:p1": [Vector2(0, 428), Vector2(0, 492), Vector2(0, 524), Vector2(0, 524)],
+	"infra:p2": [Vector2(0, 428), Vector2(0, 492), Vector2(0, 524), Vector2(0, 524)],
+	"infra:p3": [Vector2(0, 492), Vector2(0, 492), Vector2(0, 524), Vector2(0, 524)],
+	"notes:p1": [Vector2(0, 0), Vector2(0, 44), Vector2(0, 198), Vector2(0, 198)],
+	"web:p1": [Vector2(0, 204), Vector2(0, 268), Vector2(0, 424), Vector2(0, 422)],
+	"web:p2": [Vector2(0, 268), Vector2(0, 268), Vector2(0, 488), Vector2(0, 422)],
+	"web:p3": [Vector2(0, 204), Vector2(0, 268), Vector2(0, 422), Vector2(0, 422)],
 }
 ## The same in the smallest window, 480x320: 340x200 of a 416-wide map in
 ## view, so a reveal pans sideways too. Z1 (2026-10-27): the narrowest plan
 ## stays two lanes (13 cells, FRAME-Q2); its 33 rows (40 with one 9-cell lane)
 ## move every zone under api and web up.
 const REVEAL_480: Dictionary[String, Array] = {
-	"api:p1": [Vector2(0, 120), Vector2(0, 184), Vector2(65, 230), Vector2(64, 230)],
-	"api:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(76, 58), Vector2(76, 58)],
-	"api:p3": [Vector2(0, 184), Vector2(0, 184), Vector2(76, 296), Vector2(64, 230)],
-	"api:p4": [Vector2(0, 120), Vector2(0, 184), Vector2(76, 230), Vector2(76, 230)],
-	"data:p1": [Vector2(0, 792), Vector2(0, 856), Vector2(76, 888), Vector2(76, 888)],
-	"data:p2": [Vector2(0, 856), Vector2(0, 856), Vector2(76, 888), Vector2(76, 888)],
-	"infra:p1": [Vector2(0, 568), Vector2(0, 632), Vector2(65, 680), Vector2(64, 678)],
-	"infra:p2": [Vector2(0, 568), Vector2(0, 632), Vector2(76, 678), Vector2(76, 678)],
-	"infra:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(76, 58), Vector2(76, 58)],
-	"notes:p1": [Vector2(0, 792), Vector2(0, 856), Vector2(65, 888), Vector2(64, 888)],
-	"web:p1": [Vector2(0, 344), Vector2(0, 408), Vector2(65, 456), Vector2(64, 454)],
-	"web:p2": [Vector2(0, 408), Vector2(0, 408), Vector2(65, 520), Vector2(64, 454)],
-	"web:p3": [Vector2(0, 344), Vector2(0, 408), Vector2(76, 454), Vector2(76, 454)],
+	"api:p1": [Vector2(0, 88), Vector2(0, 152), Vector2(65, 198), Vector2(64, 198)],
+	"api:p2": [Vector2(0, 88), Vector2(0, 152), Vector2(76, 198), Vector2(64, 198)],
+	"api:p3": [Vector2(0, 152), Vector2(0, 152), Vector2(76, 264), Vector2(64, 198)],
+	"api:p4": [Vector2(0, 88), Vector2(0, 152), Vector2(76, 198), Vector2(76, 198)],
+	"data:p1": [Vector2(0, 760), Vector2(0, 824), Vector2(76, 856), Vector2(76, 856)],
+	"data:p2": [Vector2(0, 824), Vector2(0, 824), Vector2(76, 856), Vector2(76, 856)],
+	"infra:p1": [Vector2(0, 536), Vector2(0, 600), Vector2(65, 648), Vector2(64, 646)],
+	"infra:p2": [Vector2(0, 536), Vector2(0, 600), Vector2(76, 646), Vector2(76, 646)],
+	"infra:p3": [Vector2(0, 600), Vector2(0, 600), Vector2(76, 712), Vector2(76, 646)],
+	"notes:p1": [Vector2(0, 760), Vector2(0, 824), Vector2(65, 856), Vector2(64, 856)],
+	"web:p1": [Vector2(0, 312), Vector2(0, 376), Vector2(65, 424), Vector2(64, 422)],
+	"web:p2": [Vector2(0, 376), Vector2(0, 376), Vector2(65, 488), Vector2(64, 422)],
+	"web:p3": [Vector2(0, 312), Vector2(0, 376), Vector2(76, 422), Vector2(76, 422)],
 }
 ## The same in a 1280x720 window: the world at (144, 48), 1092x548 of a
 ## six-lane map 640 deep in view, so the pan only ever reaches 92 down.
 const REVEAL_1280: Dictionary[String, Array] = {
-	"api:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"api:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 58), Vector2(0, 58)],
-	"api:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"api:p4": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"data:p1": [Vector2(0, 0), Vector2(0, 60), Vector2(0, 92), Vector2(0, 92)],
-	"data:p2": [Vector2(0, 60), Vector2(0, 60), Vector2(0, 92), Vector2(0, 92)],
-	"infra:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"infra:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"infra:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 58), Vector2(0, 58)],
-	"notes:p1": [Vector2(0, 0), Vector2(0, 60), Vector2(0, 92), Vector2(0, 92)],
-	"web:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"web:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
-	"web:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 92), Vector2(0, 92)],
+	"api:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"api:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"api:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"api:p4": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"data:p1": [Vector2(0, 0), Vector2(0, 28), Vector2(0, 60), Vector2(0, 60)],
+	"data:p2": [Vector2(0, 28), Vector2(0, 28), Vector2(0, 60), Vector2(0, 60)],
+	"infra:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"infra:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"infra:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"notes:p1": [Vector2(0, 0), Vector2(0, 28), Vector2(0, 60), Vector2(0, 60)],
+	"web:p1": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"web:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
+	"web:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(0, 60), Vector2(0, 60)],
 }
 ## The pointer's frame around each desk, in the floor's own coordinates, on the
 ## 800x480 window's three-lane map (the 480x320 window planned the same one
 ## before Z1; it plans its own two-lane map now).
 const POINTER_800: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(63, 228, 34, 62),
-	"api:p2": Rect2(275, 56, 42, 60),
-	"api:p3": Rect2(95, 294, 34, 60),
-	"api:p4": Rect2(159, 228, 34, 62),
-	"data:p1": Rect2(383, 452, 34, 62),
-	"data:p2": Rect2(383, 518, 34, 60),
-	"infra:p1": Rect2(63, 678, 34, 60),
-	"infra:p2": Rect2(159, 676, 34, 62),
-	"infra:p3": Rect2(131, 56, 42, 60),
-	"notes:p1": Rect2(383, 228, 34, 62),
-	"web:p1": Rect2(63, 454, 34, 60),
-	"web:p2": Rect2(63, 518, 34, 60),
-	"web:p3": Rect2(159, 452, 34, 62),
+	"api:p1": Rect2(63, 196, 34, 62),
+	"api:p2": Rect2(95, 196, 34, 62),
+	"api:p3": Rect2(95, 262, 34, 60),
+	"api:p4": Rect2(159, 196, 34, 62),
+	"data:p1": Rect2(383, 420, 34, 62),
+	"data:p2": Rect2(383, 486, 34, 60),
+	"infra:p1": Rect2(63, 646, 34, 60),
+	"infra:p2": Rect2(159, 644, 34, 62),
+	"infra:p3": Rect2(159, 710, 34, 60),
+	"notes:p1": Rect2(383, 196, 34, 62),
+	"web:p1": Rect2(63, 422, 34, 60),
+	"web:p2": Rect2(63, 486, 34, 60),
+	"web:p3": Rect2(159, 420, 34, 62),
 }
 ## And on the 480x320 window's two-lane map (13 cells).
 const POINTER_480: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(63, 228, 34, 62),
-	"api:p2": Rect2(227, 56, 42, 60),
-	"api:p3": Rect2(95, 294, 34, 60),
-	"api:p4": Rect2(159, 228, 34, 62),
-	"data:p1": Rect2(223, 900, 34, 62),
-	"data:p2": Rect2(223, 966, 34, 60),
-	"infra:p1": Rect2(63, 678, 34, 60),
-	"infra:p2": Rect2(159, 676, 34, 62),
-	"infra:p3": Rect2(179, 56, 42, 60),
-	"notes:p1": Rect2(63, 900, 34, 62),
-	"web:p1": Rect2(63, 454, 34, 60),
-	"web:p2": Rect2(63, 518, 34, 60),
-	"web:p3": Rect2(159, 452, 34, 62),
+	"api:p1": Rect2(63, 196, 34, 62),
+	"api:p2": Rect2(95, 196, 34, 62),
+	"api:p3": Rect2(95, 262, 34, 60),
+	"api:p4": Rect2(159, 196, 34, 62),
+	"data:p1": Rect2(223, 868, 34, 62),
+	"data:p2": Rect2(223, 934, 34, 60),
+	"infra:p1": Rect2(63, 646, 34, 60),
+	"infra:p2": Rect2(159, 644, 34, 62),
+	"infra:p3": Rect2(159, 710, 34, 60),
+	"notes:p1": Rect2(63, 868, 34, 62),
+	"web:p1": Rect2(63, 422, 34, 60),
+	"web:p2": Rect2(63, 486, 34, 60),
+	"web:p3": Rect2(159, 420, 34, 62),
 }
 ## And on the 1280x720 window's six-lane map.
 const POINTER_1280: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(63, 228, 34, 62),
-	"api:p2": Rect2(611, 56, 42, 60),
-	"api:p3": Rect2(95, 294, 34, 60),
-	"api:p4": Rect2(159, 228, 34, 62),
-	"data:p1": Rect2(223, 452, 34, 62),
-	"data:p2": Rect2(223, 518, 34, 60),
-	"infra:p1": Rect2(703, 230, 34, 60),
-	"infra:p2": Rect2(799, 228, 34, 62),
-	"infra:p3": Rect2(515, 56, 42, 60),
-	"notes:p1": Rect2(63, 452, 34, 62),
-	"web:p1": Rect2(383, 230, 34, 60),
-	"web:p2": Rect2(383, 294, 34, 60),
-	"web:p3": Rect2(479, 228, 34, 62),
+	"api:p1": Rect2(63, 196, 34, 62),
+	"api:p2": Rect2(95, 196, 34, 62),
+	"api:p3": Rect2(95, 262, 34, 60),
+	"api:p4": Rect2(159, 196, 34, 62),
+	"data:p1": Rect2(223, 420, 34, 62),
+	"data:p2": Rect2(223, 486, 34, 60),
+	"infra:p1": Rect2(703, 198, 34, 60),
+	"infra:p2": Rect2(799, 196, 34, 62),
+	"infra:p3": Rect2(799, 262, 34, 60),
+	"notes:p1": Rect2(63, 420, 34, 62),
+	"web:p1": Rect2(383, 198, 34, 60),
+	"web:p2": Rect2(383, 262, 34, 60),
+	"web:p3": Rect2(479, 196, 34, 62),
 }
 ## The pan after reveal_zone(zone) from no pan, and where the camera's next
 ## frame leaves it; then the same two from the far corner of the map.
 const ZONES_800: Dictionary[String, Array] = {
-	"api": [Vector2(0, 206), Vector2(0, 206), Vector2(0, 206), Vector2(0, 206)],
-	"web": [Vector2(0, 430), Vector2(0, 430), Vector2(0, 430), Vector2(0, 430)],
-	"infra": [Vector2(0, 654), Vector2(0, 556), Vector2(0, 654), Vector2(0, 556)],
-	"notes": [Vector2(0, 206), Vector2(0, 206), Vector2(0, 206), Vector2(0, 206)],
-	"data": [Vector2(0, 430), Vector2(0, 430), Vector2(0, 430), Vector2(0, 430)],
+	"api": [Vector2(0, 174), Vector2(0, 174), Vector2(0, 174), Vector2(0, 174)],
+	"web": [Vector2(0, 398), Vector2(0, 398), Vector2(0, 398), Vector2(0, 398)],
+	"infra": [Vector2(0, 622), Vector2(0, 524), Vector2(0, 622), Vector2(0, 524)],
+	"notes": [Vector2(0, 174), Vector2(0, 174), Vector2(0, 174), Vector2(0, 174)],
+	"data": [Vector2(0, 398), Vector2(0, 398), Vector2(0, 398), Vector2(0, 398)],
 }
 const ZONES_480: Dictionary[String, Array] = {
-	"api": [Vector2(0, 206), Vector2(0, 206), Vector2(32, 206), Vector2(32, 206)],
-	"web": [Vector2(0, 430), Vector2(0, 430), Vector2(32, 430), Vector2(32, 430)],
-	"infra": [Vector2(0, 654), Vector2(0, 654), Vector2(32, 654), Vector2(32, 654)],
-	"notes": [Vector2(0, 878), Vector2(0, 878), Vector2(32, 878), Vector2(32, 878)],
-	"data": [Vector2(0, 878), Vector2(0, 878), Vector2(76, 878), Vector2(76, 878)],
+	"api": [Vector2(0, 174), Vector2(0, 174), Vector2(32, 174), Vector2(32, 174)],
+	"web": [Vector2(0, 398), Vector2(0, 398), Vector2(32, 398), Vector2(32, 398)],
+	"infra": [Vector2(0, 622), Vector2(0, 622), Vector2(32, 622), Vector2(32, 622)],
+	"notes": [Vector2(0, 846), Vector2(0, 846), Vector2(32, 846), Vector2(32, 846)],
+	"data": [Vector2(0, 846), Vector2(0, 846), Vector2(76, 846), Vector2(76, 846)],
 }
 const ZONES_1280: Dictionary[String, Array] = {
-	"api": [Vector2(0, 206), Vector2(0, 92), Vector2(0, 206), Vector2(0, 92)],
-	"web": [Vector2(0, 206), Vector2(0, 92), Vector2(0, 206), Vector2(0, 92)],
-	"infra": [Vector2(0, 206), Vector2(0, 92), Vector2(0, 206), Vector2(0, 92)],
-	"notes": [Vector2(0, 430), Vector2(0, 92), Vector2(0, 430), Vector2(0, 92)],
-	"data": [Vector2(0, 430), Vector2(0, 92), Vector2(0, 430), Vector2(0, 92)],
+	"api": [Vector2(0, 174), Vector2(0, 60), Vector2(0, 174), Vector2(0, 60)],
+	"web": [Vector2(0, 174), Vector2(0, 60), Vector2(0, 174), Vector2(0, 60)],
+	"infra": [Vector2(0, 174), Vector2(0, 60), Vector2(0, 174), Vector2(0, 60)],
+	"notes": [Vector2(0, 398), Vector2(0, 60), Vector2(0, 398), Vector2(0, 60)],
+	"data": [Vector2(0, 398), Vector2(0, 60), Vector2(0, 398), Vector2(0, 60)],
 }
 ## REVEAL_800 and ZONES_800 with the drawer open (536 of the map in view): see test_a_relayout_moves_no_answer.
 const REVEAL_DRAWER: Dictionary[String, Array] = {
-	"api:p1": [Vector2(0, 12), Vector2(0, 76), Vector2(40, 230), Vector2(40, 230)],
-	"api:p2": [Vector2(0, 0), Vector2(0, 0), Vector2(40, 58), Vector2(40, 58)],
-	"api:p3": [Vector2(0, 76), Vector2(0, 76), Vector2(40, 296), Vector2(40, 230)],
-	"api:p4": [Vector2(0, 12), Vector2(0, 76), Vector2(40, 230), Vector2(40, 230)],
-	"data:p1": [Vector2(0, 236), Vector2(0, 300), Vector2(40, 454), Vector2(40, 454)],
-	"data:p2": [Vector2(0, 300), Vector2(0, 300), Vector2(40, 520), Vector2(40, 454)],
-	"infra:p1": [Vector2(0, 460), Vector2(0, 524), Vector2(40, 556), Vector2(40, 556)],
-	"infra:p2": [Vector2(0, 460), Vector2(0, 524), Vector2(40, 556), Vector2(40, 556)],
-	"infra:p3": [Vector2(0, 0), Vector2(0, 0), Vector2(40, 58), Vector2(40, 58)],
-	"notes:p1": [Vector2(0, 12), Vector2(0, 76), Vector2(40, 230), Vector2(40, 230)],
-	"web:p1": [Vector2(0, 236), Vector2(0, 300), Vector2(40, 456), Vector2(40, 454)],
-	"web:p2": [Vector2(0, 300), Vector2(0, 300), Vector2(40, 520), Vector2(40, 454)],
-	"web:p3": [Vector2(0, 236), Vector2(0, 300), Vector2(40, 454), Vector2(40, 454)],
+	"api:p1": [Vector2(0, 0), Vector2(0, 44), Vector2(40, 198), Vector2(40, 198)],
+	"api:p2": [Vector2(0, 0), Vector2(0, 44), Vector2(40, 198), Vector2(40, 198)],
+	"api:p3": [Vector2(0, 44), Vector2(0, 44), Vector2(40, 264), Vector2(40, 198)],
+	"api:p4": [Vector2(0, 0), Vector2(0, 44), Vector2(40, 198), Vector2(40, 198)],
+	"data:p1": [Vector2(0, 204), Vector2(0, 268), Vector2(40, 422), Vector2(40, 422)],
+	"data:p2": [Vector2(0, 268), Vector2(0, 268), Vector2(40, 488), Vector2(40, 422)],
+	"infra:p1": [Vector2(0, 428), Vector2(0, 492), Vector2(40, 524), Vector2(40, 524)],
+	"infra:p2": [Vector2(0, 428), Vector2(0, 492), Vector2(40, 524), Vector2(40, 524)],
+	"infra:p3": [Vector2(0, 492), Vector2(0, 492), Vector2(40, 524), Vector2(40, 524)],
+	"notes:p1": [Vector2(0, 0), Vector2(0, 44), Vector2(40, 198), Vector2(40, 198)],
+	"web:p1": [Vector2(0, 204), Vector2(0, 268), Vector2(40, 424), Vector2(40, 422)],
+	"web:p2": [Vector2(0, 268), Vector2(0, 268), Vector2(40, 488), Vector2(40, 422)],
+	"web:p3": [Vector2(0, 204), Vector2(0, 268), Vector2(40, 422), Vector2(40, 422)],
 }
 const ZONES_DRAWER: Dictionary[String, Array] = {
-	"api": [Vector2(0, 206), Vector2(0, 206), Vector2(32, 206), Vector2(32, 206)],
-	"web": [Vector2(0, 430), Vector2(0, 430), Vector2(32, 430), Vector2(32, 430)],
-	"infra": [Vector2(0, 654), Vector2(0, 556), Vector2(32, 654), Vector2(32, 556)],
-	"notes": [Vector2(0, 206), Vector2(0, 206), Vector2(40, 206), Vector2(40, 206)],
-	"data": [Vector2(0, 430), Vector2(0, 430), Vector2(40, 430), Vector2(40, 430)],
+	"api": [Vector2(0, 174), Vector2(0, 174), Vector2(32, 174), Vector2(32, 174)],
+	"web": [Vector2(0, 398), Vector2(0, 398), Vector2(32, 398), Vector2(32, 398)],
+	"infra": [Vector2(0, 622), Vector2(0, 524), Vector2(32, 622), Vector2(32, 524)],
+	"notes": [Vector2(0, 174), Vector2(0, 174), Vector2(40, 174), Vector2(40, 174)],
+	"data": [Vector2(0, 398), Vector2(0, 398), Vector2(40, 398), Vector2(40, 398)],
 }
 
 
@@ -198,9 +205,9 @@ func _initialize() -> void:
 		quit(2)
 		return
 	var fixture_file: Dictionary = parsed
-	# Both seat sides in every rest: web:p2 (near) asks beside web:p1 (far),
-	# data:p2 (near) works, api:p2 (far) and infra:p3 (near) rest in the pantry,
-	# api:p3 (near) and web:p3 (far) are shells.
+	# Both seat sides in every state: web:p2 (near) asks beside web:p1 (far),
+	# data:p2 (near) works, api:p2 (far) and infra:p3 (near) idle at their seats
+	# with a mug, api:p3 (near) and web:p3 (far) are shells.
 	fixture = _dict(fixture_file, "snapshot")
 	fixture = _with(_with(fixture, "web:p2", {"agent_status": "blocked"}), "data:p2", {"agent_status": "working"})
 	_run()
@@ -305,8 +312,7 @@ func _arrow(zone_id: String, pane_id: String, blocked: int, edge: EdgeArrowModel
 
 ## reveal(key) and reveal(key, true) leave the pan where 6413cec left it, for
 ## every desk of the fixture: a seated worker far and near, a blocked one with
-## its chip on either side, a pantry worker (whose pod is too far below to join
-## the framing), and a shell.
+## its chip on either side, an idle one at the seat, and a shell.
 func test_a_desk_is_revealed_where_it_was_at_800x480() -> void:
 	var office := await _office()
 	_eq(office.world.position, Vector2(96, 48), "the world stands at the HUD's free corner")
@@ -322,7 +328,7 @@ func test_a_desk_is_revealed_where_it_was_at_800x480() -> void:
 func test_a_desk_is_revealed_where_it_was_in_the_smallest_window() -> void:
 	var office := await _office(Vector2(480, 320))
 	_eq(office.camera.free_rect(), Rect2(96, 48, 340, 200), "340x200 of the world in view")
-	_eq(_far(office), Vector2(76, 888), "the pan reaches 76 sideways")
+	_eq(_far(office), Vector2(76, 856), "the pan reaches 76 sideways")
 	_reveals(office, REVEAL_480, "480x320")
 	# A reveal starts from the pan as it is and leaves it between units when
 	# nothing has to move; only the camera's next frame rounds, and only its
@@ -335,7 +341,7 @@ func test_a_desk_is_revealed_where_it_was_in_the_smallest_window() -> void:
 	_eq(office.camera.position, Vector2(11, 130), "and rounds the camera's position")
 	office.camera.pan = Vector2(10.5, 300.75)
 	office.reveal(_pk("api:p1"))
-	_eq(office.camera.pan, Vector2(10.5, 230), "from below: up to its headroom, sideways untouched")
+	_eq(office.camera.pan, Vector2(10.5, 198), "from below: up to its headroom, sideways untouched")
 	_done(office)
 
 
@@ -446,11 +452,14 @@ func test_the_pointer_frames_what_it_framed() -> void:
 ## 800x480 bottom is the far pan's now (its map is 26 rows deep, so the bottom
 ## shows web's near chip and infra's); 480x320 (two lanes, 13x33, FRAME-Q2)
 ## keeps its top and middle values and its bottom is 888 down (1112 before).
+## D2 (2026-10-27): the band is two cells (SEATED-Q2): every pan 32 less (the
+## middles 470 and 524, the 480x320 bottom 856); the arrows' places along the
+## edges move with the shorter map (from the print).
 func test_the_arrows_stand_where_they_stood() -> void:
 	var office := await _office()
 	var below := [
-		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3294"),
-		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.3969")
+		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3118"),
+		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.3908")
 	]
 	var above := [
 		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.TOP, "0.4119"),
@@ -462,16 +471,16 @@ func test_the_arrows_stand_where_they_stood() -> void:
 		[_arrow("web", "web:p1", 1, EdgeArrowModel.Edge.TOP, "0.2274")],
 		"800x480, at the bottom: web's far chip above, its near one and infra's in view"
 	)
-	_eq(await _arrows_at(office, Vector2(0, 502)), [], "800x480, in the middle: every chip in view")
+	_eq(await _arrows_at(office, Vector2(0, 470)), [], "800x480, in the middle: every chip in view")
 	_done(office)
 	office = await _office(Vector2(480, 320))
 	below = [
-		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.4332"),
-		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.4573")
+		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.4273"),
+		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.4550")
 	]
 	var below_right := [
-		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3767"),
-		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.4213")
+		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3659"),
+		_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.4170")
 	]
 	above = [
 		_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.TOP, "0.4462"),
@@ -483,10 +492,10 @@ func test_the_arrows_stand_where_they_stood() -> void:
 	]
 	_eq(await _arrows_at(office, Vector2.ZERO), below, "480x320, top left")
 	_eq(await _arrows_at(office, Vector2(76, 0)), below_right, "480x320, top right")
-	_eq(await _arrows_at(office, Vector2(0, 888)), above, "480x320, bottom left")
-	_eq(await _arrows_at(office, Vector2(76, 888)), above_right, "480x320, bottom right")
+	_eq(await _arrows_at(office, Vector2(0, 856)), above, "480x320, bottom left")
+	_eq(await _arrows_at(office, Vector2(76, 856)), above_right, "480x320, bottom right")
 	_eq(
-		await _arrows_at(office, Vector2(38, 556)),
+		await _arrows_at(office, Vector2(38, 524)),
 		[_arrow("web", "web:p1", 1, EdgeArrowModel.Edge.TOP, "0.2647")],
 		"480x320, in the middle: one of web's two chips is above the view"
 	)
@@ -510,9 +519,10 @@ func test_an_arrow_follows_its_chip_to_the_unit() -> void:
 	var room := office.camera.free_rect()
 	var far_chip := office.floor_view.seat(_pk("web:p1")).node.chip_rect()
 	var far_seat := office.floor_view.seat(_pk("web:p1")).node.target_rect()
-	_eq([far_chip, far_seat], [Rect2(161, 536, 30, 16), Rect2(161, 552, 30, 40)], "web:p1's chip over its seat")
+	# D2 (2026-10-27): the band is two cells (SEATED-Q2): every y 32 less.
+	_eq([far_chip, far_seat], [Rect2(161, 504, 30, 16), Rect2(161, 520, 30, 40)], "web:p1's chip over its seat")
 	var edge := far_chip.end.y - room.position.y
-	_eq(edge, 504.0, "the pan that puts the view's top at the chip's bottom")
+	_eq(edge, 472.0, "the pan that puts the view's top at the chip's bottom")
 	var infra_below := _arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.2738")
 	_eq(await _arrows_at(office, Vector2(0, edge - 1)), [infra_below], "one unit of web:p1's chip in view: no arrow")
 	_eq(
@@ -534,7 +544,7 @@ func test_an_arrow_follows_its_chip_to_the_unit() -> void:
 	)
 	var near_chip := office.floor_view.seat(_pk("web:p2")).node.chip_rect()
 	var near_seat := office.floor_view.seat(_pk("web:p2")).node.target_rect()
-	_eq([near_chip, near_seat], [Rect2(161, 640, 30, 16), Rect2(161, 600, 30, 38)], "web:p2's chip under its seat")
+	_eq([near_chip, near_seat], [Rect2(161, 608, 30, 16), Rect2(161, 568, 30, 38)], "web:p2's chip under its seat")
 	edge = near_chip.end.y - room.position.y
 	_eq(
 		await _arrows_at(office, Vector2(0, edge - 1)),
@@ -580,7 +590,8 @@ func test_a_relayout_moves_no_answer() -> void:
 	await _frames(2)
 	_check(office.hud.drawer_open(), "a real click on the tab opens the drawer")
 	_eq(office.camera.free_rect(), Rect2(96, 48, 536, 308), "the world's room stops at the open drawer")
-	_eq(_far(office), Vector2(40, 556), "the far corner is 40 further right")
+	# D2 (2026-10-27): the band is two cells (SEATED-Q2): the map 32 shorter.
+	_eq(_far(office), Vector2(40, 524), "the far corner is 40 further right")
 	for key: String in REVEAL_800:
 		_eq(REVEAL_DRAWER[key].slice(0, 2), REVEAL_800[key].slice(0, 2), "%s: from no pan, as with it shut" % key)
 	for key: String in ZONES_800:
@@ -591,13 +602,13 @@ func test_a_relayout_moves_no_answer() -> void:
 	_eq(
 		await _arrows_at(office, Vector2.ZERO),
 		[
-			_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3421"),
-			_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.4046")
+			_arrow("web", "web:p1", 2, EdgeArrowModel.Edge.BOTTOM, "0.3258"),
+			_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.3988")
 		],
 		"drawer open, at the top: both zones below, along the narrower view"
 	)
 	_eq(
-		await _arrows_at(office, Vector2(0, 556)),
+		await _arrows_at(office, Vector2(0, 524)),
 		[_arrow("web", "web:p1", 1, EdgeArrowModel.Edge.TOP, "0.2476")],
 		"drawer open, at the bottom: web's far chip above"
 	)

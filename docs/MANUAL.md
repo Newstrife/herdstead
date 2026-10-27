@@ -87,14 +87,15 @@ The four scenes (office, showroom, pixel people showroom, Avatar Studio) read th
 | pane | a seat at that pod |
 | agent | the pixel person in the seat; an empty `agent` is a SHELL seat with nobody in it |
 
-**One map per machine.** A map is one rectangular floor: an outer wall on top, an entry band under it with the pantry,
+**One map per machine.** A map is one rectangular floor: an outer wall on top, an entry band under it with the pantry
+counter in its corner,
 side walls, and a main aisle down the right. Windows, pictures and the lift door hang only on the outer wall. Below the
 entry band the zones stand in lanes, each inside low partitions open at the top, its sign hanging from the top-left
 post. Plants and side tables (each carrying a mug, a notebook, now and then a white cat) are y-sorted with everything
 else.
 
 **Stable layout.** A 32-unit grid. The map is lanes four cells wide (the narrowest pod) with a one-cell aisle between
-two; the entry band is 96 units, the main aisle 64. A zone takes whole lanes under an aisle row of its own, first as many
+two; the entry band is 64 units, the main aisle 64. A zone takes whole lanes under an aisle row of its own, first as many
 as its pods need to stand in one row, and its pods stand in rows 192 units deep (a pod is one 32-unit desk per column, a
 seat on each side). A map's lanes are fixed the first time it is
 planned; a wider window only shows more of it. New tabs fill gaps first, pods grow in place, an over-wide pod gets its
@@ -118,12 +119,13 @@ no zone, and the plate's note says why.
   are drawn (the raised hand and badge stay; pointing and clicking there still count).
 - **done** (UNREAD: finished, not yet looked at): seated, a stack of paper next to the laptop. Done means "unread",
   never "task passed".
-- **idle**: walks to the pantry in the entry band (sits there when it is full) and back.
+- **idle**: seated, a mug beside the laptop.
 - **working**: seated at the desk. `launch_pending` shows the starting badge. Unknown states fall back to `unknown`.
-- The pantry counter, plants, side tables and partitions are furniture only.
+- The pantry counter, plants, side tables and partitions are furniture only: nobody walks to the pantry, and a state
+  never makes anyone get up.
 
 **People walk.** When a pane gets an agent, a person walks in from the lift door to the seat; when a pane goes, they
-walk out as a ghost you cannot click. Name plate, badge, chip, papers and click area change the moment herdr says so;
+walk out as a ghost you cannot click. Name plate, badge, chip, paper, mug and click area change the moment herdr says so;
 the body follows within at most 6 seconds. A new workspace is a new zone its people walk into; closing one, its people
 walk out (not every departure animates). An offline machine freezes in place; reconnecting, changing machine or
 changing theme places everyone directly. Panning between zones and switching machines are instant, with no transition.
@@ -423,7 +425,7 @@ answer mode `Esc` leaves answer mode first. `M` does nothing while it is open.
 
 ## Lens
 
-Hold `L`. The world becomes a data view until you let go: every agent's seat (or its pantry spot) gets one line of how
+Hold `L`. The world becomes a data view until you let go: every agent's seat gets one line of how
 long it has been in this state (the same number as OVERVIEW's FOR, `+` = at least; shells and offline machines show none,
 no track shows `?`), chips are hidden, every seat's name plate shows, the floor under each pod is washed with its most
 urgent state (the SPACES window colours), furniture dims, and the theme cell in the top bar reads `LENS · hold L`. It does not light while the monitor, OVERVIEW or
@@ -526,7 +528,7 @@ socket as a machine. Forwarding, cleanup, target validation, the debug hook and 
 retired on 2026-09-29: night is to be a light over the one pack, not a second pack. Each runtime pack has logical 32×32 tiles (wood floor, open corridor, walls)
 at density 2 (64×64 texels per tile, nearest-neighbour; the build doubles 1× sources into 2×2 blocks),
 standalone props (window, door, plants, a framed picture, the pantry counter, the zones' partition kit, a side table, the
-small paper stack), a desk-item library of 5 everyday objects and 3 white
+small paper stack and the idle mug), a desk-item library of 5 everyday objects and 3 white
 cats, the shared pod family (desks, low screen, apron, chair, laptop), state and UI icons (herdr's five states, starting, lost
 and connected, the seat mark, the panels), a native TileSet, four single-image SpriteFrames (for export only), a semantic manifest and the fonts.
 The full spec is [ASSET_SPEC](ASSET_SPEC.md), the painter's brief is [ARTIST_BRIEF](ARTIST_BRIEF.md), and depth and
@@ -832,7 +834,7 @@ scripts/model/           typed models: HerdrSnapshot (the only reader of raw sna
                          DisplayName (pure: what every surface calls a pane)
 scripts/layout/          map and zone planning, seat planning, walk graph, validation
 scripts/world/           pods (table.gd), stations, chips, the floor view, machine plate, zone signs, shell,
-                         presentation (walking), rests, pointer
+                         presentation (walking), pointer
 scripts/ui/              HUD scripts: hud, theme, bar, spaces (the SPACES rail), edge arrows, agent list, staff
                          panel (inspector writes what card_picture, pure, says it shows; card_details, card_words,
                          card_actions, launch_block), monitor, NEWS, EVENTS, OVERVIEW, strategic view

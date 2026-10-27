@@ -77,8 +77,8 @@ var name := ""
 ## -1 when unknown: first seen already in it, after a reconnect, or a new session.
 ## Filled by the office's frame builder on the panes seated on a floor (the
 ## frame's list of every pane leaves it -1), never by the projection, and never part
-## of desk_signature(): who waits longest orders the queue and the pantry
-## (OfficeRests) and the `N` key (OfficeProjection.attention_queue()).
+## of desk_signature(): who waits longest orders the queue and the `N` key
+## (OfficeProjection.attention_queue()).
 var state_since := -1.0
 
 ## identity_key()'s memo; empty until it is first asked for, and again whenever

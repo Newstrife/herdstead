@@ -1,10 +1,10 @@
 class_name FixturePlacement
 extends RefCounted
 ## A map's service fixture in its entry band, as the plan placed it: the
-## pantry with its spots. Planned by OfficeFixturePlanner, drawn by
-## OfficeFloorView, walked to by OfficePresentation. The counter itself is
-## furniture; who stands at the pantry's spots, and in which order, is the
-## presentation's (OfficeRests). There is no reception any more.
+## pantry counter in the band's corner. Planned by OfficeFixturePlanner, drawn
+## by OfficeFloorView, an obstacle on the walk graph (OfficeWalkGraph). It is
+## furniture: nobody walks to it or stands at it (an idle agent sits at their
+## seat with a mug, docs/VISUAL_LANGUAGE.md). There is no reception any more.
 
 enum Kind { PANTRY }
 
@@ -18,16 +18,7 @@ var position := Vector2.ZERO
 ## What the counter stands on, and what it draws, in floor units.
 var footprint := Rect2()
 var draw_rect := Rect2()
-## Where people stand at it, on the fixture row: the pantry's spots from the
-## left wall on.
-var spots: Array[Vector2] = []
-## Straight below each spot on the walking lane: where its leg begins.
-var approaches: Array[Vector2] = []
-
-
-func capacity() -> int:
-	return spots.size()
 
 
 func geometry_signature() -> String:
-	return JSON.stringify([kind, key, piece, position, footprint, draw_rect, spots, approaches])
+	return JSON.stringify([kind, key, piece, position, footprint, draw_rect])

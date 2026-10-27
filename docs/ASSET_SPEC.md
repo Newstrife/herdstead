@@ -329,9 +329,14 @@ fixed by where the side table stands (see [the visual language](VISUAL_LANGUAGE.
 - `side_table` stands on the floor (`item`: `place: floor`, footprint 28×10) and carries one desk or cat piece on
   its top, whose foot sits at `OfficeDecor.TOP_Y` (−20 over the table's foot; [ITEMS](ITEMS.md)).
 - `done_stack_small` is a signal, not a fixture: while a done agent sits at their seat, the pod shows a small
-  stack of paper right of that seat's laptop (`OfficeTable.PAPERS_ASIDE` 13); only `visible` changes. Its opaque
-  pixels are 6 wide and 9 tall over its foot (x −3..3, rows 13..21 of the 24 canvas), so it fits between the
-  laptop and the column's edge on a 32-unit desk, the last column's included.
+  stack of paper right of that seat's laptop (`OfficeTable.ITEM_ASIDE` 13), on the seat's one desk item; only its
+  texture and `visible` change. Its opaque pixels are 6 wide and 9 tall over its foot (x −3..3, rows 13..21 of the
+  24 canvas), so it fits between the laptop and the column's edge on a 32-unit desk, the last column's included.
+- `idle_mug` (24×24, pivot 12,22, no `item` block) is idle's signal on the same desk item (D2, 2026-10-27): the
+  painted desk pool's mug texel for texel (`draw_pixel_sources.py` draws it at density 2), a prop of its own so it is
+  never drawn from a pool (`ArtContract.DESK_SIGNALS`). Opaque 7 wide and 6.5 tall over its foot (x −3.5..3.5, the
+  handle the right half unit), it stands at `OfficeTable.MUG_ASIDE` 12.5, opaque x+9..x+16: 2 clear of the laptop
+  and inside the last column's desk.
 
 **Desk library**: five items (mug, notebook with pencil, clipped printout, potted plant, headphones) and three
 white-cat poses (loaf, sitting, asleep), each a 24×24-unit RGBA image under the pixel people's rules: a 1-unit
@@ -348,7 +353,9 @@ state; a new variant is declared as a prop with an `item` block in the `desk` (o
 reception. `draw_pixel_sources.py` draws a first draft; the committed counter is 2x AI-painter art, and the tests
 check the footprint contract on the committed file at its own density. The counter's opaque width is its whole
 canvas, which is its footprint width (its `item` footprint, 64); its bottom outline sits one row above the foot
-point, and the foot point and below are transparent. The planner lays out the pantry's spots by that width.
+point, and the foot point and below are transparent. The planner fits the counter into the band's bay by that width,
+and the walk graph holds it as an obstacle by it: the counter is a corner nook nobody walks to (D2, 2026-10-27), so
+its footprint still matters.
 
 A station is not one composite image: chair and worker sort by their own foot points, the laptop belongs to the
 pod, badge, chip and seat mark float above the world, and signs, tab labels and dynamic text are separate nodes.
@@ -572,15 +579,15 @@ Key and fixed colours are all distinct, since recolouring is a table lookup; the
 | `stand_blocked` | front, side | 2 | standing with a hand raised (drawn for the retired reception queue; nobody stands blocked in the office now); from the side the far hand reaches up behind the head, never covering the face |
 | `desk_start` / `stand_start` | front, back | 2 | launch pending: hands on the lap / together in front, a nod on frame 2 |
 | `carry_walk` | front, back, side | 4 | walking with papers |
-| `drink` | front, side | 3 | pantry coffee: cup at chest, chin, mouth (played by name; `ArtContract.TRACK_DRINK` requires the front) |
+| `drink` | front, side | 3 | coffee: cup at chest, chin, mouth (kept in the family, played by nothing in the office since idle sits with a mug, D2, 2026-10-27; its front is no longer required) |
 
 **1 unit = density texels**: "1 unit" is 2 texel rows at density 2. The feet are on texel row
 `pivot.y × density − 1` (45 at density 1, 91 at density 2). Strip and skin sizes and source-strip coordinates are
 texels; contract and motions are units.
 
-`stand` maps `working` to `stand_idle`: a standing person is only `done` (beside the seat), blocked (the queue) or
-idle (the pantry, `drink` by name, see `OfficeRests`); working is "at your seat, typing". A standing-at-work
-picture would need a new motion and a change to this row.
+`stand` maps `working` to `stand_idle`: nobody stands for a state in the office now (every state sits; the stand
+pose is the walk's, and the showroom's); working is "at your seat, typing". A standing-at-work picture would need a
+new motion and a change to this row.
 
 ### Slots
 

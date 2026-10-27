@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/station.gd" id="1_station"]
 [ext_resource type="Script" path="res://scripts/status_badge.gd" id="2_badge"]
@@ -12,9 +12,6 @@ size = Vector2(30, 56)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_chip"]
 size = Vector2(30, 18)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_away"]
-size = Vector2(38, 56)
 
 [node name="Station" type="Node2D"]
 y_sort_enabled = true
@@ -78,11 +75,6 @@ disabled = true
 [node name="Chip" type="CollisionShape2D" parent="Target"]
 position = Vector2(0, -45)
 shape = SubResource("RectangleShape2D_chip")
-disabled = true
-
-[node name="Away" type="CollisionShape2D" parent="Target"]
-position = Vector2(0, -26)
-shape = SubResource("RectangleShape2D_away")
 disabled = true
 
 [connection signal="input_event" from="Target" to="." method="_on_target_input_event"]

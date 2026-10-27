@@ -1,30 +1,26 @@
 class_name OfficePresentation
 extends RefCounted
 ## What the shown map's people do between one observation of it and the next:
-## who walks in at the lift door, who walks out, who goes to the pantry or back
-## to the seat, and who walks to a new seat. An observation (a MapModel laid out on a
-## FloorPlan) says where everyone belongs, at once: the plate, the badge and the
-## click target of a seat follow it the moment it arrives (OfficeStation). This
-## only brings the bodies there, by the routes the floor's walk graph allows
-## (OfficeWalkGraph), which is the graph the layout was validated on. A route
-## enters an obstacle only along the graph's entries: the seat legs at a
-## table's current place and the door's threshold leg.
+## who walks in at the lift door, who walks out, and who walks to a new seat.
+## An observation (a MapModel laid out on a FloorPlan) says where everyone
+## belongs, at once: the plate, the badge and the click target of a seat follow
+## it the moment it arrives (OfficeStation). This only brings the bodies there,
+## by the routes the floor's walk graph allows (OfficeWalkGraph), which is the
+## graph the layout was validated on. A route enters an obstacle only along the
+## graph's entries: the seat legs at a table's current place and the door's
+## threshold leg.
 ##
-## Where everyone belongs is where their state rests them (OfficeRests): the
-## seat, or the floor's pantry in the entry band. The seats and the pantry are
-## joined by the walking lane: every seat reaches the entry band through the
-## main corridor, so a walk to or from the pantry is the door's field read down
-## to the lane (OfficeWalkGraph.to_lane() and from_lane()), a straight run along
-## the lane and the pantry's leg. No route is searched for.
+## Where everyone belongs is their own seat, whatever their state: an idle
+## agent sits there too, with a mug beside the laptop (OfficeStation), and
+## nobody walks to the pantry counter, which is furniture.
 ##
 ## One floor-level model, keyed by pane key and the terminal's identity
 ## (PaneModel.identity_key()). Before the floor view reconciles a new
 ## observation, before() compares it with the one presented last and takes
 ## every departing body out of its seat first, into the sorted root as a
 ## ghost, so nothing the reconcile does to a seat (vacate, rebind, reuse, free)
-## can reach it. A body that stays with its seat (seated, arriving, going to the
-## pantry or back, changing seats) remains that seat's `Actor` and walks in the seat's own
-## coordinates; the seat leaves it alone while `walking` (OfficeStation). A
+## can reach it. A body that stays with its seat (seated, arriving, changing
+## seats) remains that seat's `Actor` and walks in the seat's own coordinates; the seat leaves it alone while `walking` (OfficeStation). A
 ## ghost has no plate, no badge, no card and nothing to click.
 ##
 ## Every change to a body's target bumps its generation, and a walk carries the
@@ -103,34 +99,21 @@ class Sighting:
 	var key := ""
 	var identity := ""
 	var provider := ""
-	## Their seat, which is theirs wherever they rest.
+	## Their seat, where they belong whatever their state.
 	var place: Place
-	## Where they rest (OfficeRests.Rest): the seat, or away in the pantry, at
-	## `at`, stepped up to from `approach`.
-	var rest := OfficeRests.Rest.SEAT
-	var at := Vector2.ZERO
-	var approach := Vector2.ZERO
 
 	func target() -> Vector2:
-		if rest == OfficeRests.Rest.PANTRY:
-			return at
 		return place.seat
 
 	func tab_key() -> String:
 		return place.tab_key
 
-	## Resting in the entry band, at the pantry.
-	func in_band() -> bool:
-		return rest == OfficeRests.Rest.PANTRY
-
-	## From the approach's node to where they belong (see OfficeWalkGraph).
+	## From the approach's node into the seat (see OfficeWalkGraph).
 	func leg() -> PackedVector2Array:
-		if rest == OfficeRests.Rest.PANTRY:
-			return OfficeWalkGraph.leg_to_fixture(approach, at)
 		return OfficeWalkGraph.leg_to_seat(place.approach, place.seat, place.spot, place.near)
 
 	func same_place(other: Sighting) -> bool:
-		return tab_key() == other.tab_key() and rest == other.rest and target() == other.target()
+		return tab_key() == other.tab_key() and target() == other.target()
 
 	## Another agent in the same pane: both providers known and different.
 	func replaced_by(other: Sighting) -> bool:
@@ -194,8 +177,6 @@ var pass_kept := 0
 var pass_placed := 0
 var pass_expanded := 0
 var pass_usec := 0
-## Where the last observation rests everyone (OfficeRests.assign()).
-var service := OfficeRests.Service.new()
 
 ## What was presented last.
 var _seen: Dictionary[String, Sighting] = {}
@@ -269,7 +250,6 @@ func sightings(plan: FloorPlan, model: MapModel) -> Dictionary[String, Sighting]
 	var found: Dictionary[String, Sighting] = {}
 	var repeated: Dictionary[String, bool] = {}
 	var reused := 0
-	service = OfficeRests.assign(plan, model)
 	for room in model.rooms:
 		for pane in room.panes:
 			if pane.provider.is_empty() and not pane.starting:
@@ -280,23 +260,9 @@ func sightings(plan: FloorPlan, model: MapModel) -> Dictionary[String, Sighting]
 			if found.has(pane.key):
 				repeated[pane.key] = true
 				continue
-			var rest: OfficeRests.Place = service.places.get(pane.key, OfficeRests.Place.new())
-			var at := Vector2.ZERO
-			var approach := Vector2.ZERO
-			var fixture := plan.pantry
-			if rest.away() and fixture != null:
-				at = fixture.spots[rest.index]
-				approach = fixture.approaches[rest.index]
 			var identity := pane.identity_key()
 			var seen: Sighting = _seen.get(pane.key)
-			if (
-				seen != null
-				and seen.place == place
-				and seen.rest == rest.rest
-				and seen.at == at
-				and seen.identity == identity
-				and seen.provider == pane.provider
-			):
+			if seen != null and seen.place == place and seen.identity == identity and seen.provider == pane.provider:
 				found[pane.key] = seen
 				reused += 1
 				continue
@@ -304,9 +270,6 @@ func sightings(plan: FloorPlan, model: MapModel) -> Dictionary[String, Sighting]
 			sighting.key = pane.key
 			sighting.identity = identity
 			sighting.provider = pane.provider
-			sighting.rest = rest.rest
-			sighting.at = at
-			sighting.approach = approach
 			sighting.place = place
 			found[pane.key] = sighting
 	for key in repeated:
@@ -354,8 +317,7 @@ func walk(delta: float) -> void:
 
 
 ## Walk every walk to its end, through the same steps as walk() and the same
-## landing: a seat's worker sits at their seat or stands in the pantry, a ghost
-## leaves by the door. For tools and tests that compare the floor with a
+## landing: a seat's worker sits at their seat, a ghost leaves by the door. For tools and tests that compare the floor with a
 ## rebuild, which never walks anyone. Unlike walk(), it ends the walks of a
 ## stale machine's frozen walkers too.
 func settle() -> void:
@@ -497,12 +459,6 @@ func after(view: OfficeFloorView, frozen: bool) -> void:
 	if not _in_pass:
 		return
 	_in_pass = false
-	# What hangs over everyone hangs where they rest, from this observation on;
-	# whoever is not walking is put there too.
-	for key in _now:
-		var resting := _station(view, key)
-		if resting != null:
-			resting.rest_at(_now[key].rest, _now[key].target())
 	if _quiet:
 		_commit(view, frozen)
 		return
@@ -744,11 +700,7 @@ func _route(walker: Walker, graph: OfficeWalkGraph, now: Sighting) -> void:
 		tail.append(graph.threshold)
 	var route := PackedVector2Array()
 	var head := PackedVector2Array()
-	if now != null and not walker.at_door and _lane_bound(walker, graph, now):
-		var lane := _lane_route(walker, graph, now, target, budget)
-		route = lane[0]
-		head = lane[1]
-	elif walker.at_door:
+	if walker.at_door:
 		# In at the door: read back off the door's field, which the validator
 		# built (or, missing, is built now and charged); the read is charged too,
 		# and not made for a route the field already says is too long.
@@ -804,74 +756,6 @@ func _route(walker: Walker, graph: OfficeWalkGraph, now: Sighting) -> void:
 		_place_now(walker)
 		return
 	_start(walker, route, head, tail, end)
-
-
-## Whether `walker`'s walk to `now` goes by the walking lane instead of a
-## search: when where they go is in the entry band (the pantry), or
-## where they set off from is (every way they have ends on the lane).
-static func _lane_bound(walker: Walker, graph: OfficeWalkGraph, now: Sighting) -> bool:
-	if not is_finite(graph.walking_lane):
-		return false
-	if now.in_band():
-		return true
-	if walker.ways.is_empty():
-		return false
-	for way in walker.ways:
-		var out := _to_node(way, graph)
-		if out.is_empty() or out[out.size() - 1].y != graph.walking_lane:
-			return false
-	return true
-
-
-## The route by the walking lane for a held `walker` to `target` (the leg of
-## where `now` rests), and the way back out of its start, as [route, head]:
-## out to the graph by whichever of its ways is shorter in all, then along the
-## door's field to the lane, the lane, and the field from the lane in to a
-## table. Empty when there is no such way or it would cost more than `budget`
-## graph work.
-func _lane_route(
-	walker: Walker, graph: OfficeWalkGraph, now: Sighting, target: PackedVector2Array, budget: int
-) -> Array[PackedVector2Array]:
-	var none: Array[PackedVector2Array] = [PackedVector2Array(), PackedVector2Array()]
-	var goal := OfficeWalkGraph.cell_of(target[0])
-	var inward := PackedVector2Array()
-	if not now.in_band():
-		if graph.door_distance(goal) + 1 > budget:
-			return none
-		inward = graph.from_lane(goal)
-		if inward.is_empty():
-			return none
-	var best := PackedVector2Array()
-	var best_length := INF
-	var chosen := -1
-	for index in walker.ways.size():
-		var out := _to_node(walker.ways[index], graph)
-		if out.is_empty() or not graph.clear_route(out):
-			continue
-		var end := out[out.size() - 1]
-		var route := out.duplicate()
-		if now.in_band():
-			if end.y != graph.walking_lane:
-				var cell := OfficeWalkGraph.cell_of(end)
-				if graph.door_distance(cell) + 1 > routing_budget - (graph.expanded - _pass_start):
-					continue
-				route.append_array(graph.to_lane(cell))
-			route.append_array(target)
-		else:
-			if end.y != graph.walking_lane:
-				continue
-			route.append_array(inward)
-			route.append_array(target)
-		route = OfficeWalkGraph.straighten(route)
-		var length := OfficeWalkGraph.length(route)
-		if length < best_length:
-			best = route
-			best_length = length
-			chosen = index
-	if chosen < 0:
-		return none
-	var other := walker.ways[1 - chosen] if walker.ways.size() == 2 else walker.ways[chosen]
-	return [best, other.slice(1)]
 
 
 ## How long the part of a route on the door's field is, between the door and
@@ -1034,9 +918,8 @@ static func _face(body: PixelPerson, heading: Vector2) -> void:
 		body.face(wanted)
 
 
-## The end of a walk: a seat's worker sits at their seat or stands in the
-## pantry, a ghost is
-## gone through the door.
+## The end of a walk: a seat's worker sits at their seat, a ghost is gone
+## through the door.
 func _finish(walker: Walker) -> void:
 	walker.walk = null
 	_snap(walker)

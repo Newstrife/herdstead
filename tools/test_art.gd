@@ -480,6 +480,14 @@ func test_the_contract_names_an_empty_or_misplaced_pool() -> void:
 	var pooled := func(m: Dictionary) -> void: m.props.done_stack_small.item.group = "desk"
 	problems = ArtContract.problems(ArtPack.from_manifest(_mutated_pack("pool-signal", pooled)))
 	_check(problems.has("props: done_stack_small is a signal, never in a pool"), "a signal in a pool: %s" % problems)
+	# D2 (2026-10-27): idle sits with a mug; the mug beside the laptop is a signal too.
+	var mugged := func(m: Dictionary) -> void:
+		m.props.idle_mug.item = {"place": "desk", "footprint": [7, 3], "group": "desk"}
+	problems = ArtContract.problems(ArtPack.from_manifest(_mutated_pack("pool-mug", mugged)))
+	_check(problems.has("props: idle_mug is a signal, never in a pool"), "the idle mug in a pool: %s" % problems)
+	var mugless := func(m: Dictionary) -> void: _drop(m, ["props", "idle_mug"])
+	problems = ArtContract.problems(ArtPack.from_manifest(_mutated_pack("no-mug", mugless)))
+	_check(problems.has("props: no idle_mug"), "a pack without the idle mug is refused: %s" % problems)
 
 
 func test_art_pack_rejects_wrong_json_containers() -> void:

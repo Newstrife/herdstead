@@ -26,9 +26,9 @@ var aisles: Array[Rect2i] = []
 var entry_cells := Rect2i()
 var main_corridor_cells := Rect2i()
 var render_bounds := Rect2()
-## The entry band's one service fixture (OfficeFixturePlanner): the pantry and
-## its spots. Null where the map has none: no desks, or a band too narrow (see
-## docs/VISUAL_LANGUAGE.md).
+## The entry band's one service fixture (OfficeFixturePlanner): the pantry
+## counter, furniture in the band's corner. Null where the map has none: no
+## desks, or a band too narrow (see docs/WORLD_MODEL.md).
 var pantry: FixturePlacement
 
 

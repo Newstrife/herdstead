@@ -351,7 +351,9 @@ func test_mezzanine_letters() -> void:
 
 func test_empty_floor_and_empty_tab_have_real_bounds() -> void:
 	var empty := _plan(_floor([]))
-	_check(empty.floor_cells.size.y >= 12, "empty workspace has a real floor")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2).
+	# The smallest floor is 11 cells deep (min_height_cells 12 -> 11).
+	_check(empty.floor_cells.size.y >= 11, "empty workspace has a real floor")
 	_check(empty.entry_cells.has_area(), "empty workspace has an entrance")
 	_eq(empty.desks.size(), 0, "no invented room")
 	_eq(empty.render_bounds.size, Vector2(empty.floor_cells.size * 32), "same authority for bounds")
@@ -1026,7 +1028,7 @@ func test_pruning_releases_only_the_floors_that_went_away() -> void:
 
 
 ## A map of one workspace plans exactly as that workspace does, under its key,
-## and its plan places that one zone in real lanes: from lane 0, row 6, under
+## and its plan places that one zone in real lanes: from lane 0, row 5, under
 ## its aisle row, as many lanes wide as its widest table needs (the map widens
 ## first when it has fewer), whole pod rows deep; every desk names the zone it
 ## stands in, stands right of its pad, and the zone holds every desk.
@@ -1054,11 +1056,13 @@ func test_a_one_zone_plan_places_its_zone_over_its_rows() -> void:
 	_eq(plan.floor_cells.size.x, 18, "a map of three lanes is 5 * 3 + 3 cells wide")
 	var pod := OfficeZoneLayout.pod_row_cells()
 	_eq(_rows(plan).size(), 3, "a pod row for each table")
-	_eq(zone.cells, Rect2i(1, 6, 14, pod * _rows(plan).size()), "from row 6, 14 cells wide, whole pod rows deep")
-	_eq(zone.slot(), Rect2i(1, 5, 14, pod * _rows(plan).size() + 1), "under its aisle row")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2).
+	# Zones start a row higher: row 5 (wall 2, band 2, top aisle 1), not 6.
+	_eq(zone.cells, Rect2i(1, 5, 14, pod * _rows(plan).size()), "from row 5, 14 cells wide, whole pod rows deep")
+	_eq(zone.slot(), Rect2i(1, 4, 14, pod * _rows(plan).size() + 1), "under its aisle row")
 	_eq(zone.initial_width_cells, 14, "first laid out that wide")
 	for index in _rows(plan).size():
-		_eq(_rows(plan)[index].band_cells, Rect2i(1, 6 + index * pod, 14, pod), "row %d is its band" % index)
+		_eq(_rows(plan)[index].band_cells, Rect2i(1, 5 + index * pod, 14, pod), "row %d is its band" % index)
 	var desks := 0
 	for row in zone.rows:
 		desks += row.desks.size()
@@ -1088,7 +1092,8 @@ func test_a_lane_holds_the_narrowest_pod_and_a_zone_stands_one_row() -> void:
 		[1, 2, 2, 3],
 		"a pod of c columns, c + 1 cells, spans ceil((c + 3) / 5) lanes"
 	)
-	_eq(policy.version, 3, "the lane unit is a new plan geometry")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2).
+	_eq(policy.version, 4, "the lane unit is a new plan geometry (3), and the two-cell band another (4)")
 	_eq(_lane_shape(1), [4, 1, 1], "one tab of two panes: a zone of one lane on the four-lane map")
 	_eq(_lane_shape(2), [4, 2, 1], "two tabs: two lanes, one row")
 	_eq(_lane_shape(3), [4, 3, 1], "three tabs: three lanes, one row")

@@ -59,8 +59,9 @@ func _initialize() -> void:
 	var fixture_file: Dictionary = parsed
 	fixture = _dict(fixture_file, "snapshot")
 	# The seat strips are about seats: every agent on api works unless a strip
-	# says otherwise (api:p2 is idle in the shared fixture, and it would rest in
-	# the pantry; an agent given to api:p3 would too).
+	# says otherwise (api:p2 is idle in the shared fixture, and an agent given to
+	# api:p3 would be too). Nobody walks for a state: D2 (2026-10-27), idle sits
+	# with a mug; the pantry is a nook nobody walks to.
 	fixture = _with(_with(fixture, "api:p2", {"agent_status": "working"}), "api:p3", {"agent_status": "working"})
 	_run.call_deferred()
 
@@ -81,8 +82,6 @@ func _run() -> void:
 		await _two_crossing_near_a_table(zoom)
 		await _seat_move_after_a_table_grows(zoom)
 		await _blocked_raises_a_hand(zoom)
-		await _idle_to_the_pantry(zoom)
-		await _idle_from_a_done_seat(zoom)
 	Engine.time_scale = 1.0
 	print("WALK_STRIPS_OK: " + _out)
 	quit(0)
@@ -118,16 +117,16 @@ func _departure_from_a_near_seat(zoom: int) -> void:
 	_done(office)
 
 
-## api:p1 (far) and api:p3 (near) go idle, out of their seats by the seat legs
-## (the near one round its chair) to the pantry, and back to work: twice, the
+## api:p1 (far) and api:p3 (near) close, out of their seats by the seat legs
+## (the near one round its chair) to the lift door, and come back: twice, the
 ## second time a frame every FINE_STEP, for the short legs at the seats.
 func _leaving_and_taking_the_seat(zoom: int) -> void:
 	var both := _both_sides()
 	var office := await _strip_office(zoom, both)
-	var idle := _with(_with(both, "api:p1", {"agent_status": "idle"}), "api:p3", {"agent_status": "idle"})
+	var gone := _without_pane(_without_pane(both, "api:p1"), "api:p3")
 	for step: float in [STEP, FINE_STEP]:
 		var suffix := "" if step == STEP else "-fine"
-		_feed(office, idle)
+		_feed(office, gone)
 		await _film(office, "leaving-seat" + suffix, zoom, step)
 		_feed(office, both)
 		await _film(office, "taking-seat" + suffix, zoom, step)
@@ -174,25 +173,6 @@ func _blocked_raises_a_hand(zoom: int) -> void:
 	var office := await _strip_office(zoom, fixture)
 	_feed(office, _with(fixture, "api:p2", {"agent_status": "blocked"}))
 	await _still(office, "blocked-at-desk", zoom, "api:p2", 4)
-	_done(office)
-
-
-## api:p2 goes idle: out to the walking lane, along it to the pantry at the
-## band's left end, up to a spot there, and a cup.
-func _idle_to_the_pantry(zoom: int) -> void:
-	var office := await _strip_office(zoom, fixture)
-	_feed(office, _with(fixture, "api:p2", {"agent_status": "idle"}))
-	await _film(office, "idle-to-pantry", zoom, STEP, "api:p2")
-	_done(office)
-
-
-## api:p2 is done, sitting with its paper, and goes idle: the paper goes at
-## once and they walk from the seat to the pantry.
-func _idle_from_a_done_seat(zoom: int) -> void:
-	var done := _with(fixture, "api:p2", {"agent_status": "done"})
-	var office := await _strip_office(zoom, done)
-	_feed(office, _with(done, "api:p2", {"agent_status": "idle"}))
-	await _film(office, "idle-from-done-seat", zoom, STEP, "api:p2")
 	_done(office)
 
 

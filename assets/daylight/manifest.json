@@ -414,6 +414,17 @@
         ]
       }
     },
+    "idle_mug": {
+      "path": "props/idle_mug.png",
+      "size": [
+        24,
+        24
+      ],
+      "pivot": [
+        12,
+        22
+      ]
+    },
     "pantry": {
       "path": "props/pantry.png",
       "size": [

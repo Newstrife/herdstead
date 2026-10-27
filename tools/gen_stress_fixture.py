@@ -24,7 +24,8 @@ done, working, working, so a floor carries blocked and UNREAD badges too.
 - snapshot_stress80_done40:  the same, the first 40 panes done
 - snapshot_stress92_grown:   every pane at work, tab 0 grown by 12 panes
 
-and, for the entry band's queue and pantry:
+and, for many agents changing state at once (once the entry band's queue and
+pantry; since D2, 2026-10-27, every state sits at its seat):
 
 - snapshot_stress80_blocked40: at work but the 40 panes of tabs 0-4 blocked
 - snapshot_stress80_idle40:    at work but the 40 panes of tabs 0-4 idle
