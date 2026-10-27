@@ -303,8 +303,8 @@ func _copied_pack(
 	var table_file := FileAccess.open(table_target.path_join("manifest.json"), FileAccess.WRITE)
 	table_file.store_string(JSON.stringify(table_data))
 	table_file.close()
-	# The fonts the manifest names: the main one, and the display face when it has one.
-	for face: String in ["font", "display_font"]:
+	# The fonts the manifest names: the main one, and the display, heading and figures faces when it has them.
+	for face: String in ["font", "display_font", "heading_font", "figures_font"]:
 		if not data.has(face):
 			continue
 		var font_path := str(_dict(data, face).get("path", ""))

@@ -112,7 +112,7 @@ func _build_frame() -> void:
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
 	pen.panel(self, Rect2(0, 0, DESIGN_SIZE.x, 32))
-	pen.label(self, "HERDSTEAD / AVATAR STUDIO", Vector2(16, 8), Vector2(300, 18), 14, ArtContract.INK)
+	pen.label(self, "HERDSTEAD / AVATAR STUDIO", Vector2(16, 8), Vector2(300, 18), 12, ArtContract.INK)
 	pen.clipped(
 		self,
 		"%d AGENTS / LOCAL ONLY" % agent_ids.size(),
@@ -157,7 +157,7 @@ func _draw_agents() -> void:
 			catalog.display_name(id),
 			Vector2(rect.position.x + 25, rect.position.y + 2),
 			Vector2(176, 12),
-			9,
+			8,
 			ArtContract.PAPER if index == agent_index else ArtContract.INK
 		)
 	pen.label(content, "↑/↓ choose  •  click a row", Vector2(28, 447), Vector2(196, 12), 8, ArtContract.MUTED)
@@ -205,7 +205,7 @@ func _draw_preview() -> void:
 		"NAME PLATE  /  " + id.to_upper(),
 		Vector2(284, 370),
 		Vector2(352, 14),
-		9,
+		8,
 		ArtContract.WOOD_DARK,
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
@@ -230,7 +230,7 @@ func _draw_preview() -> void:
 		shown = (
 			"%d of %d pinned, %d kept  •  VARIES: each pane its own" % [pinned, AvatarLook.SLOTS.size(), kept.size()]
 		)
-	pen.label(content, shown, Vector2(284, 406), Vector2(352, 14), 9, ArtContract.SLATE, HORIZONTAL_ALIGNMENT_CENTER)
+	pen.label(content, shown, Vector2(284, 406), Vector2(352, 14), 8, ArtContract.SLATE, HORIZONTAL_ALIGNMENT_CENTER)
 	pen.label(
 		content,
 		"D/S context  •  F/B facing  •  1–4 action track",
@@ -306,7 +306,7 @@ func _draw_composer() -> void:
 		"SAVE FOR THIS AGENT  /  ENTER",
 		Vector2(708, 410),
 		Vector2(212, 12),
-		9,
+		8,
 		ArtContract.PAPER,
 		HORIZONTAL_ALIGNMENT_CENTER
 	)

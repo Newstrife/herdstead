@@ -523,7 +523,9 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_check(not preview.is_visible_in_tree(), "the preview is out of it")
 	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "the world stops above the line, beside the rail and the drawer")
 	_eq(holder.size.y, 208.0, "the drawer takes the whole column")
-	_eq(hud.agent_list.size.y, 188.0, "the list the whole of it under the drawer's tabs")
+	# F1 (2026-10-27): the HUD wears Fusion Pixel's 10px cut; the drawer's tab
+	# bar is 14 tall (measured; 17 in Nunito Sans), so the list starts 3 higher.
+	_eq(hud.agent_list.size.y, 191.0, "the list the whole of it under the drawer's tabs")
 	# Six rows: the Waiting and Unread headers and four agents under them, who
 	# needs a human first, without scrolling.
 	_check(scroll.size.y >= 6 * 18, "the list shows at least six rows: %.0f units" % scroll.size.y)
@@ -563,7 +565,7 @@ func test_the_staff_panel_is_one_row_at_the_smallest_screen() -> void:
 	_check(holder.visible and hud.card_compact(), "with room, both are there, the panel still one line")
 	_eq(hud.inspector.size, Vector2(768, 80), "the panel one line along the bottom")
 	_eq(holder.size, Vector2(144, 316), "the drawer above it")
-	_eq(hud.agent_list.size.y, 296.0, "the list under the drawer's tabs")
+	_eq(hud.agent_list.size.y, 299.0, "the list under the drawer's tabs (F1: tabs 14 tall, were 17)")
 	_eq(hud.world_rect(), Rect2(96, 48, 536, 308), "the world between them")
 
 

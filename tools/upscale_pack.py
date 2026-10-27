@@ -23,7 +23,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from build_assets import CATEGORIES, DENSITIES, ROOT, contract_size, resolve_density_filter, upscale
+from build_assets import CATEGORIES, DENSITIES, OPTIONAL_FONTS, ROOT, contract_size, resolve_density_filter, upscale
 
 
 def fail(message):
@@ -75,8 +75,8 @@ def upgrade(source: Path, output: Path, density: int, pack_id: str | None = None
                 fail(f"{category}/{asset} is {image.width}x{image.height}, not an allowed multiple of the {expected_width}x{expected_height} contract")
             upscale(image, density // factor).save(target)
             written += 1
-    # The fonts the pack names, each with its licence: the main one and the display face.
-    faces = [pack["font"]] + ([pack["display_font"]] if "display_font" in pack else [])
+    # The fonts the pack names, each with its licence: the main one and the optional cuts.
+    faces = [pack["font"]] + [pack[slot] for slot in OPTIONAL_FONTS if slot in pack]
     for relative in [path for face in faces for path in (face["path"], face["license"])]:
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True)

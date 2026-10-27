@@ -69,7 +69,7 @@ PYTHON="${PYTHON:-$DEFAULT_PYTHON}"
 # Cases discover themselves (tools/test_base.gd), so nothing lists them.
 # These floors are what each file runs today: a file that silently loses
 # its cases fails here instead of staying green. Raise them as cases are added.
-MIN_CASES_ART=27
+MIN_CASES_ART=31
 MIN_CASES_CLIENT=52
 MIN_CASES_MACHINE=34
 MIN_CASES_INCREMENTAL=54

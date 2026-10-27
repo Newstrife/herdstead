@@ -35,14 +35,28 @@ var tiles: Dictionary[StringName, Vector2i] = {}
 var props: Dictionary[StringName, ArtSprite] = {}
 var ui: Dictionary[StringName, ArtSprite] = {}
 var states: Dictionary[StringName, ArtState] = {}
+## The text cut: the HUD's body and every chain's base (OfficeDraw.font),
+## drawn at its native size (OfficeDraw.TEXT_PIXELS) or a whole multiple.
 var font: Font
 var font_path := ""
 ## The font's licence, which ships beside it and may not be dropped.
 var font_license_path := ""
-## The optional pixel face for the HUD's few fixed ASCII headings (the
-## wordmark, SPACES, NEWS, NEXT); null when the manifest names none. Drawn with
-## no antialiasing, at sizes on its own grid (HudTheme.DISPLAY_SIZES).
+## The optional small cut: the world's labels (name plates, zone signs, tab
+## labels) and the HUD's 8-unit rows and its
+## wordmark (OfficeDraw.DISPLAY_PIXELS and its multiples); null when the
+## manifest names none.
 var display_font: Font
+## The optional heading cut: the HUD's headings and the counters' numbers
+## (OfficeDraw.HEADING_PIXELS); null when the manifest names none, and the
+## headings are then written in the text cut at its own size.
+## Every cut a pack ships is drawn hard (_hard()): no antialiasing, whole
+## pixels, at sizes on its own grid (OfficeDraw.cut_for()).
+var heading_font: Font
+## The optional figures face: the compact durations alone, the chip's wait and
+## the lens line (OfficeDraw.figures, at OfficeDraw.FIGURES_PIXELS), whose
+## digits must fit the chip at the 32-unit seat pitch; null when the manifest
+## names none, and they are then written in the display cut.
+var figures_font: Font
 var stale_tint := STALE_DEFAULT
 var task_lights := TASK_LIGHTS_SOFT
 ## The pixel people every theme shares: who sits at a desk, stands in the
@@ -294,7 +308,15 @@ func _read(manifest: Dictionary) -> String:
 		if not manifest.get(field) is Dictionary:
 			return '"%s" is not a JSON object' % field
 	var steps: Array[Callable] = [
-		_read_palette, _read_tiles, _read_images, _read_states, _read_font, _read_display_font, _read_options
+		_read_palette,
+		_read_tiles,
+		_read_images,
+		_read_states,
+		_read_font,
+		_read_optional_font.bind("display_font"),
+		_read_optional_font.bind("heading_font"),
+		_read_optional_font.bind("figures_font"),
+		_read_options
 	]
 	for step in steps:
 		var problem: String = step.call(manifest)
@@ -411,30 +433,37 @@ func _read_font(manifest: Dictionary) -> String:
 	font = _load_font(base_path.path_join(font_path))
 	if font == null:
 		return "font %s did not load" % font_path
+	_hard(font)
 	return ""
 
 
-## The optional display face, which ships with its licence beside it as the
-## main font does. Absent is legal (display_font stays null); named, it must load.
-func _read_display_font(manifest: Dictionary) -> String:
-	if not manifest.has("display_font"):
+## An optional cut, `key` (display_font, heading_font, figures_font), which ships with its
+## licence beside it as the main font does. Absent is legal (the field stays
+## null); named, it must load, and it is drawn hard.
+func _read_optional_font(manifest: Dictionary, key: String) -> String:
+	if not manifest.has(key):
 		return ""
-	if not manifest["display_font"] is Dictionary:
-		return '"display_font" is not a JSON object'
-	var spec: Dictionary = manifest["display_font"]
+	if not manifest[key] is Dictionary:
+		return '"%s" is not a JSON object' % key
+	var spec: Dictionary = manifest[key]
 	var path := str(read_name(spec.get("path")))
 	if path.is_empty() or str(read_name(spec.get("license"))).is_empty():
-		return '"display_font" names no file or no licence'
-	display_font = _load_font(base_path.path_join(path))
-	if display_font == null:
-		return "display font %s did not load" % path
-	if display_font is FontFile:
-		# A pixel face: hard edges, whole pixels, whatever the import said.
-		var face := display_font as FontFile
-		face.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-		face.hinting = TextServer.HINTING_NONE
-		face.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+		return '"%s" names no file or no licence' % key
+	var face := _load_font(base_path.path_join(path))
+	if face == null:
+		return "%s %s did not load" % [key.replace("_", " "), path]
+	_hard(face)
+	set(key, face)
 	return ""
+
+
+## A pixel face: hard edges, whole pixels, whatever the import said.
+static func _hard(face: Font) -> void:
+	if face is FontFile:
+		var file := face as FontFile
+		file.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		file.hinting = TextServer.HINTING_NONE
+		file.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 
 
 ## The two additive optional keys, documented in docs/ASSET_SPEC.md. Absent is

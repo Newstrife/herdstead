@@ -341,8 +341,10 @@ func test_the_bubble_wait_is_short_enough_to_read() -> void:
 		_eq(OfficeAttention.compact_duration(seconds, false), forms[seconds], "%d s" % seconds)
 	var office := await _live_office(_with(fixture, "api:p2", {"agent_status": "blocked"}))
 	var wait: Label = _station(office, _pane("api:p2")).chip().get_node("%Wait")
-	_eq(wait.get_theme_font_size("font_size"), OfficeChip.WAIT_PIXELS, "the display face's native 8")
-	_eq(wait.get_theme_font("font"), office.pen.display, "in the display face")
+	# F1 (2026-10-27): the wait is written in the pack's figures face (Tiny5), not
+	# the display cut (Fusion Pixel's 8px, whose `99m` is 16 wide in a 14-wide slot).
+	_eq(wait.get_theme_font_size("font_size"), OfficeChip.WAIT_PIXELS, "the figures face's native 8")
+	_eq(wait.get_theme_font("font"), office.pen.figures, "in the figures face")
 	var font := wait.get_theme_font("font")
 	for text: String in ["59s", "99m", "99h", "99d"]:
 		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, OfficeChip.WAIT_PIXELS).x

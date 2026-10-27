@@ -141,6 +141,6 @@ changing the code (invariants, what to keep in sync, how to test) are in [AGENTS
 ## Licence
 
 Code and art (tiles, furniture, characters, UI icons, theme palettes) are released under the [MIT licence](LICENSE).
-The bundled Nunito Sans and Tiny5 fonts are under their own SIL Open Font License 1.1; their `*OFL.txt` files ship next to
-them in each pack's `fonts/` directory and must travel with them. Third-party agent logos, used only in the Avatar
+The bundled Fusion Pixel fonts are under the SIL Open Font License 1.1 and their component fonts' own licences, and the
+bundled Tiny5 under the SIL OFL 1.1; their `FusionPixel-*-LICENSES.txt` and `OFL.txt` files ship next to them in each pack's `fonts/` directory and must travel with them. Third-party agent logos, used only in the Avatar
 Studio, keep their own terms; sources are listed in `assets/agent_badges/ATTRIBUTIONS.md`.

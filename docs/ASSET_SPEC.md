@@ -10,8 +10,9 @@ pixels, with layout still in 32-unit tiles. Its pod family (`<pack>/table/`, the
 2, nearest too. Display scales are even only (2×–8×), so every texel lands on whole screen pixels. A source not
 yet repainted at 2x is a 1x source the build fills in with NEAREST 2×2 blocks.
 
-UI text is never baked into pixel art. Labels use the bundled Nunito Sans; the system CJK font is only the
-fallback for CJK and missing glyphs.
+UI text is never baked into pixel art. Labels use the bundled Fusion Pixel cuts (8, 10 and 12 px, zh_hans, so the user's
+Chinese titles are the pack's own glyphs too); the system font is only the fallback for glyphs the family lacks (emoji,
+rare symbols).
 
 ## Scope
 
@@ -46,7 +47,7 @@ semantic ID, so no audio asset family.
 | Scale | Even scales only: 2× / 4× / 6× / 8× (`-` / `=` step two at a time; `OfficeScene.content_scale_for` is the one rule). Below a 960×640 window the scale drops to 1×: degraded, below the supported size, not a scale step. No automatic trim, rotation or packing |
 | Import | Lossless; Fix Alpha Border = true; Premult Alpha = false; `mipmaps/generate` by asset family (see "Import policy by asset family") |
 | Resolution | Logical viewport 800×480. The desktop window defaults to 1920×960 (2× only; 4× needs 1920×1280); the smallest supported window is 960×640. `canvas_items` / `expand` / `integer`. `scenes/preview.tscn` ignores `--zoom` and may use 3× in a large window: it is not the product view |
-| Text | Names, branches and state words are Labels, never baked into furniture. Nunito Sans body weight 500 / opsz 10, large titles weight 700 / opsz 12 |
+| Text | Names, branches and state words are Labels, never baked into furniture. One pixel family at its native sizes only (`OfficeDraw.cut_for()`): the world's labels and the HUD's small rows the 8px cut at 8 (the wordmark at 16), the HUD's body the 10px cut at 10, headings and the counters' numbers the 12px cut at 12. The family has no weight axis: a heading is the 12px cut. The one exception: the compact durations (the chip's wait, the lens line) are Tiny5 at 8, the pack's figures face, whose `99m` is 14 units where the 8px cut's is 16 (the chip at the 32-unit seat pitch has 14) |
 
 When the window does not divide evenly, black bars are kept rather than stretching pixels.
 
@@ -512,10 +513,17 @@ positions, pauses motion, dims the picture and says STALE; idle never stands in 
    task-light wedges and chair contact shadows draw; default `"soft"`. Additive to schema v1; read through
    `ArtPack.task_lights`.
    `scripts/world/table.gd` looks only at this key, **never at the pack's name**.
-   **Optional display face**: top-level `"display_font": {"path", "license"}`, like `font`, names a pixel face
-   for the HUD's few fixed ASCII headings (the wordmark, SPACES, NEWS, NEXT). Read through
-   `ArtPack.display_font` with antialiasing, hinting and subpixel positioning off; `HudTheme` draws it only at
-   sizes on its 8-pixel grid (`DISPLAY_SIZES`) and falls back to the main font when a pack names none.
+   **Optional display and heading cuts**: top-level `"display_font": {"path", "license"}` and
+   `"heading_font": {"path", "license"}`, like `font`, name the pack's small cut (native 8: the world's labels, the HUD's
+   8-unit rows, the wordmark at 16) and its heading cut (native 12: headings, the counters' numbers, SPACES, NEWS,
+   NEXT). Read through `ArtPack.display_font` / `ArtPack.heading_font`; every cut, `font` included, is drawn with
+   antialiasing, hinting and subpixel positioning off. `OfficeDraw.cut_for()` is the one place a size picks its cut
+   (multiples of 8 the display cut, of 10 `font`, of 12 the heading cut; any other size is an error); a pack that
+   names no cut for a size writes it in `font` at 10 (`OfficeDraw.size_for()`). Named, a cut must load and its
+   licence must be in the pack (`tools/build_assets.py` copies each `license` beside its face).
+   **Optional figures face**: top-level `"figures_font": {"path", "license"}`, read through `ArtPack.figures_font`,
+   names the face the compact durations alone are written in (`OfficeDraw.figures`, `style_figures()`, native 8: the
+   chip's wait and the lens line); a pack without one writes them in the display cut.
 9. **Scene dependency list**: the palette keys, props, UI, tiles, states and animations scenes use, plus the table
    modules and the pixel people (every semantic animation has a track in both poses, seated tracks draw the
    back), live in `scripts/art/art_contract.gd`, beside the code that uses them; scene code takes IDs only through
@@ -856,14 +864,24 @@ rule the builder checks). The output directory must be empty; painted work is ne
 
 ## Fonts, sources and licensing
 
-- Nunito Sans (variable) comes from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/nunitosans),
-  originally `NunitoSans[YTLC,opsz,wdth,wght].ttf`, unmodified, shipped as `NunitoSans.ttf` with
-  `NunitoSans-OFL.txt`, which must be distributed with it. `OfficeDraw` uses the pack's font as its base, with CJK
-  and missing glyphs falling back to the platform CJK font; `HudTheme` overrides only the weight of large titles.
-- Tiny5 from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/tiny5) is kept with its `OFL.txt`; it is
-  the pack's `display_font`, for the HUD's fixed ASCII headings and the world's small labels (plates, chips, tab
-  labels, zone signs). It has no CJK: where a name may be anything (the world's labels, the strategic captions) it is
-  drawn over the system fallbacks (`OfficeDraw.display`), never alone.
+- Fusion Pixel Font (缝合像素字体) by TakWolf, release **2026.09.25** from
+  [TakWolf/fusion-pixel-font](https://github.com/TakWolf/fusion-pixel-font/releases/tag/2026.09.25), the
+  `proportional` `otf.woff2` builds, `zh_hans` variant, unmodified: `fusion-pixel-8px-proportional-zh_hans.otf.woff2`
+  (`display_font`), `fusion-pixel-10px-proportional-zh_hans.otf.woff2` (`font`) and
+  `fusion-pixel-12px-proportional-zh_hans.otf.woff2` (`heading_font`). Godot imports woff2 directly; each `.import`
+  has antialiasing, hinting and subpixel positioning off and no mipmaps. Drawn only at the cut's native size or a
+  whole multiple (8 at 8 and 16, 10 at 10, 12 at 12; `OfficeDraw.cut_for()`). The text chain (`OfficeDraw.font`) is
+  the 10px cut over the 8px cut (for its `‹ ›`) and the system fallbacks; every other size's chain is its cut over
+  the system fallbacks only, each cut no taller than its own row (`OfficeDraw.no_taller()`).
+- Tiny5 from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/tiny5), `Tiny5-Regular.ttf`, kept with its
+  `OFL.txt` (SIL OFL 1.1): the pack's `figures_font`, for the compact durations only (`99m`, `99m+`, `4s+`). Its digits
+  are 4 wide (Fusion's 8px cut's are 5), which is what fits a wait in the chip at the 32-unit seat pitch. Drawn at 8,
+  hard, over the system fallbacks, no taller than its own row.
+- Each cut ships with one licence text beside it, `FusionPixel-<N>px-LICENSES.txt`: the release's `OFL.txt` (SIL OFL
+  1.1) followed, each under a one-line header naming it, by every file in that build's `LICENSES/` directory,
+  verbatim: 8px — boutique-bitmap-7x7 (OFL 1.1), galmuri (OFL 1.1), misaki (free to use, copy and redistribute, with
+  or without modification), miseki-bitmap; 10px — ark-pixel (OFL 1.1), boutique-bitmap-9x9 (OFL 1.1), galmuri;
+  12px — ark-pixel, cubic-11 (OFL 1.1), galmuri. The export preset's include filter (`*LICENSES.txt`) packs them.
 - The environment's density-2 art (furniture, desk library, UI, walls, tiles, the pod family) is drawn by the AI painter
   (`.claude/skills/painter`, GPT Image 2.5 Sunburst): `pixelize.py` fixes canvas, pivot, palette and outline, and
   `tilefix.py` pins the connecting pixels (wood floor outer band, wall boundary rows and ports, tileable edges, the
@@ -872,7 +890,7 @@ rule the builder checks). The output directory must be empty; painted work is ne
   candidates are not kept in the repository.
 - The white model and first versions of tiles and icons come from this project's drawing scripts; every source PNG
   is directly editable. No third-party game sprites were extracted.
-- Code and art are MIT licensed (`LICENSE`); Nunito Sans and Tiny5 are under the SIL OFL 1.1, and their licence
-  files must be kept.
+- Code and art are MIT licensed (`LICENSE`); Fusion Pixel Font and its component fonts, and Tiny5, are under their own
+  licences (above), and their licence files must be kept.
 - This is a minimal, iterable asset pack, not a finished game: no real API calls, permission operations,
   scheduling or task-completion judgements.

@@ -159,8 +159,11 @@ VARIES), saved to `user://herdstead_avatars.json` (schema 2). A save rereads wha
 was not changed by someone else, refuses any save that would lose data and says why, and keeps anything it cannot read
 as it was.
 
-**Fonts.** The HUD and name plates use the bundled Nunito Sans (medium for body, bold for titles), so Latin glyphs do not
-change with the OS. CJK workspace names and missing glyphs fall back to the platform's CJK font.
+**Fonts.** Every word the office draws is the bundled Fusion Pixel font at its native sizes: the world's labels (name
+plates, zone signs, tab labels) and the HUD's small rows in its 8px cut, the HUD's body in its 10px cut,
+headings in its 12px cut. Latin and Chinese glyphs are the pack's own and do not change with the OS; only glyphs the
+family lacks (emoji, rare symbols) fall back to a platform font. The one exception is how long a seat has waited (the
+chip's `12m`, the lens line's `4s+`): it is Tiny5 at 8, whose narrower digits fit the chip at the seat pitch.
 
 ## Top bar
 
@@ -740,8 +743,8 @@ make export GODOT=/path/to/godot  # a specific Godot binary
 ```
 
 `export_presets.cfg` has a single `macOS` preset with built-in ad-hoc signing and no certificate, Team ID or notarisation
-credentials; never put them in that file. The non-resource include filter is `*.json, *OFL.txt`: the fonts' OFL licence
-files are not Godot resources and would be left out of the PCK otherwise (`*.json` is already packed as a resource in
+credentials; never put them in that file. The non-resource include filter is `*.json, *OFL.txt, *LICENSES.txt`: the
+fonts' licence files are not Godot resources and would be left out of the PCK otherwise (`*.json` is already packed as a resource in
 4.7; it stays as insurance). `tools/` is not packed; `build/` is git-ignored. macOS universal / arm64 export needs Import
 ETC2 ASTC on in `project.godot`; all textures are lossless, so the switch changes no art.
 
@@ -856,6 +859,7 @@ and writes only through its typed calls. The contributor rules are in [AGENTS.md
 ## Licence
 
 Code and art (tiles, furniture, characters, UI icons, theme palettes) are [MIT](../LICENSE): fork, reskin and
-redistribute freely, keeping the copyright notice. The bundled Nunito Sans and Tiny5 fonts are not: each is under its own
-SIL OFL 1.1, and the `*OFL.txt` files next to them in each pack's `fonts/` directory must travel with them. Third-party
+redistribute freely, keeping the copyright notice. The bundled Fusion Pixel fonts are not: they are under the SIL OFL 1.1
+and their component fonts' own licences, Tiny5 under the SIL OFL 1.1, and the `FusionPixel-*-LICENSES.txt` and `OFL.txt`
+files next to them in each pack's `fonts/` directory must travel with them. Third-party
 agent logos keep their own terms; sources are listed in `assets/agent_badges/ATTRIBUTIONS.md`.

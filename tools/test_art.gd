@@ -39,26 +39,27 @@ func _marker() -> String:
 # --- cases --------------------------------------------------------------------
 
 
+## F1 (2026-10-27): the HUD and the world wear Fusion Pixel at native sizes;
+## Nunito Sans and Tiny5 are gone. The family has no weight axis: a heading is
+## the 12-unit cut, not a bolder weight of the text cut.
 func test_bundled_typography_keeps_latin_and_cjk_readable() -> void:
-	var text_server := TextServerManager.get_primary_interface()
-	var weight := text_server.name_to_tag("wght")
 	for path: String in [MANIFEST]:
 		var pack := ArtPack.from_manifest(path)
 		var drawing := OfficeDraw.new(pack)
 		var text := drawing.font as FontVariation
 		_check(text != null and text.base_font == pack.font, "the pack, not a platform font, owns Latin glyphs")
-		_check(pack.font.get_font_name().begins_with("Nunito Sans"), "both themes ship the intended face")
-		var text_axes := text_server.font_get_variation_coordinates(text.get_rids()[0])
-		_eq(text_axes.get(weight), 500.0, "the renderer actually uses medium weight, not the ExtraLight default")
+		_check(pack.font.get_font_name().begins_with("Fusion Pixel 10px"), "the theme ships the intended face")
 		_check(not text.fallbacks.is_empty(), "Chinese keeps an explicit platform fallback")
 		for character: String in ["数", "据", "▲", "▼"]:
-			_check(text.has_char(character.unicode_at(0)), "fallback covers " + character)
+			_check(text.has_char(character.unicode_at(0)), "the chain covers " + character)
 		var theme := HudTheme.build(pack, text)
-		_eq(theme.default_font, text, "world labels and HUD use the same text face")
+		var body := theme.default_font as FontVariation
+		_check(body != null and body.base_font == pack.font, "world labels and HUD use the same text face")
+		_eq(body.fallbacks, text.fallbacks, "over the same fallbacks")
+		_eq(body.get_height(10), pack.font.get_height(10), "its row the text cut's own")
 		var heading := theme.get_font("font", "Heading16") as FontVariation
-		_check(heading != null and heading != text, "headings have their own weight")
-		var heading_axes := text_server.font_get_variation_coordinates(heading.get_rids()[0])
-		_eq(heading_axes.get(weight), 700.0, "the renderer actually uses bold for headings")
+		_check(heading != null and heading != text, "headings have their own face")
+		_check(heading != null and heading.base_font == pack.heading_font, "the heading cut, not a bolder weight")
 		_check(text.get_string_size("CLAUDE", HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x <= 64.0, "name fits its seat column")
 
 
@@ -114,7 +115,7 @@ func test_the_huds_own_words_need_no_platform_glyph() -> void:
 	for character: String in seen:
 		var code := character.unicode_at(0)
 		_check(
-			pack.font.has_char(code) or pack.display_font.has_char(code),
+			pack.font.has_char(code) or pack.display_font.has_char(code) or pack.heading_font.has_char(code),
 			"U+%04X %s (%s) is in one of the pack's faces" % [code, character, seen[character]]
 		)
 
@@ -127,9 +128,8 @@ func test_a_fallback_never_makes_a_row_taller() -> void:
 		for name: StringName in HudTheme.LABEL_SIZES:
 			var pixels := HudTheme.LABEL_SIZES[name]
 			var height := theme.get_font("font", name).get_height(pixels)
-			_check(
-				height <= pack.font.get_height(pixels), "%s at %d: %s, no taller than its face" % [name, pixels, height]
-			)
+			var cut := OfficeDraw.cut_for(pack, pixels)
+			_check(height <= cut.get_height(pixels), "%s at %d: %s, no taller than its cut" % [name, pixels, height])
 		var mono := SystemFont.new()
 		mono.font_names = PackedStringArray(HudTheme.MONO_FACES)
 		var preview := theme.get_font("font", "PreviewText").get_height(HudTheme.PREVIEW_SIZE)
@@ -143,14 +143,18 @@ func test_a_fallback_never_makes_a_row_taller() -> void:
 		var sizes: Array[int] = [HudTheme.PREVIEW_SIZE]
 		sizes.append_array(HudTheme.LABEL_SIZES.values())
 		for surplus: int in [1, 2]:
-			# A copy of the pack's own face behind it, its ascent `surplus` rows
-			# more at every size the HUD writes at: taller wherever the suite
-			# runs. Against the theme built on the face alone, every row is as
-			# tall and its text where it was; a counter's own trim
-			# (HudTheme._counters()) is added to the rows cut, not put in their place.
+			# A copy of the pack's own face behind it, at every size the HUD
+			# writes at `surplus` rows taller than the cut drawn at that size
+			# (OfficeDraw.cut_for()): its ascent that much more, its descent the
+			# cut's. Taller wherever the suite runs. Against the theme built on
+			# the face alone, every row is as tall and its text where it was; a
+			# counter's own trim (HudTheme._counters()) is added to the rows
+			# cut, not put in their place.
 			var tall: FontFile = pack.font.duplicate()
 			for pixels in sizes:
-				tall.set_cache_ascent(0, pixels, pack.font.get_ascent(pixels) + surplus)
+				var cut := OfficeDraw.cut_for(pack, pixels) if pixels != HudTheme.PREVIEW_SIZE else pack.font
+				tall.set_cache_ascent(0, pixels, cut.get_ascent(pixels) + surplus)
+				tall.set_cache_descent(0, pixels, cut.get_descent(pixels))
 			var chain: FontVariation = text.duplicate()
 			chain.fallbacks = [tall]
 			var fitted := HudTheme.build(pack, chain)
@@ -158,16 +162,19 @@ func test_a_fallback_never_makes_a_row_taller() -> void:
 				var pixels := HudTheme.LABEL_SIZES[name]
 				var said := "%s, a chain %d taller" % [name, surplus]
 				_eq(
-					chain.get_height(pixels),
-					pack.font.get_height(pixels) + surplus,
-					said + ": taller than the face by that: the case has a subject"
+					tall.get_height(pixels),
+					OfficeDraw.cut_for(pack, pixels).get_height(pixels) + surplus,
+					said + ": taller than the cut by that: the case has a subject"
 				)
 				var own := plain.get_font("font", name)
 				var face := fitted.get_font("font", name)
+				var uncut := FontVariation.new()
+				uncut.base_font = OfficeDraw.cut_for(pack, pixels)
+				uncut.fallbacks = [tall]
 				_eq(face.get_height(pixels), own.get_height(pixels), said + ": the row the face alone makes")
 				_eq(await _label_row(face, pixels), await _label_row(own, pixels), said + ": and so is a Label's")
 				_check(
-					await _label_row(chain, pixels) > await _label_row(own, pixels),
+					await _label_row(uncut, pixels) > await _label_row(own, pixels),
 					said + ": which the chain uncut would make taller"
 				)
 				_stays(_text_at(face, pixels) - _text_at(own, pixels), surplus % 2 == 0, said)
@@ -177,7 +184,7 @@ func test_a_fallback_never_makes_a_row_taller() -> void:
 			_check(over > 0, said + ": the fallback is taller than the mono face too: the case has a subject")
 			_check(
 				screen.get_height(HudTheme.PREVIEW_SIZE) <= mono.get_height(HudTheme.PREVIEW_SIZE),
-				said + ": %s, no taller than the mono face" % screen.get_height(HudTheme.PREVIEW_SIZE)
+				said + (": %s, no taller than the mono face" % screen.get_height(HudTheme.PREVIEW_SIZE))
 			)
 			_stays(
 				_text_at(screen, HudTheme.PREVIEW_SIZE) - _text_at(mono, HudTheme.PREVIEW_SIZE),
@@ -388,10 +395,11 @@ func test_a_pool_draws_by_weight_and_equal_weights_keep_old_choices() -> void:
 	_check(ArtPack.pick(none, rng) == null, "an empty pool draws nothing")
 
 
-## The display face is optional: the shipped pack names Tiny5, read as a font
-## drawn hard (no antialiasing, no hinting, whole-pixel positions); a pack that
-## names none loads with none, and HudTheme falls back to the main face; one
-## that names a file it does not ship is refused.
+## The display face is optional: the shipped pack names Fusion Pixel's 8px cut
+## (F1, 2026-10-27; it was Tiny5), read as a font drawn hard (no antialiasing,
+## no hinting, whole-pixel positions); a pack that names none loads with none,
+## and HudTheme falls back to the main face; one that names a file it does not
+## ship is refused.
 func test_the_display_font_is_optional_and_drawn_hard() -> void:
 	var shipped := ArtPack.from_manifest(MANIFEST)
 	_check(shipped.display_font is FontFile, "the shipped pack has its display face")
@@ -400,20 +408,248 @@ func test_the_display_font_is_optional_and_drawn_hard() -> void:
 		_eq(face.antialiasing, TextServer.FONT_ANTIALIASING_NONE, "no antialiasing")
 		_eq(face.subpixel_positioning, TextServer.SUBPIXEL_POSITIONING_DISABLED, "whole pixels")
 	var theme := HudTheme.build(shipped, OfficeDraw.new(shipped).font)
-	_eq(theme.get_font("font", "Wordmark"), shipped.display_font, "the wordmark wears it")
+	# F1: the wordmark wears the cut over the HUD's fallbacks (OfficeDraw.face_for()), not the bare file.
+	var wordmark := theme.get_font("font", "Wordmark") as FontVariation
+	_check(wordmark != null and wordmark.base_font == shipped.display_font, "the wordmark wears it")
 	var without := ArtPack.from_manifest(
 		_mutated_pack("no-display", func(m: Dictionary) -> void: m.erase("display_font"))
 	)
 	_check(without != null and without.display_font == null, "a pack without one loads, with none")
 	if without != null:
 		var plain := HudTheme.build(without, OfficeDraw.new(without).font)
-		_check(plain.get_font("font", "Wordmark") != shipped.display_font, "and the wordmark keeps the main face")
+		var main := plain.get_font("font", "Wordmark") as FontVariation
+		_check(main != null and main.base_font == without.font, "and the wordmark keeps the main face")
 	var missing := func(m: Dictionary) -> void: m.display_font.path = "fonts/nowhere.ttf"
 	_eq(
 		ArtPack.from_manifest(_mutated_pack("lost-display", missing)),
 		null,
 		"a display face it does not ship is refused"
 	)
+
+
+## F1 (2026-10-27): the HUD and the world wear Fusion Pixel at native sizes;
+## Nunito Sans and Tiny5 are gone. The pack's three cuts are the family's 8,
+## 10 and 12-pixel builds (zh_hans, proportional), each drawn hard, each a row
+## of its own measured height at its own size (ascent + descent: 9 + 3, 11 + 3,
+## 13 + 3); the HUD's symbols are in every cut but `‹ ›`, which only the 8px
+## cut draws, the text chain's first fallback. OfficeDraw.face_for() is the one
+## place a size picks its cut. The heading cut is optional like the display
+## cut: a pack without it writes its headings in the text cut at 10, and one
+## that names a file it does not ship is refused.
+func test_the_three_cuts_are_the_family_at_their_native_sizes() -> void:
+	var pack := ArtPack.from_manifest(MANIFEST)
+	var pen := OfficeDraw.new(pack)
+	var cuts: Array[Font] = [pack.display_font, pack.font, pack.heading_font]
+	var natives: Array[int] = [8, 10, 12]
+	var heights: Array[float] = [12.0, 14.0, 16.0]
+	for index in cuts.size():
+		var face := cuts[index] as FontFile
+		var native := natives[index]
+		var said := "the %dpx cut" % native
+		_check(face != null, said + " is a font file")
+		if face == null:
+			continue
+		_check(face.get_font_name().begins_with("Fusion Pixel %dpx" % native), said + ": " + face.get_font_name())
+		_eq(face.antialiasing, TextServer.FONT_ANTIALIASING_NONE, said + ": no antialiasing")
+		_eq(face.hinting, TextServer.HINTING_NONE, said + ": no hinting")
+		_eq(face.subpixel_positioning, TextServer.SUBPIXEL_POSITIONING_DISABLED, said + ": whole pixels")
+		_eq(face.get_height(native), heights[index], said + ": its row at its own size")
+		for character: String in ["数", "据", "▲", "▼", "▶", "…", "×", "·"]:
+			_check(face.has_char(character.unicode_at(0)), said + " draws " + character)
+		for character: String in ["‹", "›"]:
+			_eq(
+				face.has_char(character.unicode_at(0)),
+				native == 8,
+				said + (" draws " if native == 8 else " lacks ") + character
+			)
+			_check(pen.font.has_char(character.unicode_at(0)), "the text chain draws " + character)
+	var expected: Dictionary[int, Font] = {
+		8: pack.display_font, 10: pack.font, 12: pack.heading_font, 16: pack.display_font
+	}
+	for pixels: int in expected:
+		var chain := OfficeDraw.face_for(pack, pixels, pen.font) as FontVariation
+		_check(chain != null and chain.base_font == expected[pixels], "at %d the face is the cut drawn there" % pixels)
+		_eq(OfficeDraw.cut_for(pack, pixels), expected[pixels], "and cut_for() names it at %d" % pixels)
+	_eq(OfficeDraw.cut_for(pack, 9), pack.font, "a size no cut is drawn at is an error, answered by the text cut")
+	var without := ArtPack.from_manifest(
+		_mutated_pack("no-heading", func(m: Dictionary) -> void: m.erase("heading_font"))
+	)
+	_check(without != null and without.heading_font == null, "a pack without a heading cut loads, with none")
+	if without != null:
+		var plain := HudTheme.build(without, OfficeDraw.new(without).font)
+		_eq(plain.get_font_size("font_size", "Heading13"), 10, "its headings are written at the body's size")
+		var heading := plain.get_font("font", "Heading13") as FontVariation
+		_check(heading != null and heading.base_font == without.font, "in the text cut")
+	var missing := func(m: Dictionary) -> void: m.heading_font.path = "fonts/nowhere.woff2"
+	_eq(
+		ArtPack.from_manifest(_mutated_pack("lost-heading", missing)), null, "a heading cut it does not ship is refused"
+	)
+
+
+## F1 (2026-10-27): a pixel font is drawn at its own size or a whole multiple of
+## it, never between: every size the HUD theme writes (each variation's
+## `font_size`, the default, the strategic view's caption, section and wait),
+## and the world's (the display face, the tab labels, the chip's wait), divided
+## by the native size of the cut it wears, is a whole number. The terminal
+## preview's system monospace face is not the pack's and is left out.
+func test_every_hud_size_is_a_native_multiple_of_its_face() -> void:
+	var pack := ArtPack.from_manifest(MANIFEST)
+	var pen := OfficeDraw.new(pack)
+	var theme := HudTheme.build(pack, pen.font)
+	var natives: Dictionary[Font, int] = {
+		pack.display_font: 8, pack.font: 10, pack.heading_font: 12, pack.figures_font: OfficeDraw.FIGURES_PIXELS
+	}
+	var worn: Array[Array] = [["default", theme.default_font, theme.default_font_size]]
+	for type: StringName in theme.get_font_size_type_list():
+		for item: StringName in theme.get_font_size_list(type):
+			var face := theme.get_font("font", type) if theme.has_font("font", type) else theme.default_font
+			worn.append(["%s %s" % [type, item], face, theme.get_font_size(item, type)])
+	for part: String in ["caption", "section", "wait"]:
+		(
+			worn
+			. append(
+				[
+					"Strategic " + part,
+					theme.get_font(part + "_font", "Strategic"),
+					theme.get_constant(part + "_size", "Strategic"),
+				]
+			)
+		)
+	worn.append(["the world's labels", pen.display, OfficeDraw.DISPLAY_PIXELS])
+	worn.append(["a tab label", pen.tab_face, OfficeDraw.TAB_LABEL_PIXELS])
+	worn.append(["the chip's wait", pen.figures, OfficeChip.WAIT_PIXELS])
+	var checked := 0
+	for entry: Array in worn:
+		var said: String = entry[0]
+		var pixels: int = entry[2]
+		var face: Font = entry[1]
+		var cut := _cut_of(face, natives)
+		if said.begins_with("PreviewText"):
+			_check(cut == null, "the preview's face is the system's monospace, not a cut")
+			continue
+		_check(cut != null, "%s wears one of the pack's cuts" % said)
+		if cut == null:
+			continue
+		_eq(pixels % natives[cut], 0, "%s at %d: a whole multiple of its cut's %d" % [said, pixels, natives[cut]])
+		checked += 1
+	_check(checked >= 20, "the HUD's sizes were found: %d" % checked)
+
+
+## F1 (2026-10-27): a blocked seat's wait must read at the 32-unit seat pitch,
+## and Fusion Pixel's 8px digits are 5 wide (`99m` 16 units, a chip has 14):
+## the compact durations (OfficeAttention.compact_duration(): the chip's wait,
+## the lens line) are written in a fourth, optional face, `figures_font`, Tiny5
+## at its native 8, whose `99m` is 14. Only they: the name plate and the tab
+## label stay in the display cut. A pack without the slot loads and writes
+## them in the display cut.
+func test_the_figures_face_writes_only_the_compact_durations() -> void:
+	var pack := ArtPack.from_manifest(MANIFEST)
+	_check(pack.figures_font != null, "the shipped pack names a figures face")
+	if pack.figures_font == null:
+		return
+	_check(pack.figures_font.get_font_name().begins_with("Tiny5"), "it is Tiny5: " + pack.figures_font.get_font_name())
+	var file := pack.figures_font as FontFile
+	_check(file != null and file.antialiasing == TextServer.FONT_ANTIALIASING_NONE, "drawn hard: no antialiasing")
+	_check(file != null and file.hinting == TextServer.HINTING_NONE, "no hinting")
+	var natives: Dictionary[Font, int] = {pack.figures_font: OfficeDraw.FIGURES_PIXELS}
+	var pen := OfficeDraw.new(pack)
+	_check(_cut_of(pen.figures, natives) == pack.figures_font, "the pen's figures face is it")
+	_eq(pen.figures.get_height(OfficeDraw.FIGURES_PIXELS), pack.figures_font.get_height(8), "no taller than it")
+	var probe := Label.new()
+	pen.style_figures(probe, OfficeChip.WAIT_PIXELS)
+	probe.text = OfficeAttention.compact_duration(5999.0, false)
+	root.add_child(probe)
+	var holder := Node2D.new()
+	var ground := Node2D.new()
+	var sorted := Node2D.new()
+	sorted.y_sort_enabled = true
+	holder.add_child(ground)
+	holder.add_child(sorted)
+	root.add_child(holder)
+	var measured := OfficeTable.measure(2)
+	var table := pen.table(sorted, ground, "Pod", Vector2(64, 96), measured.table_width, measured.columns)
+	var station := pen.station(sorted, table, 0, "far")
+	var tab := pen.tab_label(ground, Vector2(64, 160), measured.table_width)
+	await process_frame
+	_eq(probe.text, "99m", "the widest chip form")
+	_eq(probe.get_minimum_size().x, 14.0, "is 14 units in it: the chip's slot")
+	var wait: Label = station.chip().get_node("%Wait")
+	var lens: Label = station.get_node("Overlay/Lens")
+	var plate: Label = station.get_node("Overlay/Plate")
+	for worn: Array in [
+		["the chip's wait", wait, true],
+		["the lens line", lens, true],
+		["the name plate", plate, false],
+		["a tab label", tab, false]
+	]:
+		var said: String = worn[0]
+		var shown: Label = worn[1]
+		var wears: bool = worn[2]
+		_eq(
+			_cut_of(shown.get_theme_font("font"), natives) == pack.figures_font,
+			wears,
+			said + (" wears the figures face" if wears else " does not")
+		)
+	probe.free()
+	holder.free()
+	var without := ArtPack.from_manifest(
+		_mutated_pack("no-figures", func(m: Dictionary) -> void: m.erase("figures_font"))
+	)
+	_check(without != null and without.figures_font == null, "a pack without a figures face loads, with none")
+	if without != null:
+		var plain := OfficeDraw.new(without)
+		_check(plain.figures == plain.display, "and writes the durations in the display cut")
+
+
+## F1 (2026-10-27): a tab's name stands in an 8-unit band under its table, and
+## the display cut's line is 12 at 8: its capitals ink rows 3..8 of it, three
+## empty rows under them. The tab face gives up those three rows and one over
+## the capitals (OfficeDraw.tab_cut()), so the capitals stand at the band's
+## foot, read from the glyphs the text server rasterised where the Label
+## stands its line (_text_at()): every row a capital or a digit inks is inside
+## the band, and none of the band's top two, which a selected station's frame
+## covers with its bottom edge (seen in the captures: with the capitals at the
+## band's top, a selected tab's `MAIN` lost its top two rows under the frame).
+## Nothing inks under the frame. A Chinese label's glyphs ink one row more, at
+## the baseline: that row falls just under the band. A descender (g, j, p, q,
+## y) may lose its foot there too.
+func test_a_tab_label_keeps_every_cap_row_inside_its_band() -> void:
+	var pack := ArtPack.from_manifest(MANIFEST)
+	var pen := OfficeDraw.new(pack)
+	var holder := Node2D.new()
+	root.add_child(holder)
+	var label := pen.tab_label(holder, Vector2.ZERO, 96.0)
+	var framed := 2.0
+	# The text, and the rows under the band its glyphs may ink.
+	var under := {"ABCXYZ09": 0.0, "数据": 1.0, "gjpqy": INF}
+	for text: String in under:
+		label.text = text
+		await process_frame
+		var face := label.get_theme_font("font")
+		var pixels := label.get_theme_font_size("font_size")
+		_eq(label.size.y, OfficeDraw.TAB_LABEL_HEIGHT, text + ": the band's height")
+		var baseline := _text_at(face, pixels, text)
+		var inked := _inked(face, text, pixels)
+		_check(inked.y >= inked.x, text + ": something inks")
+		var top := baseline + inked.x
+		var bottom := baseline + inked.y
+		var spill: float = under[text]
+		_check(
+			top >= framed and bottom < OfficeDraw.TAB_LABEL_HEIGHT + spill,
+			(
+				"%s inks rows %d..%d of the %d-unit band: none of its top %d, at most %s under it"
+				% [text, top, bottom, OfficeDraw.TAB_LABEL_HEIGHT, framed, spill]
+			)
+		)
+	_eq(
+		(
+			_text_at(pen.tab_face, OfficeDraw.TAB_LABEL_PIXELS, "ABCXYZ09")
+			+ _inked(pen.tab_face, "ABCXYZ09", OfficeDraw.TAB_LABEL_PIXELS).y
+		),
+		OfficeDraw.TAB_LABEL_HEIGHT - 1.0,
+		"the capitals stand at the band's foot"
+	)
+	holder.free()
 
 
 ## The `+N` note on the world's edge is a disabled EdgeArrow button, and it
@@ -1294,11 +1530,47 @@ func test_avatar_layers_and_tracks() -> void:
 ## FOLLOWUPS, 2026-10-03; a headless Label reports its row, not its ink). So a
 ## taller fallback moves text none of whose glyphs are its own, and a row cut
 ## back above the baseline lifts it, below the baseline lowers it.
-func _text_at(font: Font, pixels: int) -> float:
+func _text_at(font: Font, pixels: int, text := "CLAUDE 12m") -> float:
 	var line := TextLine.new()
-	line.add_string("CLAUDE 12m", font, pixels)
+	line.add_string(text, font, pixels)
 	var shaped := line.get_line_ascent() + line.get_line_descent()
 	return (maxf(font.get_height(pixels), shaped) - shaped) / 2.0 + line.get_line_ascent()
+
+
+## The first and last rows `text` inks in `font` at `pixels`, relative to the
+## baseline (above it negative), read from the glyph images the text server
+## rasterised: an oracle of its own, not OfficeDraw.ink_rows().
+func _inked(font: Font, text: String, pixels: int) -> Vector2i:
+	var server := TextServerManager.get_primary_interface()
+	var line := TextLine.new()
+	line.add_string(text, font, pixels)
+	var size := Vector2i(pixels, 0)
+	var rows := PackedInt32Array()
+	for glyph: Dictionary in server.shaped_text_get_glyphs(line.get_rid()):
+		var rid: RID = glyph["font_rid"]
+		var index: int = glyph["index"]
+		var page := server.font_get_glyph_texture_idx(rid, size, index)
+		if page < 0:
+			continue
+		var image := server.font_get_texture_image(rid, size, page)
+		var uv := Rect2i(server.font_get_glyph_uv_rect(rid, size, index))
+		var offset := int(server.font_get_glyph_offset(rid, size, index).y)
+		for y in uv.size.y:
+			for x in uv.size.x:
+				if image.get_pixel(uv.position.x + x, uv.position.y + y).a >= 0.5:
+					rows.append(offset + y)
+	if rows.is_empty():
+		return Vector2i(0, -1)
+	rows.sort()
+	return Vector2i(rows[0], rows[rows.size() - 1])
+
+
+## The pack's cut `font` is drawn in (its base, through FontVariations), or null.
+func _cut_of(font: Font, natives: Dictionary[Font, int]) -> Font:
+	var face := font
+	while face != null and not natives.has(face):
+		face = (face as FontVariation).base_font if face is FontVariation else null
+	return face
 
 
 ## The height a real Label asks for one Latin line in `font` at `pixels`. In
@@ -1373,9 +1645,10 @@ func _mutated_pack(name: String, change: Callable, source := MANIFEST) -> String
 	var manifest_path := root_dir.path_join("manifest.json")
 	var base := source.get_base_dir()
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(source))
-	var paths: Array = [data.atlas, data.font.path, data.font.license]
-	if data.has("display_font"):
-		paths.append_array([data.display_font.path, data.display_font.license])
+	var paths: Array = [data.atlas]
+	for face: String in ["font", "display_font", "heading_font", "figures_font"]:
+		if data.has(face):
+			paths.append_array([_dict(data, face).get("path"), _dict(data, face).get("license")])
 	for category: String in ["props", "ui"]:
 		for spec: Dictionary in _dict(data, category).values():
 			paths.append(spec.path)
@@ -1410,7 +1683,7 @@ func _dense_pack(density: int, filter := "nearest") -> String:
 		image.resize(target_size.x, target_size.y, Image.INTERPOLATE_NEAREST)
 		DirAccess.make_dir_recursive_absolute(root_dir.path_join(path).get_base_dir())
 		image.save_png(root_dir.path_join(path))
-	for face: String in ["font", "display_font"]:
+	for face: String in ["font", "display_font", "heading_font", "figures_font"]:
 		if not data.has(face):
 			continue
 		var font_path := str(_dict(data, face).get("path", ""))

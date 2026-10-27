@@ -723,8 +723,9 @@ func test_arrows_and_wheel_never_pan_the_hidden_world() -> void:
 ## where the compact panel is an 80-high card) and at 4x / the minimum
 ## (480x320 logical either way, its one line). The stress map is one zone: one
 ## captioned section, its caption repeated at the top of every further column.
-## The caption band is 9 units, which is what keeps every cell and column count
-## the rows had without one (two of the four rooms have exactly 9 to spare).
+## The caption band is 9 units. F1 (2026-10-27): the section band can cost a
+## column; it never changes the cell size or whether it scrolls (with the 12px
+## heading the 2x room is 274 tall, and 80 rows take 5 columns captioned, 4 bare).
 func test_the_stress_fit_at_2x_4x_and_min() -> void:
 	var art := ArtPack.from_manifest(MANIFESTS[0])
 	var hud: OfficeHud = OfficeScene.HUD_SCENE.instantiate()
@@ -740,15 +741,17 @@ func test_the_stress_fit_at_2x_4x_and_min() -> void:
 		hud.fit(screen)
 		rooms[screen] = hud.strategic.room_for(hud.world_rect().size)
 	# The SPACES column says names from 960 units on: 48 more of the 960 are its.
-	_eq(rooms[WIDE], Vector2(756, 271), "the room at 2x, above the card")
-	_eq(rooms[SMALL], Vector2(324, 163), "the room at 4x and the minimum")
+	# F1 (2026-10-27): the view's title is the 12px heading cut, 3 units shorter
+	# than Nunito at 13: three more units of room.
+	_eq(rooms[WIDE], Vector2(756, 274), "the room at 2x, above the card")
+	_eq(rooms[SMALL], Vector2(324, 166), "the room at 4x and the minimum")
 	var eighty := _rows_of(10)
 	var four_hundred := _rows_of(50)
 	var cases := [
-		[eighty, WIDE, 32, 5, false],
-		[eighty, SMALL, 12, 4, false],
-		[four_hundred, WIDE, 12, 10, false],
-		[four_hundred, SMALL, 8, 6, true],
+		[eighty, WIDE, 32, 5, false, 4],
+		[eighty, SMALL, 12, 4, false, 4],
+		[four_hundred, WIDE, 12, 10, false, 10],
+		[four_hundred, SMALL, 8, 6, true, 6],
 	]
 	for each: Array in cases:
 		var rows: Array[PackedInt32Array] = each[0]
@@ -761,10 +764,11 @@ func test_the_stress_fit_at_2x_4x_and_min() -> void:
 			_eq(fit.headings[index].continued, index > 0, what + ": repeated, with its mark, after the first")
 			_eq(fit.headings[index].rect.position.y, 0.0, what + ": at its column's top")
 		var bare := StrategicLayout.fit(rows, room, rules)
-		_eq(
-			[bare.cell, bare.columns, bare.scrolls],
-			[fit.cell, fit.columns, fit.scrolls],
-			what + ": as without captions"
+		_eq([bare.cell, bare.scrolls], [fit.cell, fit.scrolls], what + ": the cell and the scroll as without captions")
+		_eq(bare.columns, each[5], what + ": the columns without captions")
+		_check(
+			fit.columns - bare.columns in [0, 1],
+			"%s: the captions cost at most a column (%d, bare %d)" % [what, fit.columns, bare.columns]
 		)
 		_eq(bare.headings.size(), 0, what + ": rows given without sections have no caption band")
 		if not fit.scrolls:
@@ -1105,7 +1109,14 @@ func test_a_machine_with_the_same_map_has_its_own_sections() -> void:
 	_eq(plan.section_rects(local_last).size(), 0, "and Local's zone has none")
 	var tip := OfficeQuestionTips.sign_text(office.frame.find_zone(bee_last))
 	_check(not tip.is_empty(), "bee's zone has a sign tooltip")
-	_eq(plan.tooltip_at(band.get_center()), tip, "hovering the caption says bee's zone's sign")
+	# F1 (2026-10-27): the 8px cut's digits are 5 wide (Tiny5's 4): at 480x320 this
+	# caption is cut, and a cut caption's tooltip leads with its whole words.
+	_check(Array(captions).has("40 Z39"), "the caption's words")
+	_eq(
+		plan.tooltip_at(band.get_center()),
+		"40 Z39\n" + tip,
+		"hovering the caption says its words, then bee's zone's sign"
+	)
 	_eq(scroll.scroll_vertical, 0, "the schematic is at the top")
 	_check(not _caption_seen(office, bee_last), "bee's last caption out of sight below")
 	await _visit_zone(office, bee_last)
@@ -1158,8 +1169,11 @@ func test_a_workspace_replaced_under_the_same_caption_is_a_new_section() -> void
 	_eq(plan.captions_drawn(), captions, "the same captions, word for word")
 	_eq(plan.section_rects(fresh), [band] as Array[Rect2], "the new zone has the caption there")
 	_eq(plan.section_rects(old).size(), 0, "and the zone that left has none")
-	var tip := OfficeQuestionTips.sign_text(office.frame.find_zone(fresh))
-	_eq(plan.tooltip_at(band.get_center()), tip, "hovering the caption says the new zone's sign")
+	# F1 (2026-10-27): the caption is cut at 480x320 (the 8px cut's digits are 5
+	# wide), and a cut caption's tooltip leads with its whole words.
+	_check(Array(captions).has("40 Z39"), "the caption's words")
+	var tip := "40 Z39\n" + OfficeQuestionTips.sign_text(office.frame.find_zone(fresh))
+	_eq(plan.tooltip_at(band.get_center()), tip, "hovering the caption says its words, then the new zone's sign")
 	_eq(plan.get_tooltip(band.get_center()), tip, "the Control's own tooltip")
 	_eq(scroll.scroll_vertical, 0, "the schematic is at the top")
 	await _visit_zone(office, fresh)
