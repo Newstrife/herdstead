@@ -496,6 +496,121 @@
       "path": "ui/selection_seat.png",
       "size": [32, 48],
       "pivot": [16, 46]
+    },
+    "mark_pi": {
+      "path": "ui/mark_pi.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_claude": {
+      "path": "ui/mark_claude.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_codex": {
+      "path": "ui/mark_codex.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_gemini": {
+      "path": "ui/mark_gemini.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_cursor": {
+      "path": "ui/mark_cursor.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_devin": {
+      "path": "ui/mark_devin.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_agy": {
+      "path": "ui/mark_agy.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_cline": {
+      "path": "ui/mark_cline.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_omp": {
+      "path": "ui/mark_omp.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_opencode": {
+      "path": "ui/mark_opencode.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_copilot": {
+      "path": "ui/mark_copilot.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_kimi": {
+      "path": "ui/mark_kimi.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_kiro": {
+      "path": "ui/mark_kiro.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_droid": {
+      "path": "ui/mark_droid.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_amp": {
+      "path": "ui/mark_amp.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_grok": {
+      "path": "ui/mark_grok.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_hermes": {
+      "path": "ui/mark_hermes.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_kilo": {
+      "path": "ui/mark_kilo.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_qodercli": {
+      "path": "ui/mark_qodercli.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_qwen": {
+      "path": "ui/mark_qwen.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_letta": {
+      "path": "ui/mark_letta.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_maki": {
+      "path": "ui/mark_maki.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
+    },
+    "mark_muse": {
+      "path": "ui/mark_muse.png",
+      "size": [4, 3],
+      "pivot": [0, 0]
     }
   },
   "states": {

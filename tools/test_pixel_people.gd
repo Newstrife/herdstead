@@ -323,7 +323,12 @@ func test_manifest_reads_into_typed_fields() -> void:
 	_eq(people.default_look.top, &"slate", "the pack's default top")
 	var varied: Array = people.variation.keys().map(func(id: StringName) -> String: return str(id))
 	varied.sort()
-	_eq(varied, ["glasses", "hair_colour", "hair_style", "skin"], "what varies: the face and head")
+	# D3 (2026-10-27): clothes vary per pane like faces; the provider is the laptop mark.
+	_eq(
+		varied,
+		["glasses", "hair_colour", "hair_style", "headwear", "headwear_colour", "legs", "skin", "top"],
+		"what varies: every slot, the clothes as well as the face and head"
+	)
 	_eq(people.keys[&"hat"].size(), 3, "every role's key ramp")
 	_check(people.fixed.has(&"ink") and people.fixed.has(&"lens"), "the fixed colours")
 	_check(people.fixed.has(&"catchlight"), "every eye's catchlight colour")
@@ -617,8 +622,77 @@ func test_variation_is_fixed_by_provider_and_pane() -> void:
 	var again := people.look_for("claude", null, PANE_P7)
 	_eq(again.key(), people.look_for("claude", null, PANE_P7).key(), "asked twice, the same person")
 	_eq(people.look_for("claude").hair_style, people.default_look.hair_style, "no key: no variation")
+	# D3 (2026-10-27): clothes vary per pane; the provider is the laptop mark.
 	var clothed := people.look_for("claude", null, PANE_P7)
-	_eq([clothed.top, clothed.legs], [&"terra", &"taupe"], "clothes are the provider's, never varied")
+	_eq(
+		[clothed.top, clothed.legs, clothed.headwear, clothed.headwear_colour],
+		[&"terra", &"brown", &"cap", &"cream"],
+		"clothes vary by pane as well"
+	)
+
+
+## Clothes vary by pane the way faces do (D3, 2026-10-27: the provider is the
+## laptop's mark, not the outfit), pinned to the same hash computed outside
+## Godot; a slot the user pinned in the Avatar Studio is still the pin on every
+## pane, and with no pane key the provider's own clothes stand.
+func test_clothes_vary_by_pane_and_keep_the_pinned() -> void:
+	var expected: Dictionary[String, Array] = {
+		"claude|p7": [&"terra", &"brown", &"cap", &"cream"],
+		"claude|p8": [&"teal", &"charcoal", &"hood", &"terra"],
+		"codex|p7": [&"slate", &"brown", &"none", &"teal"],
+	}
+	var panes: Dictionary[String, String] = {"p7": PANE_P7, "p8": PANE_P8}
+	for case in expected:
+		var parts := case.split("|")
+		var look := people.look_for(parts[0], null, panes[parts[1]])
+		_eq(
+			[look.top, look.legs, look.headwear, look.headwear_colour],
+			expected[case],
+			"%s: top, legs, headwear, headwear colour" % case
+		)
+	var none := 0
+	for slot_id: StringName in [AvatarLook.TOP, AvatarLook.LEGS, AvatarLook.HEADWEAR, AvatarLook.HEADWEAR_COLOUR]:
+		_check(people.variation.has(slot_id), "the family varies %s" % slot_id)
+	var hats: PackedStringArray = people.variation.get(AvatarLook.HEADWEAR, PackedStringArray())
+	for value in hats:
+		none += int(value == str(AvatarLook.NONE))
+	_check(none >= 6, "most people wear nothing on their heads (%d of the pool)" % none)
+	var provided := people.look_for("claude")
+	_eq([provided.top, provided.legs], [&"terra", &"taupe"], "no pane key: the provider's clothes")
+	_catalog_with('{"schema_version": 2, "looks": {"claude": {"top": "lilac"}}}')
+	for pane: String in [PANE_P7, PANE_P8, "local\u001fw0:t9:p2"]:
+		var look := people.look_for("claude", null, pane)
+		_eq(look.top, &"lilac", "a pinned top is the pin on every pane")
+		_check(look.pinned.has(AvatarLook.TOP), "and says it is pinned")
+	_eq(people.look_for("claude", null, PANE_P8).legs, &"charcoal", "an unpinned slot still varies")
+
+
+## The clothes' pools are new slots, so every face and hair a pane drew before
+## them it still draws: over many panes, the family with the clothes' pools
+## picks exactly the skin, hair and glasses the same family without them does
+## (pick() hashes one slot at a time; VARIATION_SCHEME is unchanged).
+func test_skin_and_hair_did_not_move() -> void:
+	var bare := PixelPeople.from_manifest(PixelPeople.MANIFEST)
+	bare.agent_catalog = people.agent_catalog
+	var clothes: Array[StringName] = [AvatarLook.TOP, AvatarLook.LEGS, AvatarLook.HEADWEAR, AvatarLook.HEADWEAR_COLOUR]
+	for slot_id in clothes:
+		_check(people.variation.has(slot_id), "the shipped family varies %s" % slot_id)
+		bare.variation.erase(slot_id)
+	_eq(PixelPeople.VARIATION_SCHEME, "herdstead.look/1", "the scheme is not bumped")
+	var moved := 0
+	var dressed := 0
+	for provider: String in ["claude", "codex", "gemini", "nobody-knows"]:
+		for index in 64:
+			var pane := "local\u001fw%d:t%d:p%d" % [index % 3, index % 5, index]
+			var now := people.look_for(provider, null, pane)
+			var before := bare.look_for(provider, null, pane)
+			for slot_id: StringName in [
+				AvatarLook.SKIN, AvatarLook.HAIR_STYLE, AvatarLook.HAIR_COLOUR, AvatarLook.GLASSES
+			]:
+				moved += int(now.slot(slot_id) != before.slot(slot_id))
+			dressed += int(now.top != before.top or now.legs != before.legs)
+	_eq(moved, 0, "no skin, hair or glasses moved over 256 panes")
+	_check(dressed > 0, "while the clothes did vary (%d of 256 differ from the provider's)" % dressed)
 
 
 func test_a_pinned_slot_stops_varying() -> void:
@@ -641,7 +715,8 @@ func test_a_provider_change_is_a_new_draw() -> void:
 		[&"short", &"black"],
 		"codex at the same pane is someone else"
 	)
-	_eq([person.look.top, person.look.headwear], [&"teal", &"cap"], "in codex's clothes")
+	# D3 (2026-10-27): clothes vary per pane; the provider is the laptop mark.
+	_eq([person.look.top, person.look.headwear], [&"slate", &"none"], "in the clothes codex draws at that pane")
 	_eq(_ids(person), before, "the same nodes, re-dressed")
 
 
@@ -760,8 +835,10 @@ func test_unknown_ids_fall_back_per_slot_and_are_kept() -> void:
 	_eq(catalog.state, AgentCatalog.FileState.READ, "read")
 	var look := people.look_for("claude", null, PANE_P7)
 	_eq(look.legs, &"plum", "a drawn pin is worn")
-	_eq(look.top, &"terra", "an undrawn one falls back to the provider's")
-	_eq(look.headwear_colour, people.default_look.headwear_colour, "a picked colour is not drawn yet")
+	# D3 (2026-10-27): clothes vary per pane, so a pin this build cannot draw leaves
+	# the slot to the pane's variation (claude at p7: a terra top, a cream hat colour).
+	_eq(look.top, &"terra", "an undrawn one leaves the slot varying")
+	_eq(look.headwear_colour, &"cream", "a picked colour is not drawn yet: the slot varies")
 	_eq(look.skin, &"deep", "an unreadable value leaves the slot varying")
 	_eq(
 		catalog.saved_colours("claude"),

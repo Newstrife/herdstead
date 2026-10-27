@@ -167,6 +167,11 @@ const UI_CONNECTED := &"connected"
 ## and a glyph from a platform fallback brings that font's own row height.
 const UI_KEY_ENTER := &"key_enter"
 const UI_EXPAND := &"expand"
+## The provider's mark a laptop wears (OfficeTable), one UI image per agent the
+## catalog lists, named by lid_mark(): the only place the office says which
+## agent sits there. A provider the catalog does not list has none, and its
+## laptop keeps the plain lid.
+const MARK_PREFIX := "mark_"
 
 # --- states and animations ------------------------------------------------------
 
@@ -254,6 +259,9 @@ static func problems(pack: ArtPack) -> PackedStringArray:
 	for image in ui_ids():
 		if pack.ui_sprite(image) == null:
 			found.append("ui: no image named " + image)
+	for mark in mark_ids():
+		if pack.ui_sprite(mark) == null:
+			found.append("ui: no provider mark named " + mark)
 	for framed: ArtSprite in [pack.panel(), pack.hud_panel()]:
 		if framed != null and not framed.nine_patched():
 			found.append("ui: %s carries no nine_patch margins" % framed.id)
@@ -311,6 +319,24 @@ static func ui_ids() -> Array[StringName]:
 		&"idle",
 		&"unknown"
 	]
+
+
+## The mark 's laptop wears, by its semantic ID.
+static func lid_mark(provider: String) -> StringName:
+	return StringName(MARK_PREFIX + provider)
+
+
+## Every provider mark a pack must carry: one per agent the shipped catalog
+## lists (AgentCatalog.shipped()), in its order. Only the shipped catalog is
+## read, never the user's saved looks (AgentCatalog.new() would open them), so
+## checking a pack reads nothing of the user's.
+static func mark_ids() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for entry in AgentCatalog.shipped():
+		var mark := lid_mark(entry.id)
+		if not result.has(mark):
+			result.append(mark)
+	return result
 
 
 ## What the office asks of the pixel people, beyond what their manifest already
@@ -452,7 +478,9 @@ static func unused(pack: ArtPack) -> Dictionary[StringName, PackedStringArray]:
 		for member in pack.items_in(group):
 			placed.append(member.id)
 	found[&"props"] = _unasked(pack.props.keys(), placed)
-	found[&"ui"] = _unasked(pack.ui.keys(), ui_ids())
+	var drawn := ui_ids()
+	drawn.append_array(mark_ids())
+	found[&"ui"] = _unasked(pack.ui.keys(), drawn)
 	var modules: Array[StringName] = [] if pack.table == null else pack.table.modules.keys()
 	found[&"table"] = _unasked(modules, table_module_ids(pack.table))
 	return found

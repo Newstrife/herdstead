@@ -1723,13 +1723,16 @@ func test_world_rules() -> void:
 				or entity is PixelPerson
 				or entity is OfficeDecor
 				or entity.name == &"Overlay"
+				# The near chair's back carries the provider's mark (D3, 2026-10-27),
+				# drawn with the chair, in front of the sitter.
+				or entity.name == &"Chair"
 			)
 			if not grouped:
 				loose.append(str(sorted.get_path_to(sprite)))
 		_eq(
 			loose,
 			[],
-			"%s: every sprite sorts by its own feet or as part of a table, worker, prop or overlay" % manifest
+			"%s: every sprite sorts by its own feet or as part of a table, worker, prop, chair or overlay" % manifest
 		)
 		for table: OfficeTable in sorted.find_children("*", "OfficeTable", false, false):
 			_check(not table.y_sort_enabled, "%s: a table is one entity, drawn in tree order" % manifest)

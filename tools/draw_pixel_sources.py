@@ -12,8 +12,9 @@ nothing else):
   (see its docstring for what those drawings keep);
 - pieces drawn texel by texel at the pack's density 2 instead: the small
   paper stack `done_stack_small` (a state signal, the done seat's paper on a
-  pod desk), the seat selection mark `selection_seat` (ui) and the zone
-  partition kit (`partition_*`, props).
+  pod desk), the seat selection mark `selection_seat` (ui), the zone
+  partition kit (`partition_*`, props) and the provider marks a laptop
+  wears (`mark_<provider>`, ui).
 
 It writes a complete tree into an empty directory: `props/`, `ui/` and `table/`, laid
 out exactly as `art/daylight/` is. Nothing here ever writes into `art/`, and
@@ -55,6 +56,15 @@ meets any other without a seam; a side-run piece is at most 6 units wide, no
 wider than its band, and every row is the same, so it tiles top-bottom and
 meets a corner's side strip without a seam. Each piece stands on its foot
 (its last opaque row is the one above the pivot's y) and is centred on it.
+
+What a provider mark keeps (`mark_<provider>`, one per id in
+data/agent_catalog.json, MARK_PROVIDERS): a 4x3-unit canvas (8x6 texels) on
+the pivot [0, 0], its top-left corner, with hard alpha and only the pack's
+palette, and no opaque texel within 48 (RGB distance) of a state colour
+(`working`, `blocked`, `unread`, `muted`, `task_light`), so it never reads
+as a signal. It fills its canvas but for the four corner texels: the table
+sets it inside the far laptop's lid face (25x8 texels) and the near one's
+dark screen (24x9).
 
 What a fixture keeps (OfficeFixturePlanner stands a counter with its foot on
 the floor under the top wall): each drawing fills its canvas as
@@ -416,6 +426,157 @@ def selection_seat(palette: dict[str, str]) -> Image.Image:
     return result
 
 
+## The provider marks (ui `mark_<provider>`): one per provider the agent
+## catalog lists (data/agent_catalog.json, in its order), drawn texel by texel
+## at DENSE on a MARK_SIZE canvas with its pivot at the top-left corner. The
+## table sets one on a laptop's lid (far) or in its screen's top-left corner
+## (near): OfficeTable.MARK_AT. A provider with a logo the badges carry (or a
+## plain one) is that logo, simplified, on a cream sticker with its corners
+## cut; every other provider is a tile of its colour with its initial (MARK_FONT,
+## 3x5) in its top five rows. The colours are the pack's palette, and no
+## opaque texel is within MARK_STATE_DISTANCE of a state colour: a mark never
+## reads as a signal.
+MARK_SIZE = (4, 3)
+MARK_PROVIDERS = (
+    "pi", "claude", "codex", "gemini", "cursor", "devin", "agy", "cline", "omp", "opencode", "copilot", "kimi",
+    "kiro", "droid", "amp", "grok", "hermes", "kilo", "qodercli", "qwen", "letta", "maki", "muse",
+)
+MARK_STATE_COLOURS = ("working", "blocked", "unread", "muted", "task_light")
+MARK_STATE_DISTANCE = 48
+MARK_LEGEND = {
+    "c": "cream", "p": "paper", "i": "ink", "d": "deep", "s": "slate", "r": "terra", "b": "brick",
+    "w": "wood_shadow", "k": "sky", "t": "teal_dark", "l": "lilac_dark", "g": "leaf", "G": "leaf_dark",
+    "a": "sage_dark", "B": "brass",
+}
+MARK_LOGOS = {
+    # Claude: the terracotta starburst.
+    "claude": (
+        ".ccrrcc.",
+        "crcrrcrc",
+        "ccrrrrcc",
+        "ccrrrrcc",
+        "crcrrcrc",
+        ".ccrrcc.",
+    ),
+    # Codex: the badge's eye.
+    "codex": (
+        ".cccccc.",
+        "cciiiicc",
+        "cisttsic",
+        "cisttsic",
+        "cciiiicc",
+        ".cccccc.",
+    ),
+    # Gemini: the four-pointed sparkle.
+    "gemini": (
+        ".cctccc.",
+        "cctktccc",
+        "ttkkkttc",
+        "cctktccc",
+        "ccctcccc",
+        ".cccccc.",
+    ),
+    # Cursor: the dark cube, its light arrow.
+    "cursor": (
+        ".cciicc.",
+        "ciiiiiic",
+        "ciippsic",
+        "ciipsiic",
+        "ciiiiiic",
+        ".cciicc.",
+    ),
+    # Copilot: the goggles.
+    "copilot": (
+        ".cccccc.",
+        "ciiiiiic",
+        "ikkiikki",
+        "iiiiiiii",
+        "ciiciiic",
+        ".cccccc.",
+    ),
+    # Pi: the letter.
+    "pi": (
+        ".cccccc.",
+        "ciiiiiic",
+        "ccicciic",
+        "ccicccic",
+        "ciicccic",
+        ".cccccc.",
+    ),
+    # OpenCode: the square in a square.
+    "opencode": (
+        ".cccccc.",
+        "ciiiiiic",
+        "cissssic",
+        "cissssic",
+        "ciiiiiic",
+        ".cccccc.",
+    ),
+    # Amp: a chevron A (the badge is only a monogram).
+    "amp": (
+        ".cccrcc.",
+        "cccrrrcc",
+        "ccrrcrrc",
+        "crrcrcrr",
+        "crcrrrcr",
+        ".cccccc.",
+    ),
+}
+MARK_FONT = {
+    "A": (".#.", "#.#", "###", "#.#", "#.#"),
+    "C": (".##", "#..", "#..", "#..", ".##"),
+    "D": ("##.", "#.#", "#.#", "#.#", "##."),
+    "G": (".##", "#..", "#.#", "#.#", ".##"),
+    "H": ("#.#", "#.#", "###", "#.#", "#.#"),
+    "K": ("#.#", "#.#", "##.", "#.#", "#.#"),
+    "L": ("#..", "#..", "#..", "#..", "###"),
+    "M": ("#.#", "###", "###", "#.#", "#.#"),
+    "O": (".#.", "#.#", "#.#", "#.#", ".#."),
+    "Q": (".#.", "#.#", "#.#", "#.#", ".##"),
+}
+## Every other provider: (initial, tile, letter), legend letters; Kimi's tile
+## keeps its logo's blue dot (MARK_DOTS).
+MARK_TILES = {
+    "devin": ("D", "a", "p"), "agy": ("A", "t", "p"), "cline": ("C", "p", "i"), "omp": ("O", "r", "p"),
+    "kimi": ("K", "i", "p"), "kiro": ("K", "l", "p"), "droid": ("D", "b", "p"), "grok": ("G", "p", "i"),
+    "hermes": ("H", "w", "p"), "kilo": ("K", "B", "d"), "qodercli": ("Q", "G", "p"), "qwen": ("Q", "l", "p"),
+    "letta": ("L", "p", "i"), "maki": ("M", "g", "p"), "muse": ("M", "b", "p"),
+}
+MARK_DOTS = {"kimi": ((6, 1, "k"),)}
+
+
+def mark_rows(provider: str) -> tuple[str, ...]:
+    """One provider's mark as legend rows: its logo, or its initial on its tile."""
+    if provider in MARK_LOGOS:
+        return MARK_LOGOS[provider]
+    letter, tile, ink = MARK_TILES[provider]
+    width, height = (value * DENSE for value in MARK_SIZE)
+    rows = [[tile] * width for _ in range(height)]
+    for x, y in ((0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)):
+        rows[y][x] = "."
+    for y, line in enumerate(MARK_FONT[letter]):
+        for x, cell in enumerate(line):
+            if cell == "#":
+                rows[y][3 + x] = ink
+    for x, y, letter in MARK_DOTS.get(provider, ()):
+        rows[y][x] = letter
+    return tuple("".join(row) for row in rows)
+
+
+def lid_mark(provider: str, palette: dict[str, str]) -> Image.Image:
+    """A provider's mark (see MARK_SIZE), checked against what the laptop needs of it."""
+    rows = mark_rows(provider)
+    width, height = (value * DENSE for value in MARK_SIZE)
+    require(len(rows) == height, f"mark_{provider}: {len(rows)} rows, not {height}")
+    result = pixel_map(image((width, height)), rows, MARK_LEGEND, palette)
+    states = [bytes.fromhex(palette[name]) for name in MARK_STATE_COLOURS]
+    for _, colour in result.getcolors():
+        if colour[3]:
+            near = min(sum((a - b) ** 2 for a, b in zip(colour[:3], state)) for state in states) ** 0.5
+            require(near >= MARK_STATE_DISTANCE, f"mark_{provider}: {colour[:3]} is {near:.1f} from a state colour")
+    return result
+
+
 ## The zone partitions (the low half-wall round an open-plan zone), drawn texel
 ## by texel at DENSE. One piece per 32-unit cell; the band a piece stands in is
 ## PARTITION_BAND (6) units deep, inside the zone's edge. Canvases hug the
@@ -693,6 +854,10 @@ def draw(source: Path, output: Path) -> list[Path]:
     target = output / "ui/selection_seat.png"
     selection_seat(palette).save(target)
     written.append(target)
+    for provider in MARK_PROVIDERS:
+        target = output / f"ui/mark_{provider}.png"
+        lid_mark(provider, palette).save(target)
+        written.append(target)
     generate_templates(source, output / "table")
     written.extend(sorted((output / "table").iterdir()))
     return written
@@ -709,7 +874,8 @@ def main() -> None:
     except (ValueError, KeyError, OSError) as error:
         parser.exit(1, f"draw_pixel_sources: {error}\n")
     print(f"PIXEL_SOURCES_OK: {args.output} ({len(written)} files: {len(DESK_PIECES)} desk props, "
-          f"{len(FIXTURE_SIZES)} fixture props, {len(DENSE_SIZES) + len(PARTITION_SIZES)} density-{DENSE} pieces, the table family)")
+          f"{len(FIXTURE_SIZES)} fixture props, {len(DENSE_SIZES) + len(PARTITION_SIZES)} density-{DENSE} pieces, "
+          f"{len(MARK_PROVIDERS)} provider marks, the table family)")
 
 
 if __name__ == "__main__":

@@ -181,14 +181,24 @@ var _seen := ""
 func _init(user_path := USER_PATH) -> void:
 	path = user_path
 	_document = _fresh()
+	for entry in shipped():
+		_entries[entry.id] = entry
+	_load()
+
+
+## Every agent the shipped catalog (CATALOG_PATH) lists, in its order, read by
+## the same rules as always (_read_entry()); never the user's saved looks. The
+## only place the catalog file is read.
+static func shipped() -> Array[Entry]:
+	var result: Array[Entry] = []
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(CATALOG_PATH))
 	if parsed is Dictionary:
 		var root: Dictionary = parsed
 		for listed: Variant in ArtFamily.read_list(root.get("agents", [])):
 			var entry := _read_entry(listed)
 			if entry != null:
-				_entries[entry.id] = entry
-	_load()
+				result.append(entry)
+	return result
 
 
 func ids() -> PackedStringArray:

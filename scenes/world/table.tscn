@@ -18,6 +18,8 @@ script = ExtResource("1_table")
 
 [node name="FarMonitors" type="Node2D" parent="."]
 
+[node name="Marks" type="Node2D" parent="."]
+
 [node name="Divider" type="Node2D" parent="."]
 
 [node name="NearMonitors" type="Node2D" parent="."]

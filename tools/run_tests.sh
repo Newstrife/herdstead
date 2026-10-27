@@ -69,7 +69,7 @@ PYTHON="${PYTHON:-$DEFAULT_PYTHON}"
 # Cases discover themselves (tools/test_base.gd), so nothing lists them.
 # These floors are what each file runs today: a file that silently loses
 # its cases fails here instead of staying green. Raise them as cases are added.
-MIN_CASES_ART=26
+MIN_CASES_ART=27
 MIN_CASES_CLIENT=52
 MIN_CASES_MACHINE=34
 MIN_CASES_INCREMENTAL=54
@@ -81,7 +81,7 @@ MIN_CASES_OFFICE_SERVICE=16
 # the furniture's clearance on the map now. 25 -> 29: the near row sits at the
 # desk (the sitter over the near plane, the short legs behind the end chairs,
 # the near paper and the near lamp in sight beside whoever sits there).
-MIN_CASES_OFFICE_GEOMETRY=30
+MIN_CASES_OFFICE_GEOMETRY=31
 MIN_CASES_OFFICE_FRAMES=5
 MIN_CASES_OFFICE_QUIET=8
 MIN_CASES_DAY_LIGHT=8
@@ -101,7 +101,7 @@ MIN_CASES_ATTENTION_STORE=28
 MIN_CASES_AGENT_LIST=36
 MIN_CASES_ATTENTION_INTEGRATION=19
 MIN_CASES_FRAME_LOOP=9
-MIN_CASES_PIXEL_PEOPLE=51
+MIN_CASES_PIXEL_PEOPLE=53
 MIN_CASES_AVATAR_STUDIO=13
 MIN_CASES_SAVED_LOOKS=16
 MIN_CASES_COMMANDS=37

@@ -312,8 +312,25 @@ class ShippedPixelPeopleTests(unittest.TestCase):
             self.assertIn(self.spec["default_look"][slot], allowed, slot)
             for value in self.spec["variation"].get(slot, []):
                 self.assertIn(value, allowed, f"variation.{slot}")
-        self.assertEqual(sorted(self.spec["variation"]), sorted(["skin", "hair_style", "hair_colour", "glasses"]),
-                         "the face and head vary; clothes are the provider's or the user's")
+        # D3 (2026-10-27): clothes vary per pane like faces; the provider is the laptop mark.
+        self.assertEqual(sorted(self.spec["variation"]), sorted(SLOTS),
+                         "every slot varies by pane; a slot the user pinned still wins")
+
+    def test_the_clothes_pools_are_drawn_options_and_mostly_bareheaded(self):
+        """D3: the clothes vary per pane. Each new pool names only what its slot draws, and the
+        headwear pool is mostly none (at least 6 of 8), so a cap or a hood stays the exception."""
+        variation, slots = self.spec["variation"], self.spec["slots"]
+        for slot in ("top", "legs", "headwear", "headwear_colour"):
+            allowed = list(slots[slot].get("swatches", slots[slot].get("shapes"))) + (["none"] if slots[slot].get("none") else [])
+            self.assertIn(slot, variation, f"{slot} varies by pane")
+            self.assertTrue(variation[slot], f"{slot}: a pool to draw from")
+            for value in variation[slot]:
+                self.assertIn(value, allowed, f"variation.{slot}: {value} is drawn")
+        hats = variation["headwear"]
+        self.assertGreaterEqual(hats.count("none"), 6, "most heads are bare")
+        self.assertLessEqual(len(hats), 8, "out of at most 8")
+        self.assertEqual(sorted(set(hats) - {"none"}), sorted(self.spec["slots"]["headwear"]["shapes"]),
+                         "every hat the family draws can come up")
 
     def test_key_and_fixed_colours_are_all_distinct(self):
         colours = [colour for ramp in self.spec["keys"].values() for colour in ramp] + list(self.spec["fixed"].values())

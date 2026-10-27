@@ -366,10 +366,11 @@ name that `state_tracks` in `art/pixel_people/people.json` maps in both `stand` 
 `tools/build_assets.py`); the office accepts only `ArtContract.ANIMATIONS` (checked by `make check-packs`).
 Stations, the agent card portrait, the showroom and Avatar Studio all draw `PixelPerson`.
 
-**The provider is shown only by the name plate.** A unit is 2×2 texels, too small for a recognisable chest logo;
-the plate carries the provider name in capitals. Clothes and looks are not a provider code: they come from the
-provider's default, the user's saved choice, or a fixed variation from the pane's stable key (see
-`docs/VISUAL_LANGUAGE.md`, "Looks", and "Pixel people").
+**The provider is shown by a mark at the seat** (`mark_<provider>` on the far laptop's lid or the near chair's back, see "Provider marks" below), never by the
+person: a unit is 2×2 texels, too small for a recognisable chest logo. Clothes and looks are not a provider code:
+since D3 (2026-10-27) every slot, the clothes as well as the face and head, comes from the user's saved choice for
+the provider or else a fixed variation from the pane's stable key, and the provider's default outfit is what a
+person wears only where no pane is given (see `docs/VISUAL_LANGUAGE.md`, "Looks", and "Pixel people").
 
 ### Tracks and nodes
 
@@ -398,9 +399,11 @@ scale people by whole numbers (stage 2×, card 1×).
 sparse default outfit (top, legs, headwear and colours). The user's fixed slots are saved per provider in
 `user://herdstead_avatars.json` (see "The avatar save file"). An undrawn option or unknown provider falls back slot
 by slot (`PixelPeople.look_for()`). The logos in `assets/agent_badges/` (downloaded or generated monograms; sources
-and licences in `assets/agent_badges/ATTRIBUTIONS.md`) appear only in Avatar Studio's agent list.
+and licences in `assets/agent_badges/ATTRIBUTIONS.md`) appear only in Avatar Studio's agent list: they are smooth
+64×64 images in the minified family, and drawing one on a laptop would scale a texture at run time. In the office
+the provider is the pack's own few-texel mark at the seat.
 
-## UI assets (12) and state semantics
+## UI assets (12, and a mark per provider) and state semantics
 
 - 16×16 icons: working, blocked, unread, idle, unknown, offline, starting, branch, connected.
 - 10×10 key hints beside a staff-panel button's word, in `paper`: `key_enter` (the Enter key, after `Open` and `Answer`
@@ -412,6 +415,35 @@ and licences in `assets/agent_badges/ATTRIBUTIONS.md`) appear only in Avatar Stu
 - `panel`: 32×32 NinePatch, margin 4 on each side, for the world's light panels (the chip, the zone signs, the
   showroom's notes); `hud_panel`: the same shape for the dark HUD's panels.
 - `selection_seat`: 32×48 transparent corner marks round a seated figure, pivot 16,46.
+- `mark_<provider>`: the provider's mark at a seat, one per agent in `data/agent_catalog.json` (see "Provider marks").
+
+### Provider marks
+
+A seat shows which agent sits there with the provider's mark, `ArtContract.lid_mark(provider)` =
+`mark_<provider>` in the pack's `ui`. Each is **4×3 units (8×6 texels at density 2) on the pivot `[0, 0]`**, its
+top-left corner, drawn texel by texel in `tools/draw_pixel_sources.py` (`MARK_LOGOS`, `MARK_TILES`; `make
+pixel-sources`), with hard alpha, the pack's palette only, and **no opaque texel within RGB distance 48 of a state
+colour** (`working`, `blocked`, `unread`, `muted`, `task_light`), so a mark never reads as a signal. It fills its
+canvas but for its four corner texels. A provider with a logo is that logo simplified on a cream sticker (claude's
+terracotta starburst, codex's eye, gemini's sparkle, cursor's cube, copilot's goggles, pi, opencode's square in a
+square, amp's chevron); every other provider is a tile of its colour with its 3×5 initial in the top five rows.
+
+It shows for an agent whose provider the pack has a mark for (`OfficeTable.mark_of()`), never for a shell, a
+launch whose kind herdr has not detected yet, an empty seat or an unknown provider. **Far, on the laptop's lid**:
+`OfficeTable` builds one per far seat with the pod (holder `Marks`, after the far laptops) and `equip()` only dresses
+it; `MARK_AT["far"]` centres it on the rear lid face over the lid's dot (x −2..2, y −6.5..−3.5 from the laptop's
+foot). **Near, on the chair's back**: a seated near worker covers the whole near laptop, so the mark hangs on the
+station's chair (`Chair/Mark` in `scenes/world/station.tscn`, sorted with the chair in front of the sitter, scaled
+back to the pack's density); `MARK_AT["near"]` puts it on the backrest's face (x −2..2, y −17.5..−14.5 from the
+chair's foot, `chair_back` texels 28..35 by 57..62, chair pixels only). It stays while its agent is away. The
+colours above are chosen against both: the light grey lid and the dark slate backrest.
+
+**Adding a provider** is one PNG and one `pack.json` entry: draw it in `draw_pixel_sources.py` (add the id to
+`MARK_PROVIDERS` in the catalog's order, and to `MARK_LOGOS` or `MARK_TILES`), run `make pixel-sources OUT=<empty
+dir>`, look at it magnified, copy `ui/mark_<id>.png` into `art/daylight/ui/`, declare
+`"mark_<id>": {"path": "ui/mark_<id>.png", "size": [4, 3], "pivot": [0, 0]}` under `ui`, then `make art`. `make
+check-packs` names any catalog agent without a mark (`ArtContract.mark_ids()` reads only the shipped catalog's ids,
+never the user's saved looks), and `tools/test_assets.py` holds the drawn and shipped marks to the catalog.
 
 | herdr state | Animation | Icon / meaning |
 |---|---|---|
@@ -525,7 +557,7 @@ draw the back). The product manifest is not named `manifest.json`, so it is neve
 | `fixed` | kept as is: `ink` (outline, not pure black), `eye`, `catchlight`, `shoe`, `shoe_light`, `paper`, `paper_line`, `cup`, `cup_shade`, `coffee`, `lens` (lens glint), `frame` (glasses frame) |
 | `slots` | exactly `AvatarLook.SLOTS`: `skin`, `hair_style`, `hair_colour`, `top`, `legs`, `headwear`, `headwear_colour`, `glasses` |
 | `default_look` | the pack's default figure: one drawn option per slot |
-| `variation` | slots that vary per pane and their pools (repeats weight); now skin, hair style, hair colour, glasses (about 1 pane in 6) |
+| `variation` | slots that vary per pane and their pools (repeats weight); every slot: skin, hair style, hair colour, glasses (about 1 pane in 6), and since D3 the clothes: top, legs, headwear (6 in 8 bare), headwear colour |
 
 Key and fixed colours are all distinct, since recolouring is a table lookup; the builder checks for ambiguity with
 `recolour.remap_table()` (`tools/recolour.py`).

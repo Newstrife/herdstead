@@ -228,11 +228,30 @@ func rebind(at_table: OfficeTable, at_column: int, seat_side: String) -> bool:
 	var chair_offset: float = OfficeTable.CHAIR_OFFSET[side]
 	chair.position = Vector2(0, chair_offset)
 	chair_view = view
+	_wear_mark()
 	var worker := actor()
 	if worker != null and not walking:
 		_pose(worker)
 	_place()
 	return true
+
+
+## The near chair's back wears this seat's agent's provider mark
+## (OfficeTable.mark_of(), at OfficeTable.MARK_AT["near"]; a far seat's is on
+## its laptop's lid, the table's), even while the agent is away from the chair.
+## A child of the chair, so it sorts with it, in front of the sitter; the chair
+## is scaled for the table's family, so the mark undoes that and keeps its own
+## family's scale. One that wears none holds no texture, as a rebuilt seat.
+func _wear_mark() -> void:
+	var chair: Sprite2D = $Chair
+	var mark: Sprite2D = $Chair/Mark
+	var worker := actor()
+	var worn: ArtSprite = null
+	if side == "near" and not vacant and worker != null:
+		worn = OfficeTable.mark_of(art, worker.provider)
+	art.dress(mark, art.sprite_texture(worn), -OfficeTable.MARK_AT["near"])
+	mark.scale = art.unit_scale() / chair.scale
+	mark.visible = worn != null
 
 
 func _valid_binding(at_table: OfficeTable, at_column: int, seat_side: String) -> bool:
@@ -254,7 +273,7 @@ func furnish(
 	vacant = false
 	# A pane is a terminal, so a seat with one has a screen on it, whether or not
 	# an agent is in the chair. How hard its lamp burns is light()'s to say.
-	table.equip(column, side, true, provider.is_empty() and not starting)
+	table.equip(column, side, true, provider.is_empty() and not starting, provider)
 	var animation := art.animation_for_state(state, starting)
 	_animation = animation
 	var seated := get_node_or_null("Actor") as PixelPerson
@@ -297,6 +316,7 @@ func furnish(
 		if not walking:
 			_play(seated)
 			_pose(seated)
+	_wear_mark()
 	_place()
 	var plate: Label = $Overlay/Plate
 	var named := starting and provider.is_empty() and not agent_name.is_empty()
@@ -326,6 +346,7 @@ func vacate() -> void:
 	chip().visible = false
 	chip().clear()
 	_drop_actor()
+	_wear_mark()
 	var plate: Label = $Overlay/Plate
 	plate.text = ""
 	_hovered.clear()

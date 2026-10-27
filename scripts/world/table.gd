@@ -7,14 +7,15 @@ extends StaticBody2D
 ## the pod y-sorts as one piece at the edge nearest the viewer and x runs
 ## 0..width along it. The pod itself is not y-sorted: what stands on it is its
 ## children, drawn in tree order (supports, desktops, apron, grommets, task
-## lights, far laptops, the low screen, near laptops, papers), so nothing on the
-## pod needs a depth rule.
+## lights, far laptops, the far laptops' marks, the low screen, near laptops,
+## papers), so nothing on the pod needs a depth rule.
 ##
 ## Every seat gets its laptop, its grommet, its task lamp and its stack of
-## paper when the pod is built, and what a seat carries afterwards is only
-## which of them are shown and how hard the lamp burns: equip(), light() and
-## show_papers() never add or drop a node. Nothing else stands on a desk: the
-## trinkets and the cat are on side tables (OfficeDecor), never on a pod.
+## paper, and every far seat its laptop's mark, when the pod is built, and what
+## a seat carries afterwards is only which of them are shown, what the mark
+## shows and how hard the lamp burns: equip(), light() and show_papers() never
+## add or drop a node. Nothing else stands on a desk: the trinkets and the cat
+## are on side tables (OfficeDecor), never on a pod.
 ##
 ## Every number about the pod's cross-section lives here and nowhere else.
 ## y is pod-local: the near edge is 0, the far edge is -SURFACE_DEPTH.
@@ -62,6 +63,19 @@ const NEAR_STAND := NEAR_SEAT
 ## (-21..-10). Both stay on the seat's x.
 const FAR_LAPTOP_INSET := 8
 const NEAR_LAPTOP_INSET := 10
+## Where an agent's provider mark (mark_of(): 4x3 units, its pivot its top-left
+## corner) goes at each side of the pod. Far, on the laptop's lid, from the
+## laptop's foot: the rear lid face is x -6.5..6, y -7..-3.5 (monitor_rear
+## texels 19..43 by 46..53), and the mark is centred on it over the lid's dot,
+## x -2..2, y -6.5..-3.5, a texel clear of the lid's top edge and its hinge
+## shadow. Near, on the back of the chair, from the chair's foot (its pivot,
+## chair_back texel (32, 92)): a seated near worker covers the whole near laptop,
+## and the chair is the one part of a near seat drawn in front of them
+## (CHAIR_OFFSET). The backrest's face is x -5..4.5, y -20..-12.5 (chair_back
+## texels 22..40 by 52..67); the mark lies on it at x -2..2, y -17.5..-14.5
+## (texels 28..35 by 57..62), centred on the chair's x and on chair pixels only.
+## OfficeStation hangs that one on its chair.
+const MARK_AT: Dictionary[String, Vector2] = {"far": Vector2(-2, -6.5), "near": Vector2(-2, -17.5)}
 ## The low screen between the two rows: its top below the far edge, and its
 ## height (-32..-26).
 const SCREEN_TOP := 16
@@ -139,6 +153,9 @@ var lamps_drawn := 0
 var night := 0.0
 var _lamp_levels: Dictionary[String, Lamp] = {}
 var _shell_seats: Dictionary[String, bool] = {}
+## The provider whose mark each far seat's laptop wears ("" for none), so a
+## rebuilt seat (_sync_seat()) wears it again.
+var _providers: Dictionary[String, String] = {}
 var _shadow_holder: Node2D
 
 
@@ -221,11 +238,12 @@ func setup(pack: ArtPack, table_width: float, seat_columns: Array) -> bool:
 		for side: String in SIDES:
 			retained[_seat_name(index, side)] = true
 			_sync_seat(index, side)
-	for holder: Node in [$Grommets, $TaskLights, $FarMonitors, $NearMonitors, $Papers, $Seats, $Standing]:
+	for holder: Node in [$Grommets, $TaskLights, $FarMonitors, $NearMonitors, $Marks, $Papers, $Seats, $Standing]:
 		for child in holder.get_children():
 			if not retained.has(String(child.name)):
 				_lamp_levels.erase(String(child.name))
 				_shell_seats.erase(String(child.name))
+				_providers.erase(String(child.name))
 				holder.remove_child(child)
 				child.free()
 	var shape: CollisionShape2D = $Footprint
@@ -312,6 +330,14 @@ func _sync_seat(index: int, side: String) -> void:
 		_rect(grommet, Rect2(-2, -2, 4, 4), art.color(ArtContract.INK))
 		_rect(grommet, Rect2(-1, -1, 2, 2), art.color(ArtContract.MUTED))
 	grommet.position = foot
+	if is_far:
+		var lid := $Marks.get_node_or_null(NodePath(id)) as Sprite2D
+		if lid == null:
+			lid = Sprite2D.new()
+			lid.name = id
+			lid.visible = false
+			$Marks.add_child(lid)
+		lid.position = foot + MARK_AT[side]
 	var outer: ColorRect = grommet.get_child(0)
 	var inner: ColorRect = grommet.get_child(1)
 	outer.color = art.color(ArtContract.INK)
@@ -337,7 +363,8 @@ func _sync_seat(index: int, side: String) -> void:
 	_sync_marker($Seats, id, geometry.seat_position(index, side))
 	_sync_marker($Standing, id, geometry.standing_position(index, side))
 	var shell: bool = _shell_seats.get(id, false)
-	equip(index, side, occupied, shell)
+	var provider: String = _providers.get(id, "")
+	equip(index, side, occupied, shell, provider)
 	var level: Lamp = _lamp_levels.get(id, Lamp.OFF)
 	_apply_light(index, side, level)
 
@@ -369,6 +396,22 @@ func monitor(column: int, side: String) -> Sprite2D:
 	return monitors.get_node(_seat_name(column, side))
 
 
+## The provider's mark on that column's far laptop (shown or not; see equip()).
+## A near seat's mark is on its chair (OfficeStation).
+func mark(column: int) -> Sprite2D:
+	return $Marks.get_node(_seat_name(column, "far"))
+
+
+## The mark an agent of `provider` wears at its seat, on the far laptop's lid
+## or the near chair's back (MARK_AT), or null for none: no provider (a shell, a
+## launch whose kind herdr has not detected yet) or one the pack has no mark
+## for (ArtContract.lid_mark()). The one rule both sides follow.
+static func mark_of(pack: ArtPack, provider: String) -> ArtSprite:
+	if pack == null or provider.is_empty():
+		return null
+	return pack.ui_sprite(ArtContract.lid_mark(provider))
+
+
 ## The patch of light that seat's task lamp throws on the wood.
 func task_light(column: int, side: String) -> Polygon2D:
 	return $TaskLights.get_node(_seat_name(column, side))
@@ -377,10 +420,20 @@ func task_light(column: int, side: String) -> Polygon2D:
 ## Whether that seat carries a terminal: a herdr pane is one, and a seat with no
 ## pane has neither a laptop nor a grommet for its cable. Shells use a static
 ## terminal prompt on the screen/lid; starting and done agents are not shells.
-## Only dresses existing equipment, so changing occupants never adds nodes.
-func equip(column: int, side: String, has_pane: bool, shell := false) -> void:
+## An agent's far laptop wears its `provider`'s mark (mark_of()); a shell wears
+## none. Only dresses existing equipment, so changing occupants never adds nodes.
+func equip(column: int, side: String, has_pane: bool, shell := false, provider := "") -> void:
 	var is_shell := has_pane and shell
-	_shell_seats[_seat_name(column, side)] = is_shell
+	var id := _seat_name(column, side)
+	_shell_seats[id] = is_shell
+	if side == "far":
+		var worn := mark_of(art, provider) if has_pane and not is_shell else null
+		_providers[id] = provider if worn != null else ""
+		# A seat wearing none holds no texture, so what it shows never depends on
+		# who sat there before: a seat changed in place is the seat a rebuild makes.
+		var lid := mark(column)
+		art.dress(lid, art.sprite_texture(worn), worn.pivot if worn != null else Vector2.ZERO)
+		lid.visible = worn != null
 	var view := ArtContract.MONITOR_REAR if side == "far" else ArtContract.MONITOR_FRONT
 	if is_shell:
 		view = ArtContract.SHELL_REAR if side == "far" else ArtContract.SHELL_FRONT

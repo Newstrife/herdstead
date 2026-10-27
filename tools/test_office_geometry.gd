@@ -1246,6 +1246,170 @@ func test_the_far_laptop_never_covers_the_far_worker() -> void:
 		station.free()
 
 
+## An agent's seat wears its provider mark (D3, 2026-10-27): on the far
+## laptop's rear lid face (the table's, built with the pod), clear of the far
+## worker; on the near chair's back (the station's, on its chair), every texel
+## on an opaque chair texel and none under the near sitter, who sorts behind the
+## chair, in every seated state. A shell, a launch whose kind is not known yet,
+## an empty seat and a provider the pack has no mark for wear none, and a seat
+## that wears none holds no texture; the near mark stays while its agent is
+## away in the pantry. A provider change swaps the texture on the same node; a
+## resize, a relocation and a move to another seat (OfficeDeskView's reconcile,
+## with no furnish after it) keep the mark with its agent.
+func test_a_seat_wears_its_agents_mark() -> void:
+	var table := _table()
+	_check(table.resize(4), "four columns")
+	var claude := art.sprite_texture(art.ui_sprite(&"mark_claude"))
+	var codex := art.sprite_texture(art.ui_sprite(&"mark_codex"))
+	_check(claude != null and codex != null and claude != codex, "the pack draws both marks")
+	# Measured: the far lid face on monitor_rear, texels 19..43 by 46..53 about its
+	# pivot texel (32, 60), in texel cells from the laptop's foot; the mark's
+	# top-left from the laptop's foot (far) and from the near chair's foot (near).
+	var lid_face := Rect2i(-13, -14, 25, 8)
+	var corner: Dictionary[String, Vector2] = {"far": Vector2(-2, -6.5), "near": Vector2(-2, -17.5)}
+	for column in table.columns.size():
+		for side: String in OfficeTable.SIDES:
+			var station := pen.station(sorted, table, column, side)
+			var where := "column %d %s" % [column, side]
+			var path := "Marks/Far%d" % column
+			var mark := (
+				table.get_node_or_null(path) as Sprite2D if side == "far" else station.get_node_or_null("Chair/Mark")
+				as Sprite2D
+			)
+			_check(mark != null, "%s: the seat's mark is built with it" % where)
+			if mark == null:
+				station.free()
+				continue
+			var chair: Sprite2D = station.get_node("Chair")
+			for state: StringName in [
+				ArtContract.STATE_WORKING, ArtContract.STATE_BLOCKED, ArtContract.STATE_IDLE, ArtContract.STATE_DONE
+			]:
+				station.furnish("claude", state)
+				var at := "%s %s" % [where, state]
+				_check(mark.visible and mark.texture == claude, "%s: claude's mark shows" % at)
+				var to_pod := table.global_transform.affine_inverse()
+				var texels := _texels(mark, to_pod)
+				_eq(texels.size(), 44, "%s: the whole mark (8x6 but its four corners)" % at)
+				_check(
+					mark.get_global_transform().get_scale().is_equal_approx(art.unit_scale()), "%s: a pack sprite" % at
+				)
+				var figure := _figure_texels(station, to_pod)
+				if side == "far":
+					var foot := Vector2i(table.monitor(column, side).position * 2.0)
+					var face := Rect2i(foot + lid_face.position, lid_face.size)
+					var outside := 0
+					var over := 0
+					for texel: Vector2i in texels:
+						outside += int(not face.has_point(texel))
+					for texel: Vector2i in figure:
+						over += int(texel.y < -OfficeTable.SURFACE_DEPTH * 2 and texels.has(texel))
+					_eq(outside, 0, "%s: inside the lid face" % at)
+					_eq(over, 0, "%s: never over the far worker, who shows above the far edge" % at)
+					_eq(mark.position, table.monitor(column, side).position + corner[side], "%s: on the lid" % at)
+					continue
+				var chair_texels := _chair_texels(station, to_pod)
+				var off_chair := 0
+				for texel: Vector2i in texels:
+					off_chair += int(not chair_texels.has(texel))
+				_eq(off_chair, 0, "%s: every texel on an opaque chair texel" % at)
+				# The station y-sorts its children by their feet, ties in tree order:
+				# the mark is drawn with its chair, so the sitter covers it only if the
+				# sitter is drawn after the chair.
+				var worker := station.actor()
+				var chair_y := chair.global_position.y
+				var worker_y := worker.global_position.y
+				var after := worker_y > chair_y or (worker_y == chair_y and worker.get_index() > chair.get_index())
+				var covered := 0
+				for texel: Vector2i in texels:
+					covered += int(after and figure.has(texel))
+				_check(not after, "%s: the sitter sorts behind the chair" % at)
+				_eq(covered, 0, "%s: the near sitter covers none of it" % at)
+				var top_left := Vector2i(1 << 20, 1 << 20)
+				for texel: Vector2i in texels:
+					top_left = Vector2i(mini(top_left.x, texel.x), mini(top_left.y, texel.y))
+				var chair_foot := to_pod * chair.global_position
+				# Only the corner texel itself is cut, so the opaque texels' smallest x and
+				# y are the canvas's own top-left.
+				_eq(Vector2(top_left) / 2.0, chair_foot + corner[side], "%s: on the backrest" % at)
+			var nodes := world.find_children("*", "", true, false).size()
+			station.furnish("codex", ArtContract.STATE_WORKING)
+			_eq(mark.texture, codex, "%s: a provider change swaps the mark" % where)
+			_eq(world.find_children("*", "", true, false).size(), nodes, "%s: and adds no node" % where)
+			if side == "near":
+				station.furnish("claude", ArtContract.STATE_IDLE)
+				station.rest_at(OfficeRests.Rest.PANTRY, station.position + Vector2(0, -200))
+				_check(
+					station.away() and mark.visible and mark.texture == claude, "%s: the agent away, it stays" % where
+				)
+				station.rest_at(OfficeRests.Rest.SEAT)
+			station.furnish("", ArtContract.STATE_IDLE)
+			_check(not mark.visible, "%s: a shell wears no mark" % where)
+			_eq(mark.texture, null, "%s: and holds none, as a rebuilt seat does" % where)
+			station.furnish("", ArtContract.STATE_IDLE, false, true)
+			_check(not mark.visible, "%s: nor a launch whose kind is not known yet" % where)
+			station.furnish("future-agent", ArtContract.STATE_WORKING)
+			_check(not mark.visible, "%s: nor a provider the pack has no mark for" % where)
+			station.furnish("claude", ArtContract.STATE_WORKING)
+			station.vacate()
+			_check(not mark.visible and mark.texture == null, "%s: nor an empty seat" % where)
+			station.furnish("claude", ArtContract.STATE_WORKING)
+			_check(table.resize(6), "%s: grow" % where)
+			_check(table.relocate(Vector2(400, 320)), "%s: move" % where)
+			_check(station.rebind(table, column, side), "%s: and the station follows" % where)
+			_check(mark.visible and mark.texture == claude, "%s: a resize and a relocation keep the mark" % where)
+			if side == "far":
+				_eq(mark.position, table.monitor(column, side).position + corner[side], "%s: on its laptop" % where)
+			_check(table.resize(4), "%s: shrink back" % where)
+			station.free()
+	# Two agents swap seats and sides while the desks grow: the stations keep
+	# their people and nobody furnishes them again, so each mark must move with
+	# its agent: OfficeDeskView's re-equip after the rebind dresses the far lid,
+	# and the near chair's mark goes with its station.
+	world.free()
+	world = Node2D.new()
+	ground = Node2D.new()
+	sorted = Node2D.new()
+	world.add_child(ground)
+	world.add_child(sorted)
+	root.add_child(world)
+	var room := RoomModel.new()
+	room.key = "marks"
+	var view := OfficeDeskView.new()
+	view.setup(pen, ground, sorted, room.key)
+	view.reconcile(room, _mark_placement(room.key, 2, {"a": [0, "far"], "b": [1, "near"]}))
+	view.pane_stations["a"].furnish("claude", ArtContract.STATE_WORKING)
+	view.pane_stations["b"].furnish("codex", ArtContract.STATE_WORKING)
+	view.reconcile(room, _mark_placement(room.key, 4, {"a": [1, "near"], "b": [0, "far"]}))
+	await process_frame
+	var far_lid := view.table.get_node_or_null("Marks/Far0") as Sprite2D
+	var near_back := view.pane_stations["a"].get_node_or_null("Chair/Mark") as Sprite2D
+	var far_back := view.pane_stations["b"].get_node_or_null("Chair/Mark") as Sprite2D
+	_check(far_lid != null and near_back != null and far_back != null, "the moved seats have their marks")
+	if far_lid != null and near_back != null and far_back != null:
+		_check(far_lid.visible and far_lid.texture == codex, "codex moved to far 0, and its lid wears its mark")
+		_check(
+			near_back.visible and near_back.texture == claude, "claude moved to near 1, and its chair wears its mark"
+		)
+		_check(not far_back.visible, "codex's chair, now on the far side, wears none")
+
+
+## A placement of `seats` (pane key: [column, side]) on a pod of `capacity` columns.
+func _mark_placement(tab_key: String, capacity: int, seats: Dictionary) -> DeskPlacement:
+	var placed := DeskPlacement.new()
+	placed.tab_key = tab_key
+	placed.capacity = capacity
+	placed.measure = OfficeTable.measure(capacity)
+	for key: String in seats:
+		var where: Array = seats[key]
+		var seat := SeatPlacement.new()
+		seat.pane_key = key
+		seat.tab_key = tab_key
+		seat.column = where[0]
+		seat.side = where[1]
+		placed.seats.append(seat)
+	return placed
+
+
 ## A near worker sits at the desk, not below it: the shoulders (the topmost
 ## row the seated figure is at its full width on) are above the near working
 ## edge, and the figure draws over part of its own laptop, in every state. The

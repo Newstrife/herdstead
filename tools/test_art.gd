@@ -799,6 +799,60 @@ func test_art_contract_names_ids_no_scene_asks_for() -> void:
 	_eq(_sorted_names(ArtContract.unused(null)), [], "a pack that did not load reports nothing")
 
 
+## Every agent the catalog lists wears a mark on its laptop (D3, 2026-10-27; the
+## UI image `mark_<provider>`): the shipped pack carries one for each, at most
+## 4x3 units, hard alpha, drawn at the pack's density on a top-left pivot, and
+## never in a colour that could read as a signal (every opaque pixel at RGB
+## distance 48 or more from working, blocked, unread, muted and task_light). A
+## pack missing one is refused by name, the marks are never called unused, and
+## a provider the catalog does not list has none.
+func test_every_provider_wears_a_laptop_mark() -> void:
+	var shipped := ArtPack.from_manifest(MANIFEST)
+	shipped.people.agent_catalog = AgentCatalog.new(_missing_avatars())
+	var ids := shipped.people.catalog().ids()
+	_eq(ids.size(), 23, "the catalog's agents")
+	var states: Array[Color] = []
+	for name: StringName in [&"working", &"blocked", &"unread", &"muted", &"task_light"]:
+		states.append(shipped.color(name))
+	for id in ids:
+		var spec := shipped.ui_sprite(StringName("mark_" + id))
+		_check(spec != null, "%s has a mark" % id)
+		if spec == null:
+			continue
+		_check(spec.size.x <= 4 and spec.size.y <= 3, "%s: at most 4x3 units, not %s" % [id, spec.size])
+		_eq(spec.pivot, Vector2.ZERO, "%s: pivot at its top-left corner" % id)
+		var image := shipped.sprite_texture(spec).get_image()
+		_eq(image.get_size(), spec.size * shipped.density, "%s: drawn at the pack's density" % id)
+		var soft := 0
+		var near := 0
+		for y in image.get_height():
+			for x in image.get_width():
+				var pixel := image.get_pixel(x, y)
+				soft += int(pixel.a > 0.0 and pixel.a < 1.0)
+				if pixel.a <= 0.0:
+					continue
+				for state in states:
+					var apart := Vector3(pixel.r - state.r, pixel.g - state.g, pixel.b - state.b).length() * 255.0
+					near += int(apart < 48.0)
+		_eq(soft, 0, "%s: hard alpha" % id)
+		_eq(near, 0, "%s: no pixel within 48 of a state colour" % id)
+	_check(shipped.ui_sprite(&"mark_mastracode") == null, "a provider the catalog does not list has no mark")
+	_check(shipped.ui_sprite(&"mark_generic") == null, "nor does the generic agent")
+	for unused in ArtContract.unused(shipped)[&"ui"]:
+		_check(not unused.begins_with("mark_"), "a mark is never called unused: " + unused)
+	var drop_claude := func(m: Dictionary) -> void:
+		var images: Dictionary = m["ui"]
+		images.erase("mark_claude")
+	var missing := ArtPack.from_manifest(_mutated_pack("no claude mark", drop_claude))
+	_check(missing != null, "a pack without claude's mark still loads")
+	if missing != null:
+		var problems := ArtContract.problems(missing)
+		_check(
+			Array(problems).any(func(line: String) -> bool: return "mark_claude" in line),
+			"and is refused by name: %s" % [problems]
+		)
+
+
 ## Textures are handed out exactly as built: for a res:// pack the very object
 ## load() returns, with whatever mipmaps its family's import rule gave it, so
 ## nothing here depends on the screen. The shipped pack, its table (density 2)
@@ -1059,7 +1113,8 @@ func test_art_nodes() -> void:
 
 ## Every agent herdr knows has a logo for the Avatar Studio's list and a whole
 ## pixel person in every pose the office draws, in options the family draws, its
-## clothes the catalog's default for it; an unknown one is the generic person. A
+## clothes the catalog's default for it with no pane and its pane's own pick at a
+## pane (D3); an unknown one is the generic person. A
 ## hood hides the hair, a cap does not, and a strip is the right row of its
 ## facing's sheet, not a cached other one.
 func test_agent_avatar_catalog() -> void:
@@ -1084,12 +1139,21 @@ func test_agent_avatar_catalog() -> void:
 						people.slots[slot_id].has_option(look.slot(slot_id)),
 						"%s: %s is an option the family draws (%s)" % [where, slot_id, look.slot(slot_id)]
 					)
+				# D3 (2026-10-27): clothes vary per pane like faces; the provider is the
+				# laptop's mark. With no pane the provider's default still stands.
 				var provided := catalog.default_look(id)
+				var plain := people.look_for(id, AvatarLook.facing(context, orientation))
 				for slot_id: StringName in [AvatarLook.TOP, AvatarLook.LEGS, AvatarLook.HEADWEAR]:
 					_eq(
-						look.slot(slot_id),
+						plain.slot(slot_id),
 						provided.slot(slot_id),
-						"%s: %s is the provider's default" % [where, slot_id]
+						"%s: %s with no pane is the provider's default" % [where, slot_id]
+					)
+					var pool := people.variation[slot_id]
+					_eq(
+						look.slot(slot_id),
+						StringName(pool[PixelPeople.pick(id, "pane-of-" + id, slot_id) % pool.size()]),
+						"%s: %s at a pane is that pane's pick" % [where, slot_id]
 					)
 				for layer: StringName in [PixelPeople.LEGS, PixelPeople.TOP, PixelPeople.BODY]:
 					var strip := people.layer_texture(layer, look, orientation)
