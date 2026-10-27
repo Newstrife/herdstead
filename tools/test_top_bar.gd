@@ -1,9 +1,12 @@
 extends "res://tools/office_test_base.gd"
-## The top bar's counters: MACHINES, BLOCKED, DONE, WORKING, IDLE and
-## PANES from the live machines only, their hover breakdown by machine and
-## space, BLOCKED and DONE walking their agents, WORKING and IDLE filtering the
-## agent list, and the longest wait ticking on attention's beat. Hovers and
-## clicks go through real input. Run through run_tests.sh.
+## The top bar: the portrait strip's agents from the live machines only, their
+## cards' and folds' hovers, a card click picking (the list's path), a fold
+## opening the OVERVIEW on its state, each blocked card's wait ticking on
+## attention's beat, the status line's hover, `13 panes` and the chime switch,
+## the title gap, and the showroom's bar. Hovers and clicks go through real
+## input. Run through run_tests.sh. (S3 BAR-a, 2026-10-27: the portrait strip
+## replaces the counters; the strip's own model, ladder and cards are
+## tools/test_portrait_bar.gd's.)
 ##
 ## godot --headless --path . --script tools/test_top_bar.gd -- \
 ##     --read-only --socket=<a socket nobody listens on> --work=<short tmp dir>
@@ -11,12 +14,13 @@ extends "res://tools/office_test_base.gd"
 ## No herdr at all: the fleet's Local client is stopped and snapshots are handed
 ## to it directly, as the incremental suite does.
 
-## What tools/fixtures/snapshot_floors.json counts, left to right: Local live;
-## blocked web:p1 and infra:p1; UNREAD web:p2 and infra:p2; working api:p1,
-## api:p4 and data:p1; idle api:p2 and infra:p3 (data:p2 is idle but still
-## launching, so in no count); thirteen panes with the three shells.
-const FIXTURE_VALUES: Array[String] = ["1/1", "2", "2", "3", "2", "13"]
-## The asset showroom, whose top bar counts a mock of its own.
+## What tools/fixtures/snapshot_floors.json shows: Local live; blocked web:p1
+## and infra:p1; UNREAD web:p2 and infra:p2; working api:p1, api:p4 and
+## data:p1; idle api:p2 and infra:p3 (data:p2 is idle but still launching, so
+## it has no card); thirteen panes with the three shells.
+const FIXTURE_COUNTS: Array[int] = [2, 2, 3, 2]
+const FIXTURE_PANES := "13 panes"
+## The asset showroom, whose top bar shows a mock of its own.
 const SHOWROOM_SCENE := "res://scenes/preview.tscn"
 
 
@@ -59,87 +63,95 @@ func _marker() -> String:
 # --- cases --------------------------------------------------------------------
 
 
-## Six numbers from the live machine; a dropped one counts nobody and says so
-## on MACHINES, in the blocked colour; back again, the same six. The pack's
+## The live machine's agents have cards (or are counted in a fold); a dropped
+## machine has none, the status line says so in the blocked colour, and
+## `13 panes` counts nothing of it; back again, the same agents. The pack's
 ## line is not the machines' business.
-func test_counters_add_up_live_machines_only() -> void:
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_cards_come_from_live_machines_only() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
-	_eq(_values(bar), FIXTURE_VALUES, "machines, blocked, done, working, idle, panes")
-	_eq(_titles(bar), ["MACHINES", "BLOCKED", "DONE", "WORKING", "IDLE", "PANES"], "in herdr's words")
+	var everyone := _everyone(bar)
+	_eq(_counts(bar), FIXTURE_COUNTS, "blocked, done, working, idle")
+	_eq(_panes_text(bar), FIXTURE_PANES, "and the panes")
+	_check(everyone.all(func(key: String) -> bool: return key.begins_with(LOCAL)), "all Local's: %s" % [everyone])
 	_check(not bar.alarmed(), "every machine answers")
-	_eq(bar.counter(&"blocked").theme_type_variation, &"CounterHot", "somebody waits: BLOCKED is the loud one")
-	_eq(bar.counter(&"machines").theme_type_variation, &"Counter", "MACHINES is quiet")
+	_eq(_status_label(bar).theme_type_variation, &"LabelCream", "the status line is quiet")
 	var theme := bar.theme_line()
 	_set_online(office, false)
 	await _frames(1)
-	_eq(_values(bar), ["0/1", "0", "0", "0", "0", "0"], "a dropped machine is nobody working, waiting or idle")
-	_check(bar.alarmed(), "MACHINES says a machine is down")
-	_eq(bar.counter(&"machines").theme_type_variation, &"CounterHot", "as loud as BLOCKED")
-	_eq(bar.counter(&"blocked").theme_type_variation, &"Counter", "and BLOCKED is quiet: nobody live waits")
-	_eq(bar.status_line(), "OFFLINE / RECONNECTING", "the status line says the same")
+	_eq(_counts(bar), [0, 0, 0, 0], "a dropped machine is nobody working, waiting or idle")
+	_check(bar.cards().is_empty(), "no card")
+	_check(not bar.folds().any(func(fold: PortraitFold) -> bool: return fold.visible), "and no fold")
+	_eq(_panes_text(bar), "0 panes", "no panes")
+	_check(bar.alarmed(), "the bar says a machine is down")
+	_eq(_status_label(bar).theme_type_variation, &"LabelBlocked", "in the blocked colour")
+	_eq(bar.status_line(), "OFFLINE / RECONNECTING", "the status line says so")
 	_eq(bar.theme_line(), theme, "the pack's line stays")
 	_set_online(office, true)
 	await _frames(1)
-	_eq(_values(bar), FIXTURE_VALUES, "back: the same six")
+	_eq(_everyone(bar), everyone, "back: the same agents, in the same order")
+	_eq(_counts(bar), FIXTURE_COUNTS, "the same counts")
 	_check(not bar.alarmed(), "and nothing is down")
 	_done(office)
 
 
-## The fixture's counters at every width the office supports: titles on a
-## screen wide enough for them (800 up), icon and number on the narrowest
-## (480), and at 640, where titles are allowed, whichever fits. Wherever,
-## each one holds everything it shows, none overlaps another, and all stand
-## inside the bar, clear of the wordmark and left of the right-hand lines.
-func test_titles_hide_on_a_narrow_bar_and_every_chip_fits() -> void:
+## The fixture's strip at every width the office supports: at 480, 640, 800
+## and 1920 every card and fold stands inside the strip, none over another,
+## clear of the wordmark and left of `13 panes`, the chime and the lines; what
+## the rung needs fits the strip's room.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_the_strip_fits_every_width_and_nothing_overlaps() -> void:
 	var office := await _live_office()
 	await _known_blocked(office)
 	await _text_tick()
 	var bar := office.hud.bar
 	var widths: Array[float] = [480.0, office.hud.bar_titles_from, 800.0, 1920.0]
+	var rungs: Array[int] = []
 	for width in widths:
 		var screen := Vector2(width, 480.0 if width > 480.0 else 320.0)
 		office.test_screen = screen
 		office.refresh()
 		await _frames(2)
-		_eq(
-			bar.counter(&"blocked").extra_text().begins_with("max "), true, "the longest wait is written at %s" % screen
-		)
-		if width < office.hud.bar_titles_from:
-			_check(bar.counters().all(_untitled), "no titles and no `max` below %s" % office.hud.bar_titles_from)
-			_check(bar.counters().all(_iconic), "the fixture's numbers leave room for the icons at %s" % screen)
-		elif width >= 800.0:
-			_check(bar.counters().all(_titled), "titles and `max` at %s" % screen)
+		var strip: Control = bar.get_node("%Strip")
+		_check(bar.fitted().needed <= strip.size.x, "rung %d fits at %s" % [bar.fitted().rung, screen])
+		rungs.append(bar.fitted().rung)
 		_fits(bar, "at %s" % screen)
+	_eq(rungs, [4, 4, 3, 1], "faces at 480 and 640, the blocked named at 800, every card at 1920")
 	_done(office)
 
 
-## Two- and three-digit counts, ten of twelve machines and an hour's wait: on
-## the narrowest bar the counters give up titles and then icons, and the
-## numbers still all show, inside their chips; on the widest they show all.
-func test_a_crowded_bar_keeps_every_number() -> void:
+## Twelve blocked, 34 done, 56 working, 78 idle and 999 panes: on the
+## narrowest bar the strip folds them down to the last rung and every agent is
+## still counted, as a face or in a fold's number, inside the strip; on the
+## widest the same, with more of them as faces.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_crowded_bar_keeps_every_agent_counted() -> void:
 	var hud := await _bare_hud(Vector2(480, 320))
-	var totals := OfficeTotals.new()
-	totals.machines_live = 10
-	totals.machines_total = 12
-	totals.blocked = 12
-	totals.done = 34
-	totals.working = 56
-	totals.idle = 78
-	totals.panes = 999
-	hud.show_totals(totals)
-	hud.show_longest_wait("1h 05m+")
+	var model := _crowd(
+		{
+			PortraitBarModel.Group.BLOCKED: 12,
+			PortraitBarModel.Group.DONE: 34,
+			PortraitBarModel.Group.WORKING: 56,
+			PortraitBarModel.Group.IDLE: 78
+		}
+	)
+	hud.bar.show_portraits(model, 999)
+	hud.bar.show_waits({_crowd_key(PortraitBarModel.Group.BLOCKED, 0): "1h 05m+"})
 	await _frames(2)
 	var bar := hud.bar
-	_eq(_values(bar), ["10/12", "12", "34", "56", "78", "999"], "every number")
-	_check(bar.counters().all(_untitled), "no titles at 480")
-	_check(not bar.counters().any(_icon_shown), "and, crowded, no icons: the numbers come first")
+	_eq(bar.fitted().rung, PortraitBarModel.LAST_RUNG, "the last rung at 480")
+	_eq(_shown_and_folded(bar), [12, 34, 56, 78], "every agent counted at 480")
+	_eq(bar.fold_of(PortraitBarModel.Group.IDLE).count_text(), "+78", "the idle tally says all of them")
 	_fits(bar, "crowded at 480")
+	var faces := bar.cards().size()
 	hud.fit(Vector2(1920, 480))
 	await _frames(2)
-	_check(bar.counters().all(_titled) and bar.counters().all(_iconic), "at 1920 titles and icons are back")
-	_eq(bar.counter(&"blocked").extra_text(), "max 1h 05m+", "with the whole longest wait")
-	_check(_node(bar.counter(&"blocked"), "%Extra").visible, "shown")
+	_eq(_shown_and_folded(bar), [12, 34, 56, 78], "every agent counted at 1920")
+	_check(bar.cards().size() > faces, "more of them shown at 1920: %d" % bar.cards().size())
+	_eq(_panes_text(bar), "999 panes", "and the panes")
+	var panes: Button = bar.get_node("%Panes")
+	_check(_fits_label_button(panes), "whole")
 	_fits(bar, "crowded at 1920")
 	hud.free()
 
@@ -170,17 +182,20 @@ func test_every_status_fits_the_lines_at_every_width() -> void:
 		hud.free()
 
 
-## Resting the pointer on MACHINES says how each machine answers and how long
-## ago it was last heard from; a dropped one says OFFLINE, and when.
-func test_hovering_machines_says_how_each_answers() -> void:
+## Resting the pointer on the status line says how each machine answers and
+## how long ago it was last heard from; a dropped one says OFFLINE, and when.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; the
+## MACHINES counter's hover is the status line's.
+func test_hovering_the_status_line_says_how_each_machine_answers() -> void:
 	var office := await _live_office()
-	var counter := office.hud.bar.counter(&"machines")
-	await _hover(counter)
-	_eq(root.gui_get_hovered_control(), counter, "the pointer is over the counter itself")
-	var tip := counter.get_tooltip(counter.get_local_mouse_position())
+	var bar := office.hud.bar
+	var status := _status_label(bar)
+	await _hover(status)
+	_eq(root.gui_get_hovered_control(), bar, "the pointer is over the bar's status line")
+	var tip := bar.get_tooltip(bar.get_local_mouse_position())
 	_check(tip.begins_with("Local · LIVE · last snapshot "), "live, heard from: " + tip)
 	_check(tip.ends_with(" ago"), "and how long ago: " + tip)
-	# The counter's tooltip_text is empty: what shows is what _get_tooltip() writes.
+	# The bar's tooltip_text is empty: what shows is what _get_tooltip() writes.
 	var delay: float = ProjectSettings.get_setting("gui/timers/tooltip_delay_sec", 0.5)
 	await _wait_seconds(delay + 0.7)
 	var popups := _tooltips_shown()
@@ -190,49 +205,64 @@ func test_hovering_machines_says_how_each_answers() -> void:
 	_check(shown, "the tooltip really shows it: " + str(popups))
 	_set_online(office, false)
 	await _frames(1)
-	tip = counter.get_tooltip(counter.get_local_mouse_position())
+	tip = bar.get_tooltip(bar.get_local_mouse_position())
 	_check(tip.begins_with("Local · OFFLINE · last snapshot "), "dropped, still when it was last heard: " + tip)
 	_check(tip.ends_with(" ago"), "a time, not never: " + tip)
+	var wordmark: Control = bar.get_node("%Wordmark")
+	await _hover(wordmark)
+	_eq(bar.get_tooltip(bar.get_local_mouse_position()), "", "elsewhere on the bar, no tooltip")
 	_done(office)
 
 
-## BLOCKED and IDLE break down by machine and space, by workspace number, with
-## each pane's time in that state (a start never seen: the time the state log
-## saw, with `+`, as the OVERVIEW's FOR says it); DONE and WORKING count
-## without times; PANES has nothing to break down.
-func test_hovering_blocked_and_idle_breaks_down_by_machine_and_space() -> void:
+## A blocked card's hover says its whole name, provider, the pack's word for
+## the state and how long it has waited (a start never seen: the time the
+## state log saw, with `+`, as the OVERVIEW's FOR says it), and its space and
+## tab; a done face says no wait. A fold names who is in it and where; the
+## agent still launching (data:p2) is in none.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_hovering_a_card_or_a_fold_says_who_and_where() -> void:
 	var office := await _live_office()
-	# web:p1 blocked and api:p2 idle from now; infra's were so from the first snapshot.
-	var warmed := _with(_with(fixture, "web:p1", {"agent_status": "working"}), "api:p2", {"agent_status": "working"})
-	_feed(office, warmed)
+	# web:p1 blocked from now; infra:p1 was so from the first snapshot.
+	_feed(office, _with(fixture, "web:p1", {"agent_status": "working"}))
 	_feed(office, fixture)
-	await _frames(1)
+	await _wait_seconds(1.2)
+	await _text_tick()
 	var bar := office.hud.bar
-	var blocked := await _tip_of(bar.counter(&"blocked"))
-	_eq(blocked.size(), 2, "one line per space: " + str(blocked))
+	var web := await _tip_of_card(office, "web:p1")
+	var infra := await _tip_of_card(office, "infra:p1")
+	var web_pane := office.frame.pane(_pane("web:p1"))
+	_eq(web.size(), 3, "three lines: " + str(web))
+	if web.size() == 3:
+		_eq(web[0], web_pane.name, "its whole name")
+		var blocked := CardDetails.caption_of(office.art, ArtContract.STATE_BLOCKED)
+		_check(web[1].begins_with("CLAUDE · %s · " % blocked) and web[1].ends_with("s"), "timed: " + web[1])
+		_check(not web[1].ends_with("s+"), "its start seen: " + web[1])
+		_eq(web[2], "web / ui", "its space and tab")
+	_check(infra.size() == 3 and infra[1].ends_with("s+"), "infra's start never seen: at least: " + str(infra))
+	var done := await _tip_of_card(office, "web:p2")
 	_check(
-		blocked[0].begins_with("Local · web  1  (") and blocked[0].ends_with("s)"), "web first, timed: " + blocked[0]
+		done.size() == 3 and done[1] == "CODEX · " + CardDetails.caption_of(office.art, &"done"), "no wait: %s" % [done]
 	)
-	_check(
-		blocked[1].begins_with("Local · infra  1  (") and blocked[1].ends_with("s+)"),
-		"infra after it, its start never seen: at least as long as watched: " + blocked[1]
-	)
-	var idle := await _tip_of(bar.counter(&"idle"))
+	await _hover(bar.fold_of(PortraitBarModel.Group.WORKING))
+	var working := bar.fold_of(PortraitBarModel.Group.WORKING).get_tooltip(Vector2.ZERO).split("\n")
+	var names := PackedStringArray()
+	for pane_id: String in ["api:p1", "api:p4", "data:p1"]:
+		var pane := office.frame.pane(_pane(pane_id))
+		names.append("%s · %s" % [pane.name, pane.workspace_label])
+	_eq(working, names, "the working fold names who and where")
+	await _hover(bar.fold_of(PortraitBarModel.Group.IDLE))
+	var idle := bar.fold_of(PortraitBarModel.Group.IDLE).get_tooltip(Vector2.ZERO).split("\n")
 	_eq(idle.size(), 2, "the launching data:p2 is not idle yet: " + str(idle))
-	_check(idle[0].begins_with("Local · api  1  (") and idle[0].ends_with("s)"), "api idle, timed: " + idle[0])
-	_check(idle[1].begins_with("Local · infra  1  (") and idle[1].ends_with("s+)"), "infra idle, at least: " + idle[1])
-	var done := await _tip_of(bar.counter(&"done"))
-	_eq(done, PackedStringArray(["Local · web  1", "Local · infra  1"]), "UNREAD, no times")
-	var working := await _tip_of(bar.counter(&"working"))
-	_eq(working, PackedStringArray(["Local · api  2", "Local · 数据 pipeline  1"]), "working, no times")
-	_eq(await _tip_of(bar.counter(&"panes")), PackedStringArray(["PANES 13"]), "PANES only has its number")
+	_check(not idle[0].contains("数据"), "api's and infra's idle only: " + str(idle))
 	_done(office)
 
 
-## A real click on BLOCKED picks the agent that has waited longest, shows its
-## floor and brings its desk on screen; the next click the next one, then round
-## again: the order `N` walks the blocked in.
-func test_clicking_blocked_walks_the_longest_waits_like_n() -> void:
+## A real click on a blocked card picks it, shows its floor and brings its
+## desk on screen, as a row of the list does; the leftmost card is whom `N`
+## picks first: the cards stand in the order `N` walks the blocked in.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; a card
+## click selects (the list's path), it does not walk.
+func test_a_click_on_a_blocked_card_picks_it_and_the_first_is_ns() -> void:
 	var office := await _live_office()
 	# infra:p1 blocks first, web:p1 later: the reverse of floor order.
 	var both_working := _with(
@@ -243,29 +273,29 @@ func test_clicking_blocked_walks_the_longest_waits_like_n() -> void:
 	OS.delay_msec(20)
 	_feed(office, fixture)
 	await _frames(1)
-	var counter := office.hud.bar.counter(&"blocked")
-	var walked: Array[String] = []
-	for press in 3:
-		await _press(counter)
+	var bar := office.hud.bar
+	var order: Array[String] = []
+	for index in 2:
+		order.append(bar.cards()[index].key)
+	_eq(order, [_pane("infra:p1"), _pane("web:p1")], "longest wait first")
+	for key in order:
+		await _press(bar.card_for(key))
 		await _frames(3)
-		var key := office.picked_key
-		walked.append(key)
+		_eq(office.picked_key, key, "a click picks %s" % key)
 		var at := [office.navigator.shown_key, office.navigator.current_zone(office.frame)]
-		_eq(at, [LOCAL, office.frame.zone_of(key)], "press %d: the map of %s, its zone current" % [press, key])
+		_eq(at, [LOCAL, office.frame.zone_of(key)], "the map of %s, its zone current" % key)
 		_check(office.hud.world_rect().has_point(_desk_point(office, key)), "and brings its desk on screen")
-	_eq(walked, [_pane("infra:p1"), _pane("web:p1"), _pane("infra:p1")], "longest wait first, then round again")
+		_check(not office.hud.inspector.answering(), "and only picks")
 	office.picked_key = ""
-	var by_n: Array[String] = []
-	for press in 2:
-		await _office_key(office, KEY_N)
-		by_n.append(office.picked_key)
-	_eq(by_n, walked.slice(0, 2), "`N` walks the blocked in the same order")
+	await _office_key(office, KEY_N)
+	_eq(office.picked_key, order[0], "`N` goes first to the leftmost card")
 	_done(office)
 
 
-## DONE picks the oldest UNREAD agent and only picks: no answer mode, no card
-## opened up. The next click the next one.
-func test_clicking_done_picks_the_oldest_unread() -> void:
+## A done face picks its agent and only picks: no answer mode, no card opened
+## up. The oldest UNREAD stands first.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_click_on_a_done_card_only_picks() -> void:
 	var office := await _live_office()
 	var both_working := _with(
 		_with(fixture, "web:p2", {"agent_status": "working"}), "infra:p2", {"agent_status": "working"}
@@ -275,77 +305,89 @@ func test_clicking_done_picks_the_oldest_unread() -> void:
 	OS.delay_msec(20)
 	_feed(office, fixture)
 	await _frames(1)
-	var counter := office.hud.bar.counter(&"done")
-	await _press(counter)
+	var bar := office.hud.bar
+	var done := bar.portraits().of_group(PortraitBarModel.Group.DONE)
+	_eq(
+		done.map(func(card: PortraitBarModel.Card) -> String: return card.key),
+		[_pane("infra:p2"), _pane("web:p2")],
+		"the one UNREAD longest first"
+	)
+	await _press(bar.card_for(_pane("infra:p2")))
 	await _frames(3)
-	_eq(office.picked_key, _pane("infra:p2"), "the one UNREAD longest")
+	_eq(office.picked_key, _pane("infra:p2"), "a click picks it")
 	var at := [office.navigator.shown_key, office.navigator.current_zone(office.frame)]
 	_eq(at, [LOCAL, _floor("infra")], "on its machine's map, its zone current")
 	_check(not office.hud.inspector.answering(), "not answering")
 	_check(not office.hud.card_expanded(), "and no card opened up for it")
-	await _press(counter)
+	await _press(bar.card_for(_pane("web:p2")))
 	await _frames(3)
-	_eq(office.picked_key, _pane("web:p2"), "then the next")
+	_eq(office.picked_key, _pane("web:p2"), "the other face the other")
 	_done(office)
 
 
-## WORKING shows only the working agents in the list and reads pressed; again,
-## every pane is back. IDLE the idle ones, never one still launching.
-func test_clicking_working_filters_the_list_and_again_clears_it() -> void:
+## The working fold opens the OVERVIEW on WORKING, and reads pressed, as
+## `13 panes` does; under it the idle fold sets IDLE and takes the press; the
+## same fold again is ALL and nobody reads pressed; `13 panes` closes it. The
+## agent list's filter is left as it was.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; a fold
+## opens the OVERVIEW on its state instead of filtering the list.
+func test_a_click_on_a_fold_opens_the_overview_on_its_state() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
-	var list := office.hud.agent_list
-	var everyone := list.shown_keys()
-	await _press(bar.counter(&"working"))
-	_eq(_panes_shown(office), _sorted([_pane("api:p1"), _pane("api:p4"), _pane("data:p1")]), "only who is working")
-	_eq(bar.counter(&"working").theme_type_variation, &"CounterOn", "WORKING reads pressed")
-	_eq(_node(bar.counter(&"working"), "%Value").theme_type_variation, &"CounterValuePaper", "its number in paper")
-	await _press(bar.counter(&"working"))
-	_eq(list.shown_keys(), everyone, "again: everyone")
-	_eq(bar.counter(&"working").theme_type_variation, &"Counter", "and it lets go")
-	await _press(bar.counter(&"idle"))
-	_eq(_panes_shown(office), _sorted([_pane("api:p2"), _pane("infra:p3")]), "only who is idle")
-	_check(not list.shown_keys().has(_pane("data:p2")), "not the one still launching")
-	_eq(bar.counter(&"idle").theme_type_variation, &"CounterOn", "IDLE reads pressed")
-	await _press(bar.counter(&"working"))
-	_eq(_panes_shown(office), _sorted([_pane("api:p1"), _pane("api:p4"), _pane("data:p1")]), "WORKING takes over")
-	_eq(bar.counter(&"idle").theme_type_variation, &"Counter", "and IDLE lets go")
+	var hud := office.hud
+	await _press(bar.fold_of(PortraitBarModel.Group.WORKING))
+	await _frames(2)
+	_check(hud.overview_open(), "the working fold opens the OVERVIEW")
+	_eq(hud.overview.filter(), OverviewModel.Filter.WORKING, "on WORKING")
+	_eq(
+		bar.fold_of(PortraitBarModel.Group.WORKING).theme_type_variation,
+		&"PortraitFoldWorkingOn",
+		"the fold reads pressed"
+	)
+	_eq((bar.get_node("%Panes") as Button).theme_type_variation, &"BarLineOn", "and so does `13 panes`")
+	await _press(bar.fold_of(PortraitBarModel.Group.IDLE))
+	await _frames(2)
+	_eq(hud.overview.filter(), OverviewModel.Filter.IDLE, "the idle fold sets IDLE")
+	_eq(bar.fold_of(PortraitBarModel.Group.IDLE).theme_type_variation, &"PortraitFoldIdleOn", "and takes the press")
+	_eq(bar.fold_of(PortraitBarModel.Group.WORKING).theme_type_variation, &"PortraitFoldWorking", "working lets go")
+	await _press(bar.fold_of(PortraitBarModel.Group.IDLE))
+	await _frames(2)
+	_eq(hud.overview.filter(), OverviewModel.Filter.ALL, "again: ALL")
+	_check(not bar.folds().any(func(fold: PortraitFold) -> bool: return fold.is_on()), "no fold pressed")
+	_check(hud.overview_open(), "and the OVERVIEW stays")
+	await _press(_panes_button(bar))
+	await _frames(2)
+	_check(not hud.overview_open(), "`13 panes` closes it")
+	_eq((bar.get_node("%Panes") as Button).theme_type_variation, &"BarLine", "and lets go")
+	_eq(hud.agent_list.presence_filter(), [] as Array[AgentListModel.Presence], "the list was never filtered")
 	_done(office)
 
 
-## A filter opens a closed drawer, or its list is out of sight; clearing it
-## asks for nothing to be shown, so a drawer closed since stays closed and the
-## world keeps its room. Another filter opens it again.
-func test_clearing_a_filter_leaves_a_closed_drawer_closed() -> void:
+## A fold click opens no panel: the drawer stays closed, the world keeps its
+## room and the staff panel its line; once the OVERVIEW closes the floor is the
+## one it was, not planned again. The list takes neither filter nor keyboard.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_fold_click_moves_no_panel_and_plans_nothing() -> void:
 	var office := await _live_office()
 	var hud := office.hud
 	var bar := hud.bar
-	var list := hud.agent_list
-	var everyone := list.shown_keys()
-	var collapse: Control = hud.get_node("%Collapse")
 	_check(not hud.drawer_open(), "every run starts with the drawer closed")
-	await _press(bar.counter(&"working"))
-	await _frames(2)
-	_check(hud.drawer_open(), "WORKING opens it")
-	_eq(_panes_shown(office), _sorted([_pane("api:p1"), _pane("api:p4"), _pane("data:p1")]), "on the working ones")
-	await _press(collapse)
-	await _frames(2)
-	_check(not hud.drawer_open(), "closed again, the filter still on")
 	var room := hud.world_rect()
-	await _press(bar.counter(&"working"))
+	var plan := office.floor_view.plan
+	var ids := _world_ids(office)
+	var compact := hud.card_compact()
+	await _press(bar.fold_of(PortraitBarModel.Group.IDLE))
 	await _frames(2)
-	_eq(bar.counter(&"working").theme_type_variation, &"Counter", "WORKING again clears the filter")
-	_eq(list.shown_keys(), everyone, "for everyone")
-	_check(not hud.drawer_open(), "and leaves the drawer closed")
+	_check(hud.overview_open(), "the OVERVIEW opens")
+	_check(not hud.drawer_open(), "the drawer stays closed")
 	_eq(hud.world_rect(), room, "the world keeps its room")
-	await _press(bar.counter(&"idle"))
+	_eq(hud.card_compact(), compact, "the staff panel stays as it was")
+	_check(not hud.agent_list.has_keyboard(), "the list takes no keyboard")
+	await _press(_panes_button(bar))
 	await _frames(2)
-	_check(hud.drawer_open(), "IDLE opens it")
-	_eq(_panes_shown(office), _sorted([_pane("api:p2"), _pane("infra:p3")]), "on the idle ones")
-	await _press(bar.counter(&"idle"))
-	await _frames(2)
-	_check(hud.drawer_open(), "clearing with the drawer open leaves it open")
-	_eq(list.shown_keys(), everyone, "for everyone")
+	_check(not hud.overview_open(), "closed again")
+	_check(office.floor_view.plan == plan, "the floor's plan is the one it had")
+	_eq(_world_ids(office), ids, "and the world the nodes it had")
 	_done(office)
 
 
@@ -371,99 +413,94 @@ func test_the_showroom_status_fits_the_lines() -> void:
 		showroom.free()
 
 
-## The longest blocked wait is written after BLOCKED's number and grows on
-## attention's beat, with `+` while a blocked start is unknown (it may be
-## longer than watched); nobody blocked, nothing.
-func test_the_longest_wait_ticks_on_the_attention_beat() -> void:
+## Each blocked card writes its wait and grows on attention's beat, with `+`
+## while its start is unknown (it may be longer than watched); the leftmost
+## card's is the longest. Nobody blocked, no wait anywhere.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; each
+## blocked card says its own wait where BLOCKED said the `max`.
+func test_a_blocked_cards_wait_ticks_on_the_attention_beat() -> void:
 	var office := await _live_office()
-	var counter := office.hud.bar.counter(&"blocked")
+	var bar := office.hud.bar
 	await _text_tick()
-	# It says what the OVERVIEW's FOR says,
-	# the stretch watched so far, `+`: at least that long.
-	var first := counter.extra_text()
-	_check(
-		first.begins_with("max ") and first.ends_with("s+"), "both blocked since before the first snapshot: " + first
-	)
+	# Both blocked since before the first snapshot: the stretch watched, `+`.
+	for pane_id: String in ["web:p1", "infra:p1"]:
+		var first := _wait_of(bar, pane_id)
+		_check(first.ends_with("s+"), "%s since before the office looked: `%s`" % [pane_id, first])
 	await _known_blocked(office)
 	await _text_tick()
-	var extra := counter.extra_text()
-	_check(extra.begins_with("max ") and extra.ends_with("s+"), "web:p1's wait, and infra:p1's unknown: " + extra)
-	_check(_node(counter, "%Extra").visible, "shown beside the number")
-	# infra:p1 blocks again from now: every start is known, and no `+`.
-	_feed(office, _with(fixture, "infra:p1", {"agent_status": "working"}))
-	_feed(office, fixture)
+	var web := _wait_of(bar, "web:p1")
+	_check(web.ends_with("s") and not web.ends_with("+"), "web:p1's start is known: `%s`" % web)
+	_check(_wait_of(bar, "infra:p1").ends_with("s+"), "infra:p1's still unknown")
+	_eq(bar.cards()[0].key, _pane("infra:p1"), "the unknown start leftmost: the old `max`")
+	_check(_label(bar.card_for(_pane("web:p1")), "%Wait").visible, "shown beside the space")
+	var before := int(web.trim_suffix("s"))
+	await _wait_seconds(1.2)
 	await _text_tick()
-	extra = counter.extra_text()
-	_check(extra.begins_with("max ") and extra.ends_with("s"), "every start known: " + extra)
-	_check(not extra.ends_with("+"), "a plain longest wait: " + extra)
+	_check(int(_wait_of(bar, "web:p1").trim_suffix("s")) > before, "and grows: `%s`" % _wait_of(bar, "web:p1"))
 	var nobody := _with(_with(fixture, "web:p1", {"agent_status": "working"}), "infra:p1", {"agent_status": "working"})
 	_feed(office, nobody)
 	await _text_tick()
-	_eq(counter.extra_text(), "", "nobody blocked: nothing")
-	_check(not _node(counter, "%Extra").visible, "and nothing shown")
+	_eq(bar.count(PortraitBarModel.Group.BLOCKED), 0, "nobody blocked")
+	for card in bar.cards():
+		_check(not _label(card, "%Wait").visible, "%s says no wait" % card.key)
 	_done(office)
 
 
-## The top bar's `max`, its hover and the OVERVIEW's FOR say one number for
-## the same blocked pane: web:p1 and infra:p1 were blocked before the first
-## snapshot, so all three say the stretch this office watched, with `+`. On
-## d48c61e the `max` said nothing and the hover `?` while the overview said `Ns+`.
-func test_the_top_bar_and_the_overview_say_the_same_wait() -> void:
+## A blocked card, its tooltip and the OVERVIEW's FOR say one number for the
+## same pane: web:p1 and infra:p1 were blocked before the first snapshot, so
+## all three say the stretch this office watched, with `+`. On d48c61e the
+## `max` said nothing and the hover `?` while the overview said `Ns+`.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_card_its_tooltip_and_the_overview_say_the_same_wait() -> void:
 	var office := await _live_office()
 	await _wait_seconds(1.2)
 	office.open_overview()
 	await _text_tick()
 	office.refresh()
 	await _frames(1)
-	var fors: Array[int] = []
-	for key: String in [_pane("web:p1"), _pane("infra:p1")]:
+	var bar := office.hud.bar
+	for pane_id: String in ["web:p1", "infra:p1"]:
+		var key := _pane(pane_id)
 		var line := office.hud.overview.line_for(key)
 		_check(line != null, "%s has an overview row" % key)
 		if line == null:
 			continue
-		var for_label: Label = line.get_node("%For")
-		var said := for_label.text
+		var said := (line.get_node("%For") as Label).text
 		_check(said.ends_with("s+"), "%s: FOR `%s`, at least" % [key, said])
-		fors.append(int(said.trim_suffix("s+")))
-	var extra := office.hud.bar.counter(&"blocked").extra_text()
-	_check(extra.begins_with("max ") and extra.ends_with("s+"), "the top bar says a time too: `%s`" % extra)
-	var longest := int(extra.trim_prefix("max ").trim_suffix("s+"))
-	_check(fors.size() == 2 and longest >= 1, "a second has passed: `%s`" % extra)
-	if fors.size() == 2:
-		_check(absi(longest - maxi(fors[0], fors[1])) <= 1, "`%s` is the overview's longest %s" % [extra, fors])
-	var tip := office.hud.bar.counter(&"blocked").tooltip_at(Time.get_unix_time_from_system(), Time.get_ticks_msec())
-	_check(not tip.contains("?"), "the hover times both: " + tip)
-	var tipped: Array[int] = []
-	for line in tip.split("\n"):
-		var said := line.get_slice("(", 1).trim_suffix(")")
-		_check(said.ends_with("s+"), "`%s` at least" % line)
-		tipped.append(int(said.trim_suffix("s+")))
-	tipped.sort()
-	fors.sort()
-	_eq(tipped.size(), fors.size(), "a time per blocked pane: " + tip)
-	for index in mini(tipped.size(), fors.size()):
-		_check(absi(tipped[index] - fors[index]) <= 1, "hover %s is the overview's %s" % [tipped, fors])
+		var card := _wait_of(bar, pane_id)
+		_check(card.ends_with("s+") and int(card.trim_suffix("s+")) >= 1, "the card says a time too: `%s`" % card)
+		_check(
+			absi(int(card.trim_suffix("s+")) - int(said.trim_suffix("s+"))) <= 1, "`%s` is FOR's `%s`" % [card, said]
+		)
+		var tip := bar.card_for(key).get_tooltip(Vector2.ZERO).split("\n")
+		_check(tip.size() > 1 and tip[1].ends_with(" · " + card), "the hover says the same: %s" % [tip])
+		_check(not "?" in tip[1], "and times it")
 	office.close_overview()
 	_done(office)
 
 
-## `--read-only` counts the same, and a click on BLOCKED only picks.
-func test_read_only_shows_the_same_counts() -> void:
+## `--read-only` shows the same cards, and a click on a blocked one only picks.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_read_only_shows_the_same_cards_and_a_click_only_picks() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
 	_check(bar.status_line().begins_with("LIVE / READ ONLY"), "read only: " + bar.status_line())
-	_eq(_values(bar), FIXTURE_VALUES, "the same six numbers")
-	await _press(bar.counter(&"blocked"))
+	_eq(_counts(bar), FIXTURE_COUNTS, "the same agents")
+	await _press(bar.cards()[0])
 	await _frames(3)
 	_check(not office.picked_key.is_empty(), "the click picks somebody blocked")
 	_eq(office.frame.pane(office.picked_key).state, "blocked", "blocked")
 	_check(not office.hud.inspector.answering(), "and never answers")
+	_check(office.fleet.read_log().is_empty(), "nothing was read")
+	_check(office.fleet.write_log().is_empty(), "nothing was written")
 	_done(office)
 
 
-## A pane no floor seats still counts, under its machine and a space it cannot
-## name, with no start to time; a dropped machine's panes never count.
-func test_unseated_panes_count_and_dropped_machines_do_not() -> void:
+## A pane no floor seats still has its card, last among the blocked (no start
+## to time), with a space it cannot name; a dropped machine's panes have none,
+## nor are its panes counted.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_an_unseated_pane_has_a_card_and_a_dropped_machine_none() -> void:
 	var loose := _with(fixture, "notes:p1", {"workspace_id": "gone", "agent": "pi", "agent_status": "blocked"})
 	var states := PackedStringArray(["working", "blocked", "done", "idle", "unknown"])
 	var machines: Array[MachineView] = [
@@ -471,18 +508,18 @@ func test_unseated_panes_count_and_dropped_machines_do_not() -> void:
 		MachineView.new("socket:bee", "bee", HerdrSnapshot.from_wire(fixture), true),
 	]
 	var frame := OfficeProjection.frame(machines, states)
-	var totals := OfficeTotals.of(frame, [], StateLog.new())
+	var totals := OfficeTotals.of(frame, [])
 	_eq([totals.machines_live, totals.machines_total], [1, 2], "one of two answers")
-	_eq(totals.blocked, 3, "Local's two, and the pane no floor seats; nothing of bee's")
 	_eq(totals.panes, 13, "bee's thirteen panes are not counted")
-	var rows := totals.rows_of(&"blocked")
+	var model := PortraitBarModel.of(frame, "")
+	var blocked := model.of_group(PortraitBarModel.Group.BLOCKED)
 	_eq(
-		rows.map(func(row: OfficeTotals.CounterRow) -> String: return row.space), ["web", "infra", "?"], "unseated last"
+		blocked.map(func(card: PortraitBarModel.Card) -> String: return card.key),
+		[_pane("web:p1"), _pane("infra:p1"), _pane("notes:p1")],
+		"Local's two, then the pane no floor seats; nothing of bee's"
 	)
-	_eq(rows[2].tracks.size(), 1, "one pane there")
-	_check(rows[2].tracks[0] == null, "a log that never saw it: no track, no start")
-	_eq(totals.blocked_tracks.size(), 3, "the three blocked the `max` is taken over")
-	_check(StateLog.longest(totals.blocked_tracks, 0).plus, "none of them seen begin: at least")
+	_eq([blocked[2].place, blocked[2].zone_key], ["?", ""], "unseated: no space to name, no zone")
+	_check(model.cards.all(func(card: PortraitBarModel.Card) -> bool: return card.machine == LOCAL), "no bee card")
 
 
 ## The showroom draws its mock as the office draws a map: each of its two
@@ -581,11 +618,13 @@ func test_the_showroom_stands_its_cast_in_zones() -> void:
 	showroom.free()
 
 
-## The showroom's top bar counts its own mock: Local's panes in the state the
-## mock ledger leaves each in, bee (dropped) in no count, one of two machines
-## answering. The same six numbers the live office's rule gives, worked out
-## here from the showroom's own table; BLOCKED's hover names Local's spaces.
-func test_the_showroom_counts_its_mock_panes() -> void:
+## The showroom's top bar shows its own mock: Local's agents in the state the
+## mock ledger leaves each in, bee (dropped) with none, its panes not counted;
+## the blocked cards name Local's spaces, and the status line's hover says
+## Local is live and bee offline. The same numbers the live office's rule
+## gives, worked out here from the showroom's own table.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_the_showroom_bar_shows_its_mock_agents() -> void:
 	var showroom: Node = (load(SHOWROOM_SCENE) as PackedScene).instantiate()
 	var source: Script = showroom.get_script()
 	var table: Array = source.get_script_constant_map()["MOCK_PANES"]
@@ -602,10 +641,6 @@ func test_the_showroom_counts_its_mock_panes() -> void:
 		counts[state] += 1
 		if state == "blocked" and not str(pane[3]) in blocked_spaces:
 			blocked_spaces.append(str(pane[3]))
-	var expected: Array[String] = ["1/2"]
-	for state: String in ["blocked", "done", "working", "idle"]:
-		expected.append(str(counts[state]))
-	expected.append(str(panes))
 	root.add_child(showroom)
 	await _frames(2)
 	var hud: OfficeHud = null
@@ -616,12 +651,18 @@ func test_the_showroom_counts_its_mock_panes() -> void:
 	if hud == null:
 		showroom.free()
 		return
-	_check(counts.blocked > 0 and counts.idle > 0, "the mock has something to count: %s" % counts)
-	_eq(_values(hud.bar), expected, "Local's mock panes, bee dropped")
-	var tip := await _tip_of(hud.bar.counter(&"blocked"))
-	for space in blocked_spaces:
-		_check(_opens_a_line(tip, "Local · %s  " % space), "%s: %s" % [space, tip])
-	_check(not _opens_a_line(tip, "bee"), "nothing of bee's: %s" % tip)
+	_check(counts.blocked > 0 and counts.idle > 0, "the mock has something to show: %s" % counts)
+	var bar := hud.bar
+	_eq(_counts(bar), [counts.blocked, counts.done, counts.working, counts.idle], "Local's mock agents, bee dropped")
+	_eq(_panes_text(bar), "%d panes" % panes, "Local's panes")
+	for card in bar.portraits().cards:
+		_check(card.machine == "local", "%s is Local's" % card.key)
+		if card.group == PortraitBarModel.Group.BLOCKED:
+			_check(card.place in blocked_spaces, "%s waits in %s" % [card.key, card.place])
+	await _hover(_status_label(bar))
+	var tip := bar.get_tooltip(bar.get_local_mouse_position()).split("\n")
+	_check(_opens_a_line(tip, "Local · LIVE · "), "Local answers: %s" % tip)
+	_check(_opens_a_line(tip, "bee · OFFLINE · "), "bee does not: %s" % tip)
 	showroom.free()
 
 
@@ -718,7 +759,7 @@ func test_the_showroom_next_names_a_mock_pane_that_waits() -> void:
 
 
 ## Panes no floor seats wait in the same order as seated ones
-## (OfficeProjection.wait_order()): NEXT, `N` and a click on BLOCKED go to
+## (OfficeProjection.wait_order()): NEXT, `N` and the blocked cards go to
 ## whoever has waited longest first, the blocked only while anyone is,
 ## the done once nobody is. api:p1 and api:p4 claim web while their tab is
 ## api's, so no floor seats them; api:p4 blocks first, api:p1 a second later,
@@ -741,8 +782,16 @@ func test_panes_no_floor_seats_wait_in_the_same_order() -> void:
 		office.hud.inspector.next_text().begins_with("tests · "),
 		"NEXT names api:p4, blocked longer: " + office.hud.inspector.next_text()
 	)
-	await _press(office.hud.bar.counter(&"blocked"))
-	_eq(office.picked_key, _pane("api:p4"), "BLOCKED goes to api:p4 first")
+	# S3 BAR-a (2026-10-27): the portrait strip replaces the counters; a
+	# click on BLOCKED walked, the blocked cards stand in that order.
+	var cards := office.hud.bar.portraits().of_group(PortraitBarModel.Group.BLOCKED)
+	_eq(
+		cards.map(func(card: PortraitBarModel.Card) -> String: return card.key),
+		[_pane("api:p4"), _pane("api:p1")],
+		"the blocked cards stand in that order"
+	)
+	await _press(office.hud.bar.card_for(_pane("api:p4")))
+	_eq(office.picked_key, _pane("api:p4"), "and the first card is api:p4")
 	var walked: Array[String] = []
 	for press in 3:
 		await _office_key(office, KEY_N)
@@ -768,33 +817,29 @@ static func _opens_a_line(lines: PackedStringArray, start: String) -> bool:
 
 
 ## Blocked comes first: api:p1 asking while herdr still
-## launches it is a blocked agent. BLOCKED counts it and WORKING does
-## not; its line in BLOCKED's hover is timed from when the office saw it
-## block, with no `+`; a click on BLOCKED reaches it after the two whose starts
-## were never seen, and with nobody else blocked NEXT names it. herdr finishing
-## the launch while it still asks changes no count, and its wait runs on; herdr
-## launching it again while it asks restarts nothing.
-func test_a_blocked_agent_still_launching_is_counted_and_next() -> void:
+## launches it is a blocked agent. It has a blocked card and WORKING lets it
+## go; its card is timed from when the office saw it block, with no `+`; it
+## stands after the two whose starts were never seen, and with nobody else
+## blocked NEXT names it. herdr finishing the launch while it still asks keeps
+## its card, and its wait runs on; herdr launching it again while it asks
+## restarts nothing.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_blocked_agent_still_launching_has_a_blocked_card_and_is_next() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
 	var asking := _with(fixture, "api:p1", {"agent_status": "blocked", "launch_pending": true})
 	_feed(office, asking)
 	await _frames(1)
 	_check(office.frame.pane(_pane("api:p1")).starting, "herdr still launches api:p1")
-	_eq(_values(bar), ["1/1", "3", "2", "2", "2", "13"], "BLOCKED counts it, WORKING lets it go, IDLE as it was")
+	_eq(_counts(bar), [3, 2, 2, 2], "a blocked card for it, WORKING lets it go, IDLE as it was")
 	await _wait_seconds(1.2)
-	var api := _api_line(await _tip_of(bar.counter(&"blocked")))
-	_check(api.ends_with("s)") and not api.ends_with("s+)"), "its own line, timed from its block, no `+`: " + api)
-	var waited := int(api.get_slice("(", 1).trim_suffix("s)"))
+	await _text_tick()
+	var api := _wait_of(bar, "api:p1")
+	_check(api.ends_with("s") and not api.ends_with("s+"), "its own wait, timed from its block, no `+`: " + api)
+	var waited := int(api.trim_suffix("s"))
 	_check(waited >= 1, "a second has passed: " + api)
-	var walked: Array[String] = []
-	for press in 3:
-		await _press(bar.counter(&"blocked"))
-		await _frames(3)
-		walked.append(office.picked_key)
-	_eq(walked[2], _pane("api:p1"), "BLOCKED reaches it, after the two blocked since before the office looked")
-	var three: Array[String] = [_pane("api:p1"), _pane("infra:p1"), _pane("web:p1")]
-	_eq(_sorted(walked), _sorted(three), "one press each: " + str(walked))
+	var blocked := bar.portraits().of_group(PortraitBarModel.Group.BLOCKED)
+	_eq(blocked[2].key, _pane("api:p1"), "it stands after the two blocked since before the office looked")
 	var alone := _with(_with(asking, "web:p1", {"agent_status": "working"}), "infra:p1", {"agent_status": "working"})
 	office.picked_key = ""
 	_feed(office, alone)
@@ -808,35 +853,37 @@ func test_a_blocked_agent_still_launching_is_counted_and_next() -> void:
 	_feed(office, _with(alone, "api:p1", {"launch_pending": false}))
 	await _frames(1)
 	_check(not office.frame.pane(_pane("api:p1")).starting, "herdr finished the launch")
-	_eq(_values(bar)[1], "1", "still asking: still counted")
+	_eq(bar.count(PortraitBarModel.Group.BLOCKED), 1, "still asking: still its card")
 	_eq(
 		office.fleet.state_since(LOCAL, "api:p1"),
 		since,
 		"the client's clock runs on: the launch ending is no new state"
 	)
-	var later := _api_line(await _tip_of(bar.counter(&"blocked")))
-	_check(
-		int(later.get_slice("(", 1).trim_suffix("s)")) >= waited, "the wait goes on, not over: %s, %s" % [api, later]
-	)
+	await _text_tick()
+	var later := _wait_of(bar, "api:p1")
+	_check(int(later.trim_suffix("s")) >= waited, "the wait goes on, not over: %s, %s" % [api, later])
 	_feed(office, _with(alone, "api:p1", {"launch_pending": true}))
 	await _frames(1)
 	_eq(office.fleet.state_since(LOCAL, "api:p1"), since, "herdr launching it again while it asks restarts nothing")
-	_eq(_values(bar)[1], "1", "and it is still counted")
+	_eq(bar.count(PortraitBarModel.Group.BLOCKED), 1, "and it still has its card")
 	_done(office)
 
 
 ## The other half of the rule: an
-## agent herdr is still launching that does not ask counts nowhere, idle or at
-## work.
-func test_a_launching_agent_that_is_not_blocked_is_still_not_counted() -> void:
+## agent herdr is still launching that does not ask has no card, idle or at
+## work, and is in no fold.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_launching_agent_that_is_not_blocked_has_no_card() -> void:
 	var office := await _live_office()
 	var bar := office.hud.bar
 	_feed(office, _with(fixture, "api:p2", {"launch_pending": true}))
 	await _frames(1)
-	_eq(_values(bar), ["1/1", "2", "2", "3", "1", "13"], "an idle agent still launching is not idle yet")
+	_eq(_counts(bar), [2, 2, 3, 1], "an idle agent still launching is not idle yet")
+	_check(not _everyone(bar).has(_pane("api:p2")), "and has no card")
 	_feed(office, _with(fixture, "api:p1", {"launch_pending": true}))
 	await _frames(1)
-	_eq(_values(bar), ["1/1", "2", "2", "2", "2", "13"], "nor is a working one at work")
+	_eq(_counts(bar), [2, 2, 2, 2], "nor is a working one at work")
+	_check(not _everyone(bar).has(_pane("api:p1")), "no card for it either")
 	_done(office)
 
 
@@ -904,15 +951,18 @@ func test_the_chime_switch_is_kept_for_the_next_run() -> void:
 	DirAccess.remove_absolute(path)
 
 
-## Where titles are allowed the switch stands in the counters' row, after
-## PANES and left of the lines, inside the bar, and every counter still holds
-## what it shows; on a bar too narrow for titles it steps aside, and the
-## counters keep the room they had (the fixture's icons at 480).
-func test_the_chime_switch_fits_and_steps_aside_on_a_narrow_bar() -> void:
+## Where titles are allowed `13 panes` and the chime switch stand in the
+## bar's row after the strip, left of the lines, inside the bar; on a bar too
+## narrow for titles both step aside and the strip takes their room.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_the_chime_switch_and_panes_fit_and_step_aside_on_a_narrow_bar() -> void:
 	var office := await _live_office()
 	await _known_blocked(office)
 	var bar := office.hud.bar
 	var switch := _chime_switch(office)
+	var panes: Button = bar.get_node("%Panes")
+	var strip: Control = bar.get_node("%Strip")
+	var content: Control = bar.get_node("%Content")
 	var lines: Control = bar.get_node("%Lines")
 	for width: float in [480.0, office.hud.bar_titles_from, 800.0, 960.0, 1920.0]:
 		var screen := Vector2(width, 480.0 if width > 480.0 else 320.0)
@@ -922,44 +972,50 @@ func test_the_chime_switch_fits_and_steps_aside_on_a_narrow_bar() -> void:
 		var where := "at %s" % screen
 		_fits(bar, where)
 		if width < office.hud.bar_titles_from:
-			_check(not switch.visible, "no switch below %s" % office.hud.bar_titles_from)
-			_check(bar.counters().all(_iconic), "the counters keep their icons " + where)
+			_check(not switch.visible and not panes.visible, "neither below %s" % office.hud.bar_titles_from)
+			_eq(strip.get_global_rect().end.x, content.get_global_rect().end.x, "the strip takes their room " + where)
 			continue
-		_check(switch.visible, "the switch shows " + where)
+		_check(switch.visible and panes.visible, "both show " + where)
 		var rect := switch.get_global_rect()
 		_check(bar.get_global_rect().encloses(rect), "inside the bar " + where)
 		_check(rect.end.x <= lines.get_global_rect().position.x, "left of the lines " + where)
-		var panes := bar.counter(&"panes").get_global_rect()
-		_check(rect.position.x >= panes.end.x, "right of PANES " + where)
+		var count := panes.get_global_rect()
+		_check(rect.position.x >= count.end.x, "the chime right of `13 panes` " + where)
+		_check(count.position.x >= strip.get_global_rect().end.x, "`13 panes` right of the strip " + where)
 		_check(rect.size.x >= switch.get_combined_minimum_size().x, "as wide as its words " + where)
-		if width >= 800.0:
-			_check(bar.counters().all(_titled), "the counters keep their titles " + where)
+		_check(_fits_label_button(panes), "`%s` whole %s" % [panes.text, where])
 	_done(office)
 
 
 ## In a window that fills the screen the window's own buttons (macOS: the
-## traffic lights) stand over the bar's left end: the wordmark and the
-## counters start after the gap and still fit at every width, and go back when
-## it closes.
-func test_a_title_gap_moves_the_wordmark_and_counters_after_it() -> void:
+## traffic lights) stand over the bar's left end: the wordmark and the strip
+## start after the gap and still fit at every width, the strip that much
+## narrower, and go back when it closes.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_a_title_gap_moves_the_wordmark_and_the_strip_after_it() -> void:
 	var hud := await _bare_hud(Vector2(1920, 480))
 	var bar := hud.bar
 	var wordmark: Control = bar.get_node("%Wordmark")
+	var strip: Control = bar.get_node("%Strip")
 	var home := wordmark.get_global_rect().position.x
 	for width: float in [480.0, 960.0, 1920.0]:
 		var screen := Vector2(width, 480.0 if width > 480.0 else 320.0)
 		hud.fit(screen)
+		bar.set_title_gap(0.0)
+		await _frames(2)
+		var room := strip.size.x
 		bar.set_title_gap(67.0)
 		await _frames(2)
 		var where := "at %s" % screen
 		_eq(bar.title_gap(), 67.0, "the gap is kept " + where)
 		_eq(wordmark.get_global_rect().position.x, home + 67.0, "the wordmark starts after it " + where)
+		_check(strip.get_global_rect().position.x >= wordmark.get_global_rect().end.x, "the strip after it " + where)
+		_eq(strip.size.x, room - 67.0, "the strip gives the gap its room " + where)
 		_fits(bar, "after the gap " + where)
 	hud.fit(Vector2(1920, 480))
 	bar.set_title_gap(0.0)
 	await _frames(2)
 	_eq(wordmark.get_global_rect().position.x, home, "a closed gap puts the wordmark back")
-	_check(bar.counters().all(_titled), "and the titles come back at 1920")
 	_fits(bar, "with no gap at 1920")
 	hud.free()
 
@@ -991,25 +1047,12 @@ func test_only_a_normal_run_fills_the_screen() -> void:
 # --- helpers ------------------------------------------------------------------
 
 
-## The line for api in BLOCKED's hover; empty when there is none.
-func _api_line(lines: PackedStringArray) -> String:
-	for line in lines:
-		if line.begins_with("Local · api  1  ("):
-			return line
-	_fail("no api line in " + str(lines))
-	return ""
-
-
 func _pane(pane_id: String) -> String:
 	return HerdrFleet.pane_key(LOCAL, pane_id)
 
 
 func _floor(workspace_id: String) -> String:
 	return HerdrFleet.pane_key(LOCAL, workspace_id)
-
-
-func _node(holder: Node, path: String) -> Control:
-	return holder.get_node(path)
 
 
 ## A bare HUD dressed with `manifest`'s pack and laid out for `screen`: no
@@ -1024,22 +1067,34 @@ func _bare_hud(screen: Vector2, manifest: String = MANIFESTS[0]) -> OfficeHud:
 	return hud
 
 
-## Every counter inside the bar, clear of the wordmark and of the lines, none
-## over another, each holding what it shows.
+## Every card and every fold the strip shows inside the strip and the bar,
+## right of the whole wordmark and left of `13 panes`, the chime switch and the
+## lines; none over another; every card holding its words.
 func _fits(bar: OfficeBar, when: String) -> void:
 	var lines: Control = bar.get_node("%Lines")
 	var wordmark: Control = bar.get_node("%Wordmark")
+	var strip := (bar.get_node("%Strip") as Control).get_global_rect()
+	var stops: Array[Control] = [bar.get_node("%Panes"), bar.get_node("%Chime"), lines]
+	for stop in stops:
+		if stop.visible:
+			_check(strip.end.x <= stop.get_global_rect().position.x, "the strip left of %s %s" % [stop.name, when])
+	_check(strip.position.x >= wordmark.get_global_rect().end.x, "the strip right of the whole wordmark " + when)
 	var rects: Array[Rect2] = []
-	for counter in bar.counters():
-		var rect := counter.get_global_rect()
-		var where := "%s %s" % [counter.id, when]
+	var items: Array[Control] = []
+	items.append_array(bar.cards())
+	for fold in bar.folds():
+		if fold.visible:
+			items.append(fold)
+	for item in items:
+		var rect := item.get_global_rect()
+		var where := "%s %s" % [item.name, when]
+		_check(strip.encloses(rect), "inside the strip: %s %s in %s" % [where, rect, strip])
 		_check(bar.get_global_rect().encloses(rect), "inside the bar: " + where)
-		_check(rect.end.x <= lines.get_global_rect().position.x, "left of the lines: " + where)
-		_check(rect.position.x >= wordmark.get_global_rect().end.x, "right of the whole wordmark: " + where)
-		# What the counter shows is its Line; a Line that needs more than the
-		# counter has grows past it, and the counter clips it.
-		var line := _node(counter, "%Line").get_global_rect()
-		_check(rect.encloses(line), "%s holds what it shows: %s in %s" % [where, line, rect])
+		_check(rect.size.x >= item.get_combined_minimum_size().x, "as wide as it needs: " + where)
+		if item is PortraitCard:
+			var text: Control = item.get_node("%Text")
+			if text.visible:
+				_check(rect.encloses(text.get_global_rect()), "%s holds its words" % where)
 		for other in rects:
 			_check(not rect.intersects(other), "no overlap: " + where)
 		rects.append(rect)
@@ -1052,35 +1107,93 @@ func _fits_label(label: Label) -> bool:
 	return font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= label.size.x
 
 
-func _titled(counter: OfficeCounter) -> bool:
-	return counter.shows_title() and _node(counter, "%Title").visible
+## Whether `button`'s text fits inside it, past its stylebox's margins.
+func _fits_label_button(button: Button) -> bool:
+	var font := button.get_theme_font("font")
+	var size := button.get_theme_font_size("font_size")
+	var box := button.get_theme_stylebox("normal")
+	var room := button.size.x - box.get_margin(SIDE_LEFT) - box.get_margin(SIDE_RIGHT)
+	return font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= room
 
 
-func _untitled(counter: OfficeCounter) -> bool:
-	return not counter.shows_title() and not _node(counter, "%Title").visible and not _node(counter, "%Extra").visible
-
-
-## PANES has no icon at all: it counts as showing what it has.
-func _iconic(counter: OfficeCounter) -> bool:
-	return counter.shows_icon() or counter.id == &"panes"
-
-
-func _icon_shown(counter: OfficeCounter) -> bool:
-	return counter.shows_icon()
-
-
-func _values(bar: OfficeBar) -> Array[String]:
-	var found: Array[String] = []
-	for counter in bar.counters():
-		found.append(counter.value_text())
+## How many agents each group holds: blocked, done, working, idle.
+func _counts(bar: OfficeBar) -> Array[int]:
+	var found: Array[int] = []
+	for group in PortraitBarModel.GROUPS:
+		found.append(bar.count(group))
 	return found
 
 
-func _titles(bar: OfficeBar) -> Array[String]:
+## Every agent the bar was told about, in its drawing order.
+func _everyone(bar: OfficeBar) -> Array[String]:
 	var found: Array[String] = []
-	for counter in bar.counters():
-		found.append(counter.title_text())
+	for card in bar.portraits().cards:
+		found.append(card.key)
 	return found
+
+
+## Each group's agents shown as a card or a face plus those its fold counts.
+func _shown_and_folded(bar: OfficeBar) -> Array[int]:
+	var found: Array[int] = []
+	for group in PortraitBarModel.GROUPS:
+		var shown := 0
+		for card in bar.cards():
+			if card.shown_card().group == group:
+				shown += 1
+		var fold := bar.fold_of(group)
+		found.append(shown + (int(fold.count_text().trim_prefix("+")) if fold.visible else 0))
+	return found
+
+
+func _panes_text(bar: OfficeBar) -> String:
+	return _panes_button(bar).text
+
+
+func _panes_button(bar: OfficeBar) -> Button:
+	return bar.get_node("%Panes")
+
+
+func _sorted(keys: Array[String]) -> Array[String]:
+	var copy: Array[String] = keys.duplicate()
+	copy.sort()
+	return copy
+
+
+func _status_label(bar: OfficeBar) -> Label:
+	return bar.get_node("%StatusLine")
+
+
+## A pane `pane_id`'s card wait, as its %Wait says it; empty for none shown.
+func _wait_of(bar: OfficeBar, pane_id: String) -> String:
+	var card := bar.card_for(_pane(pane_id))
+	if card == null:
+		_fail("%s has no card" % pane_id)
+		return ""
+	var wait := _label(card, "%Wait")
+	return wait.text if wait.visible else ""
+
+
+## A crowd of made-up agents, `counts` of each group.
+func _crowd(counts: Dictionary) -> PortraitBarModel:
+	var model := PortraitBarModel.new()
+	for group in PortraitBarModel.GROUPS:
+		var many: int = counts.get(group, 0)
+		model.counts[group] = many
+		for index in many:
+			var card := PortraitBarModel.Card.new()
+			card.key = _crowd_key(group, index)
+			card.machine = LOCAL
+			card.provider = "claude"
+			card.name = "agent %d" % index
+			card.place = "api"
+			card.group = group
+			card.state = PortraitBarModel.WORDS[group]
+			model.cards.append(card)
+	return model
+
+
+func _crowd_key(group: PortraitBarModel.Group, index: int) -> String:
+	return HerdrFleet.pane_key(LOCAL, "%s:p%d" % [PortraitBarModel.WORDS[group], index])
 
 
 ## web:p1 blocked from now on (it was working a snapshot ago): a wait the
@@ -1114,19 +1227,13 @@ func _tip_of(control: Control) -> PackedStringArray:
 	return control.get_tooltip(control.get_local_mouse_position()).split("\n")
 
 
-## The pane keys the agent list draws now, sorted.
-func _panes_shown(office: OfficeDouble) -> Array[String]:
-	var found: Array[String] = []
-	for key in office.hud.agent_list.shown_keys():
-		if office.frame.pane(key) != null:
-			found.append(key)
-	return _sorted(found)
-
-
-func _sorted(keys: Array[String]) -> Array[String]:
-	var copy: Array[String] = keys.duplicate()
-	copy.sort()
-	return copy
+## The tooltip of pane `pane_id`'s card, the pointer resting on it.
+func _tip_of_card(office: OfficeDouble, pane_id: String) -> PackedStringArray:
+	var card := office.hud.bar.card_for(_pane(pane_id))
+	if card == null:
+		_fail("%s has no card" % pane_id)
+		return PackedStringArray()
+	return await _tip_of(card)
 
 
 func _wait_seconds(seconds: float) -> void:

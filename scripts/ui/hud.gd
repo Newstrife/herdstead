@@ -49,17 +49,22 @@ signal space_created(from_key: String, workspace_id: String, pane_id: String, te
 ## A panel's placement changed without the window changing: the office lays the
 ## world out again (see _fit_room()).
 signal room_changed
-## A top-bar counter was pressed; `id` is what it counts (OfficeCounter.id).
-## The office decides what that does.
-signal counter_pressed(id: StringName)
+## A card of the top bar's portrait strip was clicked: pick pane `key`, as the list does.
+signal portrait_picked(key: String)
+## A fold or a tally of the portrait strip was clicked: the office opens the
+## OVERVIEW on its group's state, or toggles that chip while it is open.
+signal fold_pressed(group: PortraitBarModel.Group)
+## The top bar's `13 panes` was clicked: the office opens the OVERVIEW, or closes it.
+signal panes_pressed
 ## The top bar's chime switch was clicked: `on` is what it asks for (OfficeBar.chime_toggled).
 signal chime_toggled(on: bool)
 ## An entry of the NEWS strip was clicked: pick pane `key`, as the list does.
 signal news_picked(key: String)
 ## A row of the EVENTS page was clicked: pick pane `key`, as the list does.
 signal event_picked(key: String)
-## The mouse came onto a NEWS item, a row of the agent list or of EVENTS about
-## pane `key`, or left it (`""`): the office points at that desk, and only points.
+## The mouse came onto a NEWS item, a row of the agent list or of EVENTS, or a
+## portrait card, about pane `key`, or left it (`""`): the office points at
+## that desk, and only points.
 signal pane_pointed(key: String)
 ## The same for an edge arrow and its zone `key`: the office outlines that
 ## zone's SPACES row.
@@ -84,6 +89,15 @@ signal strategic_picked(key: String)
 
 ## The drawer's two pages, in the order of their tabs.
 enum DrawerTab { AGENTS, EVENTS }
+
+## The overview's chip each portrait fold stands for (filter_of()): the one
+## place a group of the top bar and a chip of the overview are matched.
+const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
+	PortraitBarModel.Group.BLOCKED: OverviewModel.Filter.BLOCKED,
+	PortraitBarModel.Group.DONE: OverviewModel.Filter.DONE,
+	PortraitBarModel.Group.WORKING: OverviewModel.Filter.WORKING,
+	PortraitBarModel.Group.IDLE: OverviewModel.Filter.IDLE,
+}
 
 ## What the world keeps clear of the panels: to the side of the SPACES rail and
 ## the right column, and above the staff panel and below the bar. The rest of
@@ -132,7 +146,7 @@ enum DrawerTab { AGENTS, EVENTS }
 ## The world width below which the edge arrows leave their zone's number to the
 ## tooltip (see _fit_edge_arrows()). Set in the scene.
 @export var edge_arrows_compact_from := 0.0
-## The logical screen width from which the bar shows its counters' titles. Set in the scene.
+## The logical screen width from which the bar shows `13 panes` and the chime switch. Set in the scene.
 @export var bar_titles_from := 0.0
 ## The NEWS strip's top edge from the screen's bottom, and the gap the staff
 ## panel keeps above it (see _fit_staff()). Set in the scene.
@@ -261,7 +275,10 @@ func _ready() -> void:
 	spaces.machine_picked.connect(func(key: String) -> void: machine_picked.emit(key))
 	edge_arrows.arrow_picked.connect(func(key: String) -> void: arrow_picked.emit(key))
 	edge_arrows.zone_pointed.connect(func(key: String) -> void: zone_pointed.emit(key))
-	bar.counter_pressed.connect(func(id: StringName) -> void: counter_pressed.emit(id))
+	bar.portrait_picked.connect(func(key: String) -> void: portrait_picked.emit(key))
+	bar.portrait_pointed.connect(func(key: String) -> void: pane_pointed.emit(key))
+	bar.fold_pressed.connect(func(group: PortraitBarModel.Group) -> void: fold_pressed.emit(group))
+	bar.panes_pressed.connect(func() -> void: panes_pressed.emit())
 	bar.chime_toggled.connect(func(on: bool) -> void: chime_toggled.emit(on))
 	agent_list.pane_picked.connect(_on_list_pick)
 	agent_list.pane_activated.connect(_on_list_open)
@@ -437,25 +454,19 @@ func toggle_agent_list() -> void:
 	agent_list.take_keyboard()
 
 
-## The top bar's WORKING or IDLE counter: the agent list shows only the panes
-## in `presences`, and that counter reads pressed; the same again shows every
-## pane. Applying a filter opens the drawer on its AGENTS page, or the
+## The agent list shows only the panes in `presences`; the same again shows
+## every pane. Applying a filter opens the drawer on its AGENTS page, or the
 ## filtered list is out of sight; clearing one leaves the drawer as it is.
-## Nothing is picked and the keyboard stays where it is.
+## Nothing is picked and the keyboard stays where it is. The top bar no longer
+## asks for it (a fold opens the OVERVIEW instead); the list keeps it until
+## the drawer retires.
 func toggle_list_filter(presences: Array[AgentListModel.Presence]) -> void:
 	if agent_list.presence_filter() == presences:
 		agent_list.set_presence_filter([])
-		bar.set_filter(&"")
 		return
 	open_drawer()
 	select_drawer_tab(DrawerTab.AGENTS)
 	agent_list.set_presence_filter(presences)
-	var id := &""
-	if presences == [AgentListModel.Presence.WORKING]:
-		id = &"working"
-	elif presences == [AgentListModel.Presence.IDLE]:
-		id = &"idle"
-	bar.set_filter(id)
 
 
 ## Whether the list, the overview or the strategic view holds the keyboard:
@@ -471,8 +482,8 @@ func overview_open() -> bool:
 
 ## Open the overview over the world and both side columns (they stay where
 ## they are: nothing is laid out again). The list lets the keyboard go; the
-## staff panel below stays as it is, answer mode included. PANES reads
-## pressed, and WORKING and IDLE now say the overview's chips, not the list's filter.
+## staff panel below stays as it is, answer mode included. `13 panes` reads
+## pressed, and so does the fold of the state the overview's chip keeps.
 func open_overview() -> void:
 	if agent_list.has_keyboard():
 		agent_list.release_keyboard()
@@ -480,7 +491,7 @@ func open_overview() -> void:
 	overview.open()
 	_fit_edge_arrows()
 	bar.set_overview(true)
-	bar.set_filter(_chip_counter(overview.filter()))
+	bar.set_fold_on(_fold_of(overview.filter()))
 
 
 func close_overview() -> void:
@@ -492,40 +503,31 @@ func show_overview(model: OverviewModel, art: ArtPack) -> void:
 	overview.show_overview(model, art)
 
 
-## However it closed: PANES is released and WORKING and IDLE say the list's
-## filter again.
+## However it closed: `13 panes` and every fold are released.
 func _on_overview_closed() -> void:
 	_fit_edge_arrows()
 	bar.set_overview(false)
-	bar.set_filter(_list_counter())
+	bar.set_fold_on(-1)
 	overview_closed.emit()
 
 
 func _on_overview_filter(keep: OverviewModel.Filter) -> void:
 	if overview_open():
-		bar.set_filter(_chip_counter(keep))
+		bar.set_fold_on(_fold_of(keep))
 	overview_changed.emit()
 
 
-## The counter a chip stands for in the bar: WORKING and IDLE filter, the
-## others do not.
-static func _chip_counter(keep: OverviewModel.Filter) -> StringName:
-	match keep:
-		OverviewModel.Filter.WORKING:
-			return &"working"
-		OverviewModel.Filter.IDLE:
-			return &"idle"
-	return &""
+## The overview's chip a portrait fold stands for: its group's state.
+static func filter_of(group: PortraitBarModel.Group) -> OverviewModel.Filter:
+	return FOLD_FILTERS[group]
 
 
-## The counter the agent list's filter stands for; `&""` for none.
-func _list_counter() -> StringName:
-	var presences := agent_list.presence_filter()
-	if presences == [AgentListModel.Presence.WORKING]:
-		return &"working"
-	if presences == [AgentListModel.Presence.IDLE]:
-		return &"idle"
-	return &""
+## The fold a chip stands for in the bar; −1 for ALL.
+static func _fold_of(keep: OverviewModel.Filter) -> int:
+	for group in FOLD_FILTERS:
+		if FOLD_FILTERS[group] == keep:
+			return group
+	return -1
 
 
 ## Whether the strategic view is open over the world rect.
@@ -973,14 +975,16 @@ func show_bar(theme_name: String, status: String, alarmed: bool) -> void:
 	bar.show_bar(theme_name, status, alarmed)
 
 
-## The top bar's six counters and their breakdowns.
-func show_totals(totals: OfficeTotals) -> void:
-	bar.show_totals(totals)
+## The top bar's portrait strip (`model`), and from `totals` its `13 panes`
+## and the status line's hover.
+func show_portraits(model: PortraitBarModel, totals: OfficeTotals) -> void:
+	bar.show_machines(totals.machine_rows)
+	bar.show_portraits(model, totals.panes)
 
 
-## The BLOCKED counter's longest wait, on attention's beat; empty for none.
-func show_longest_wait(text: String) -> void:
-	bar.show_longest_wait(text)
+## Each blocked card's wait, by pane key, on attention's beat.
+func show_waits(texts: Dictionary[String, String]) -> void:
+	bar.show_waits(texts)
 
 
 ## Whether the chime is on, as the top bar's switch shows it (OfficeBar.show_chime()).

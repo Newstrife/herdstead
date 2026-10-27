@@ -167,20 +167,25 @@ chip's `12m`, the lens line's `4s+`): it is Tiny5 at 8, whose narrower digits fi
 
 ## Top bar
 
-Six counters in herdr's words, counting online machines only: `MACHINES 1/2`, `BLOCKED 2 max 12m`, `DONE`, `WORKING`,
-`IDLE`, `PANES` (`+` after a time means "at least").
+After the wordmark, the **portrait strip** shows who needs you, as faces: every agent of the online machines, the
+blocked first in the order `N` walks them (the leftmost is whom `N` picks, with how long it has waited: `12m`, `+` after
+a time means "at least"), then the done (UNREAD) oldest first, then the working and the idle in place order. A card is
+the seat's person, the pane's name, and its space after a tag in the colour of its worktree group's carpet; its frame
+is its state's colour, and the selected pane's card has a white ring. A dropped machine's agents have no card.
 
-- Hover: a breakdown by machine → space (MACHINES shows whether each is online and how long ago its snapshot arrived).
-- Click **BLOCKED**: jump to the agent waiting longest, expand its staff panel and enter answer mode; click again for the
-  next.
-- Click **DONE**: jump to the oldest UNREAD and expand its panel.
-- Click **WORKING** / **IDLE**: filter the agent list (the drawer opens first); click again to clear. Clearing does not
-  touch the drawer.
-- Click **PANES**: open OVERVIEW.
-- **CHIME OFF / CHIME ON** at the right end of the counters switches alert tones (see [Alerts](#alerts-when-the-window-is-in-the-background)).
+- When the agents do not fit, the strip folds them by a fixed ladder: the working and the idle into a fold
+  (`+12` over `working`), then the done and the blocked into faces alone, then the done into a fold, then tallies
+  (`+12`), and last only as many blocked faces as fit before a `+N`. The longest-waiting blocked fold last.
+- Hover a card: its whole name, provider, state, wait, space / tab (and machine). Hover a fold: who is in it.
+- Click a card: select that agent (its map, its desk on screen), as a row of the agent list does.
+- Click a fold or a tally: open OVERVIEW on that state; while it is open, the same click sets or clears that chip.
+- **`13 panes`**, right of the strip, opens or closes OVERVIEW.
+- **CHIME OFF / CHIME ON** after it switches alert tones (see [Alerts](#alerts-when-the-window-is-in-the-background)).
+  Below 640 units `13 panes` and the switch give way to the strip.
 
-When the window is narrow the bar drops titles first, then icons; numbers always stay. The top-right corner shows the
-pack's name and the light: `STUDIO · DAY  [T]` or `STUDIO · NIGHT  [T]` (see [Day and night](#themes-and-art)).
+The top-right corner shows the pack's name and the light: `STUDIO · DAY  [T]` or `STUDIO · NIGHT  [T]` (see
+[Day and night](#themes-and-art)), and how the office runs (`LIVE / READ ONLY`, `1 OFFLINE / OPERATOR` in the blocked
+colour while a machine is down). Hover that line: each machine, whether it is online and how long ago its snapshot arrived.
 
 ## SPACES and edge arrows
 
@@ -420,7 +425,7 @@ says so); machine entries are not clickable.
 
 **EVENTS** is the drawer's second tab: the same events, newest on top, up to 200 rows.
 
-**OVERVIEW** opens from the top bar's PANES or `O`, over the world and both side columns. One row per pane: state, how
+**OVERVIEW** opens from the top bar's `13 panes`, a fold, or `O`, over the world and both side columns. One row per pane: state, how
 long this segment has lasted, total blocked time this run, how many times it got stuck, and a timeline since opening
 (hatching = not observed). Columns: SPACE / TAB, STATE, FOR, BLOCKED, TIMES. Click a column head to sort, chips to filter,
 a row to select that pane; the staff panel works as usual (you can answer from it). `O`, `Esc` or `X  Esc` close it; in
@@ -502,14 +507,14 @@ polling, reconnect backoff). `--fps=<n>` fixes the cap at n, `--fps=0` removes i
 
 Only for changes observed in this run; the first snapshot, reconnects and launches never alert.
 
-- The window title gets `(N)` in front, N being the top bar's BLOCKED.
+- The window title gets `(N)` in front, N being the blocked agents (the top bar's blocked cards and tally).
 - The Dock icon bounces once (on macOS a continuous bounce until you switch back) when an agent is still blocked after
   3 seconds; at most once per time away, never for herdr's own focused pane.
 - **Chime** (off by default): two rising tones for blocked, one softer, lower tone for done, at most one per refresh and
-  once per pane per 10 seconds. Toggle it with **CHIME OFF / CHIME ON** at the right end of the top bar counters. The
+  once per pane per 10 seconds. Toggle it with **CHIME OFF / CHIME ON** right of the top bar's strip. The
   choice is saved in `user://herdstead.cfg`, section `[alerts]`, key `chime` (on macOS the file is
   `~/Library/Application Support/Godot/app_userdata/Herdstead/herdstead.cfg`), and restored on the next start; only
-  `true` turns it on. When the bar is too narrow for counter titles (below 640 units) the switch gives way; widen the
+  `true` turns it on. When the bar is narrow (below 640 units) the switch gives way; widen the
   window to reach it. `--chime` turns it on for this run whatever the file says; the switch can still turn it off.
 - `--no-bounce` skips the Dock bounce; `--no-title-count` leaves the title alone.
 - Screenshots (`--capture=`) never bounce or sound and neither read nor write the key; tests never write it either.
@@ -818,7 +823,7 @@ data/agent_catalog.json  herdr agent IDs, display names, badge sources, each pro
 scenes/office.tscn       main scene, connects to herdr
 scenes/preview.tscn      mock showroom (no herdr)
 scenes/avatar_studio.tscn, scenes/people_showroom.tscn
-scenes/ui/               HUD scenes: hud.tscn (layout lives here), bar, spaces (the SPACES rail: space_row,
+scenes/ui/               HUD scenes: hud.tscn (layout lives here), bar (portrait_card, portrait_fold), spaces (the SPACES rail: space_row,
                          machine_heading), edge_arrows / edge_arrow, inspector (staff panel),
                          agent list, news, event list, overview, strategic, terminal_monitor
 scenes/world/            world prefabs: table (a pod), station, decor, chip, machine_plate, zone_sign
@@ -834,11 +839,12 @@ scripts/office_*.gd      navigator, camera, lens, alerts, draw helpers, window (
 scripts/model/           typed models: HerdrSnapshot (the only reader of raw snapshots), OfficeFrame, StateLog,
                          command context / ticket / refusal / answers / results, layout plans
                          PickFollowsWrite (pure: where the pick goes after a write the office sent),
-                         DisplayName (pure: what every surface calls a pane)
+                         DisplayName (pure: what every surface calls a pane),
+                         PortraitBarModel (pure: who the top bar's strip shows, and its fold ladder)
 scripts/layout/          map and zone planning, seat planning, walk graph, validation
 scripts/world/           pods (table.gd), stations, chips, the floor view, machine plate, zone signs, shell,
                          presentation (walking), pointer
-scripts/ui/              HUD scripts: hud, theme, bar, spaces (the SPACES rail), edge arrows, agent list, staff
+scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait fold), spaces (the SPACES rail), edge arrows, agent list, staff
                          panel (inspector writes what card_picture, pure, says it shows; card_details, card_words,
                          card_actions, launch_block), monitor, NEWS, EVENTS, OVERVIEW, strategic view
 scripts/art/             typed art pack models; the only readers of manifest JSON

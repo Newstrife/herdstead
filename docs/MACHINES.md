@@ -51,9 +51,9 @@ machine shows that machine's map first. The machine plate names the machine (`@ 
 LIVE / OFFLINE / CONNECTING, the ssh error, and any zone its map cannot be laid out for. A disconnected machine only
 greys out and freezes its own map (the plate stays readable); in the SPACES rail its section is dimmed, with no counts
 and no lit windows, and everything else carries on. A machine that has never connected has an empty map (no zone), and its plate's note shows the full error. Status text is rewritten in place; a
-disconnect and reconnect does not rebuild the picture. The top bar counters are fleet-wide totals; the MACHINES
-counter shows live / total, turns the alarm colour while a machine is down, and its tooltip lists each machine with
-its state, when it was last heard from and its error. The window title adds `N OFFLINE`, and the agent card adds an
+disconnect and reconnect does not rebuild the picture. The top bar's portrait strip shows the agents of every machine
+that answers (a dropped machine's have no card); its status line turns the alarm colour while a machine is down
+(`1 OFFLINE / …`), and its tooltip lists each machine with its state, when it was last heard from and its error. The window title adds `N OFFLINE`, and the agent card adds an
 `@ machine` line. Selection, click picking and attention timing are keyed by the composite `(machine, pane_id)`,
 zones by `(machine, workspace_id)`, maps (their plan, world and pan) by the machine. With only Local, the SPACES rail has
 no machine headings and the plate names the machine without `@`.

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/bar.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/ui/counter.tscn" id="2_counter"]
+[ext_resource type="PackedScene" path="res://scenes/ui/portrait_fold.tscn" id="2_fold"]
 
 [node name="Bar" type="Control"]
 anchor_right = 1.0
@@ -25,70 +25,93 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_right = -152.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Wordmark" type="Label" parent="Content"]
+[node name="Row" type="HBoxContainer" parent="Content"]
 unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = 7.0
-offset_right = 116.0
-offset_bottom = 27.0
+offset_top = 2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="WordmarkMargin" type="MarginContainer" parent="Content/Row"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_top = 5
+
+[node name="Wordmark" type="Label" parent="Content/Row/WordmarkMargin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 20)
+layout_mode = 2
+size_flags_vertical = 0
 mouse_filter = 2
 theme_type_variation = &"Wordmark"
 text = "HERDSTEAD"
 
-[node name="Counters" type="HBoxContainer" parent="Content"]
+[node name="Strip" type="Control" parent="Content/Row"]
 unique_name_in_owner = true
-anchor_right = 1.0
-offset_left = 120.0
-offset_top = 3.0
-offset_right = -152.0
-offset_bottom = 29.0
-grow_horizontal = 2
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 3
 
-[node name="Machines" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="Cards" type="HBoxContainer" parent="Content/Row/Strip"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="FoldBlocked" parent="Content/Row/Strip/Cards" instance=ExtResource("2_fold")]
 unique_name_in_owner = true
 layout_mode = 2
-id = &"machines"
-title = "MACHINES"
+theme_type_variation = &"PortraitFoldBlocked"
+group = 0
 
-[node name="Blocked" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="FoldDone" parent="Content/Row/Strip/Cards" instance=ExtResource("2_fold")]
 unique_name_in_owner = true
 layout_mode = 2
-id = &"blocked"
-title = "BLOCKED"
+theme_type_variation = &"PortraitFoldDone"
+group = 1
 
-[node name="Done" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="FoldWorking" parent="Content/Row/Strip/Cards" instance=ExtResource("2_fold")]
 unique_name_in_owner = true
 layout_mode = 2
-id = &"done"
-title = "DONE"
+theme_type_variation = &"PortraitFoldWorking"
+group = 2
 
-[node name="Working" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="FoldIdle" parent="Content/Row/Strip/Cards" instance=ExtResource("2_fold")]
 unique_name_in_owner = true
 layout_mode = 2
-id = &"working"
-title = "WORKING"
+group = 3
 
-[node name="Idle" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="Panes" type="Button" parent="Content/Row"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(46, 26)
 layout_mode = 2
-id = &"idle"
-title = "IDLE"
+size_flags_vertical = 4
+tooltip_text = "Every pane, in the OVERVIEW (O)"
+focus_mode = 0
+theme_type_variation = &"BarLine"
+text = "0 panes"
 
-[node name="Panes" parent="Content/Counters" instance=ExtResource("2_counter")]
+[node name="Chime" type="Button" parent="Content/Row"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
-id = &"panes"
-title = "PANES"
-
-[node name="Chime" type="Button" parent="Content/Counters"]
-unique_name_in_owner = true
-layout_mode = 2
+size_flags_vertical = 4
 tooltip_text = "Chime when an agent needs you while Herdstead is in the background"
 focus_mode = 0
 theme_type_variation = &"BarSwitch"

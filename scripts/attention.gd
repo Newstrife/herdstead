@@ -32,13 +32,13 @@ var title_count := true
 
 ## The panel whose %Duration label this writes; the office hands it over once.
 var inspector: OfficePaneInspector
-## The top bar, whose BLOCKED counter says the longest wait; handed over once.
+## The top bar, whose blocked cards say how long each has waited; handed over once.
 var bar: OfficeBar
 
 var _duration_pane_id := ""
 var _duration_machine := ""
-## The blocked panes' StateLog tracks (watch_blocked()); the longest of them is the `max`.
-var _blocked_tracks: Array[StateLog.Track] = []
+## The blocked cards' pane keys (watch_waits()), in the bar's order.
+var _blocked_keys := PackedStringArray()
 ## Whom the staff panel's NEXT names (watch_next()); empty for nobody.
 var _next_pane := ""
 var _next_machine := ""
@@ -90,9 +90,9 @@ static func compact_duration(seconds: float, plus: bool) -> String:
 
 ## How long a pane has been in its state (StateLog.wait_of()), in
 ## format_duration()'s words with `+` when that state began before this office
-## watched: `12m`, `5s+`. The one way the HUD writes a wait: the OVERVIEW's FOR,
-## the top bar's `max` and the counters' hover say this; the world (the lens
-## line, the chip) says the same wait in compact_duration().
+## watched: `12m`, `5s+`. The one way the HUD writes a wait: the OVERVIEW's FOR
+## and the portrait cards say this; the world (the lens line, the chip) says
+## the same wait in compact_duration().
 static func wait_text(wait: StateLog.Wait) -> String:
 	return format_duration(wait.msec / 1000.0) + ("+" if wait.plus else "")
 
@@ -138,7 +138,7 @@ func machine_stale(machine: String) -> bool:
 ## Called on every office refresh; only touches the window when the title moves.
 ## `panes` holds the panes of every live machine; `offline` counts machines
 ## that dropped while others are still live. With `title_count`, the title
-## leads with `(N) `, N the blocked agents (the top bar's BLOCKED), so a
+## leads with `(N) `, N the blocked agents (the top bar's blocked cards), so a
 ## window list or the Dock's menu shows it: left out when nobody is blocked or
 ## no machine is live, and written the same whether or not the window has focus.
 func update(panes: Array[PaneModel], is_stale: bool, offline := 0) -> void:
@@ -166,10 +166,10 @@ func watch(machine: String, pane_id: String, shown: bool) -> void:
 	_update_duration()
 
 
-## Which blocked panes the top bar's BLOCKED counter times from now on
-## (OfficeTotals.blocked_tracks); empty for none.
-func watch_blocked(tracks: Array[StateLog.Track]) -> void:
-	_blocked_tracks = tracks
+## Which blocked panes the top bar's cards time from now on (their keys, the
+## bar's blocked group); empty for none.
+func watch_waits(keys: PackedStringArray) -> void:
+	_blocked_keys = keys
 
 
 ## Whom NEXT names from now on (OfficeNavigator.peek_next()), whose wait it
@@ -221,17 +221,19 @@ func _update_duration() -> void:
 		next = "(N)" if since < 0.0 else format_duration(Time.get_unix_time_from_system() - since) + " (N)"
 	inspector.set_next_wait(next)
 	if is_instance_valid(bar):
-		bar.show_longest_wait(_longest_wait())
+		bar.show_waits(waits_of(fleet.state_log(), _blocked_keys, Time.get_ticks_msec()))
 
 
-## The longest wait among the blocked panes watch_blocked() names, as the
-## OVERVIEW's FOR says it (StateLog.longest(), the same rule): `12m`, `12m+`
-## when some blocked start came before this office watched, so the true
-## longest is at least that. Empty for nobody blocked.
-func _longest_wait() -> String:
-	if _blocked_tracks.is_empty():
-		return ""
-	return wait_text(StateLog.longest(_blocked_tracks, Time.get_ticks_msec()))
+## Each of `keys`' wait at `now_msec`, as the OVERVIEW's FOR says it
+## (StateLog.wait_of() of the pane's track, wait_text()): `12m`, `5s+` when the
+## state began before this office watched; `?` for a pane `ledger` has no
+## track of (the lens's rule).
+static func waits_of(ledger: StateLog, keys: PackedStringArray, now_msec: int) -> Dictionary[String, String]:
+	var texts: Dictionary[String, String] = {}
+	for key in keys:
+		var track := ledger.track(key)
+		texts[key] = "?" if track == null else wait_text(StateLog.wait_of(track, now_msec))
+	return texts
 
 
 ## How long each blocked agent has been kept waiting, in their chip and on

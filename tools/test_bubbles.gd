@@ -652,15 +652,17 @@ func test_a_near_chip_answers_and_the_near_seat_only_picks() -> void:
 	_eq(_all_inputs(), 0, "nothing was sent")
 
 
-# --- the top bar's counters ------------------------------------------------------
+# --- the top bar's portrait strip ------------------------------------------------------
 
 
-## A real click on the top bar's BLOCKED picks the one blocked agent, bee's
-## alpha:p3, on its floor, and the card goes into answer mode only once its
-## preview read has come back and shows the question, the way a click on its
-## chip does. The click itself sends nothing: what it causes is the card's
-## preview reads of alpha:p3.
-func test_a_blocked_counter_click_opens_answer_mode_once_the_question_is_shown() -> void:
+## A real click on the top bar's blocked card picks the one blocked agent,
+## bee's alpha:p3, on its floor, and only picks, as a row of the list does: no
+## answer mode, the card stays its line, and neither herdr is asked anything.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; a card
+## click is the list's path (BAR-Q2). Answer mode from a click stays covered
+## by the chip (test_a_click_on_a_bubble_opens_answer_mode_once_the_question_is_shown)
+## and NEXT (test_next_on_a_blocked_agent_opens_answer_mode_and_n_then_a_digit_sends_one_key).
+func test_a_blocked_card_click_only_picks_and_reads_nothing() -> void:
 	_fakes()
 	var quiet := _changed(_raw(), "bravo:p1", {"agent_status": "working"})
 	_ctl("control-a", "set_snapshot", {"snapshot": quiet})
@@ -670,57 +672,66 @@ func test_a_blocked_counter_click_opens_answer_mode_once_the_question_is_shown()
 	await _frames(3)
 	var before_a := _sequence("control-a")
 	var before_b := _sequence("control-b")
-	var reads_before := _read_panes("control-b").size()
 	var card := _card(office)
-	_ctl("control-b", "next", {"action": "delay", "method": "pane.read", "seconds": 0.5})
-	await _click_control(office.hud.bar.counter(&"blocked"))
 	var key := HerdrFleet.pane_key(BEE, "alpha:p3")
+	var portrait := office.hud.bar.card_for(key)
+	_check(portrait != null and office.hud.bar.count(PortraitBarModel.Group.BLOCKED) == 1, "one blocked card")
+	if portrait == null:
+		return
+	await _click_control(portrait)
 	_eq(office.picked_key, key, "the click picks the one blocked agent")
 	_eq(
 		[office.navigator.shown_key, office.navigator.current_zone(office.frame)],
 		[BEE, HerdrFleet.pane_key(BEE, "alpha")],
 		"on its machine's map, its zone current"
 	)
-	_check(not card.answering(), "not answering before the question is shown")
-	await _until(func() -> bool: return card.preview_text() == QUESTION, "the question is shown")
-	await _until(card.answering, "then answer mode opens")
-	await _frames(3)
+	await _wait(1.5)
+	_check(not card.answering(), "no answer mode")
+	_check(office.hud.card_compact(), "the card stays its line")
 	_eq(_sequence("control-a"), before_a, "Local is asked nothing")
-	# The card re-reads a blocked pane every second while it shows it, so how
-	# many reads is a matter of timing; that every one is a preview read is not.
-	var caused := _sequence("control-b").slice(before_b.size())
-	_check(not caused.is_empty(), "bee is asked for the question")
-	for entry in caused:
-		_check(entry.begins_with("pane.read ") and not entry.ends_with(" check"), "only preview reads: " + entry)
-	var read := _read_panes("control-b").slice(reads_before)
-	_check(
-		not read.is_empty() and read.all(func(id: Variant) -> bool: return id == "alpha:p3"), "of alpha:p3: %s" % [read]
-	)
+	_eq(_sequence("control-b"), before_b, "nor is bee")
 	_eq(_all_inputs(), 0, "nothing was sent")
-	_eq(_count("control-a", "pane.focus") + _count("control-b", "pane.focus"), 0, "and no switch")
 
 
-## Resting on each counter and clicking WORKING, IDLE, MACHINES, PANES and DONE
-## (nobody is UNREAD here) asks either herdr nothing at all.
-func test_counters_hover_and_filter_send_nothing() -> void:
+## Resting on each card, each fold and the status line, and clicking the
+## folds and `13 panes`, asks either herdr nothing at all.
+## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+func test_cards_folds_and_their_hovers_send_nothing() -> void:
 	_fakes()
 	var office := await _office_with()
 	await _frames(3)
 	var before_a := _sequence("control-a")
 	var before_b := _sequence("control-b")
 	var bar := office.hud.bar
-	for counter in bar.counters():
-		var at := counter.get_global_rect().get_center()
+	var hovered: Array[Control] = []
+	hovered.append_array(bar.cards())
+	for fold in bar.folds():
+		if fold.visible:
+			hovered.append(fold)
+	_check(hovered.size() >= 3, "cards and folds to rest on: %d" % hovered.size())
+	for each in hovered:
+		var at := each.get_global_rect().get_center()
 		var motion := InputEventMouseMotion.new()
 		motion.position = at
 		motion.global_position = at
 		Input.parse_input_event(motion)
 		Input.flush_buffered_events()
 		await _frames(2)
-		_check(not counter.get_tooltip(counter.get_local_mouse_position()).is_empty(), "%s has its hover" % counter.id)
-	for id: StringName in [&"working", &"idle", &"machines", &"panes", &"done"]:
-		await _click_control(bar.counter(id))
-	_check(office.hud.agent_list.presence_filter() == [AgentListModel.Presence.IDLE], "IDLE's filter stands")
+		_check(not each.get_tooltip(each.get_local_mouse_position()).is_empty(), "%s has its hover" % each.name)
+	var status: Control = bar.get_node("%StatusLine")
+	var on_status := InputEventMouseMotion.new()
+	on_status.position = status.get_global_rect().get_center()
+	on_status.global_position = on_status.position
+	Input.parse_input_event(on_status)
+	Input.flush_buffered_events()
+	await _frames(2)
+	_check(not bar.get_tooltip(bar.get_local_mouse_position()).is_empty(), "the status line has its hover")
+	for fold in bar.folds():
+		if fold.visible:
+			await _click_control(fold)
+	var panes: Button = bar.get_node("%Panes")
+	await _click_control(panes)
+	_check(office.hud.agent_list.presence_filter().is_empty(), "the list is never filtered")
 	await _frames(3)
 	_eq(_sequence("control-a"), before_a, "Local is asked nothing")
 	_eq(_sequence("control-b"), before_b, "nor is bee")
@@ -1027,8 +1038,11 @@ func test_the_reader_reads_a_blocked_agent_still_launching() -> void:
 	_eq(office.hud.world_tip_text(), "Do you want to proceed?", "the question it read")
 	await _move_pointer(at + Vector2(0, 60))
 	var card := _card(office)
-	await _click_control(office.hud.bar.counter(&"blocked"))
-	_eq(office.picked_key, key, "BLOCKED picks it")
+	# S3 BAR-a (2026-10-27): the portrait strip replaces the counters; NEXT,
+	# which names the only blocked agent, opens answer mode as BLOCKED did.
+	var next: Button = card.get_node("%NextButton")
+	await _click_control(next)
+	_eq(office.picked_key, key, "NEXT picks it")
 	await _until(func() -> bool: return card.preview_text() == QUESTION, "the question is shown")
 	await _until(card.answering, "then answer mode opens")
 	_eq(_all_inputs(), 0, "nothing was sent")
