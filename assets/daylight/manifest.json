@@ -58,7 +58,17 @@
     "contact_shadow": "7b583d",
     "brass_light": "ccb266",
     "brass": "a58c3e",
-    "brass_dark": "6c5c2b"
+    "brass_dark": "6c5c2b",
+    "carpet_sage": "5f6e52",
+    "carpet_sage_edge": "4a563f",
+    "carpet_sky": "56697a",
+    "carpet_sky_edge": "43525f",
+    "carpet_terra": "8a5944",
+    "carpet_terra_edge": "6e4634",
+    "carpet_teal": "456a6a",
+    "carpet_teal_edge": "355252",
+    "carpet_lilac": "6c5b7c",
+    "carpet_lilac_edge": "554862"
   },
   "tiles": {
     "floor.wood_a": {
@@ -935,6 +945,91 @@
       "pivot": [
         0,
         0
+      ]
+    },
+    "carpet_sage": {
+      "path": "ui/carpet_sage.png",
+      "size": [
+        32,
+        32
+      ],
+      "pivot": [
+        0,
+        0
+      ],
+      "nine_patch": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "carpet_sky": {
+      "path": "ui/carpet_sky.png",
+      "size": [
+        32,
+        32
+      ],
+      "pivot": [
+        0,
+        0
+      ],
+      "nine_patch": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "carpet_terra": {
+      "path": "ui/carpet_terra.png",
+      "size": [
+        32,
+        32
+      ],
+      "pivot": [
+        0,
+        0
+      ],
+      "nine_patch": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "carpet_teal": {
+      "path": "ui/carpet_teal.png",
+      "size": [
+        32,
+        32
+      ],
+      "pivot": [
+        0,
+        0
+      ],
+      "nine_patch": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "carpet_lilac": {
+      "path": "ui/carpet_lilac.png",
+      "size": [
+        32,
+        32
+      ],
+      "pivot": [
+        0,
+        0
+      ],
+      "nine_patch": [
+        2,
+        2,
+        2,
+        2
       ]
     }
   },
