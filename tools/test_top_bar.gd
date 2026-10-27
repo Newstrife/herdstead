@@ -563,12 +563,12 @@ func test_the_showroom_stands_its_cast_in_zones() -> void:
 	_eq(front.look.slot(AvatarLook.HEADWEAR), &"cap", "and capped")
 	var stack := pack.sprite_texture(pack.prop_sprite(ArtContract.PROP_DONE_STACK_SMALL))
 	var papers: Dictionary[String, Sprite2D] = {
-		"WEB 0/far": web.papers(0, "far"), "API 1/near": api.papers(1, "near"), "API 3/near": api.papers(3, "near")
+		"WEB 0/far": web.item(0, "far"), "API 1/near": api.item(1, "near"), "API 3/near": api.item(3, "near")
 	}
 	for seat: String in papers:
 		_check(papers[seat].visible, seat + ": done, paper on the desk")
 		_eq(papers[seat].texture, stack, seat + ": the small stack")
-	_check(not api.papers(0, "far").visible, "a working seat has none")
+	_check(not api.item(0, "far").visible, "a working seat has none")
 	var waited: OfficeStation = stations.get("APIFar1")
 	var unseen: OfficeStation = stations.get("WEBFar1")
 	_check(waited != null and unseen != null, "the blocked far seats: %s" % [stations.keys()])

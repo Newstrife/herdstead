@@ -36,8 +36,8 @@ func _initialize() -> void:
 		return
 	fixture = parsed.snapshot
 	# These cases are about seats: every agent on api works (api:p2 is idle in
-	# the shared fixture, and an agent given to api:p3 would be too), so nobody
-	# rests in the pantry unless a case says so.
+	# the shared fixture, and an agent given to api:p3 would be too), so every
+	# desk shows the same unless a case says so.
 	fixture = _with(_with(fixture, "api:p2", {"agent_status": "working"}), "api:p3", {"agent_status": "working"})
 	_run()
 
@@ -88,45 +88,52 @@ func test_status_change_redraws_one_desk() -> void:
 
 
 func test_same_look_keeps_the_worker() -> void:
-	# Three idle agents on api and three residents, all first seen idle (so in projection order, the
-	# residents' tab first), and the pantry of this narrow map has room for five: api:p4 sits. 628 wide:
-	# the map is planned 488 units wide, 15 cells: two lanes of 4 (one of 9 before Z1), 13 cells either way.
+	# Three idle agents on api and three residents, all first seen idle, every one at its seat with a mug
+	# (D2, 2026-10-27: idle sits with a mug; the pantry is a nook nobody walks to). 628 wide: the map is
+	# planned 488 units wide, 15 cells: two lanes of 4 (one of 9 before Z1), 13 cells either way.
 	var idle := _with(
 		_with(_with_residents(fixture), "api:p1", {"agent_status": "idle"}), "api:p2", {"agent_status": "idle"}
 	)
 	idle = _with(idle, "api:p4", {"agent_status": "idle"})
 	var office := await _live_office(idle, Vector2(628, 480))
 	_eq(office.hud.plan_width(), 488.0, "planned 488 wide")
-	var pantry := office.layout_plan().pantry
-	_eq(pantry.spots.size() if pantry != null else -1, 5, "the pantry here holds five")
 	var desk: OfficeStation = office.floor_view.seats[HerdrFleet.pane_key(LOCAL, "api:p4")].node
-	_eq([desk.rest, desk.actor().position], [OfficeRests.Rest.SEAT, Vector2.ZERO], "api:p4 finds it full and sits")
+	_eq(
+		[desk.actor().position, desk.table.item_piece(desk.column, desk.side)],
+		[Vector2.ZERO, ArtContract.PROP_IDLE_MUG],
+		"api:p4 sits, its mug beside the laptop"
+	)
 	await _frames(12)
 	var actor: PixelPerson = desk.get_node("Actor")
 	var before := _actor_state(actor)
 	# idle -> unknown, seated: a new badge, but the worker's animation is idle
-	# either way. (Not an idle agent the pantry has room for: they rest there.)
+	# either way; the mug goes (unknown is not idle).
 	_feed(office, _with(idle, "api:p4", {"agent_status": "unknown"}))
 	actor = desk.get_node("Actor")
 	_eq(_actor_state(actor), before, "the worker keeps its node and its place in the animation")
 	_check(actor.is_playing(), "and keeps playing")
 	_eq(_badge(desk).state, ArtContract.STATE_UNKNOWN, "the badge turns UNKNOWN")
+	_eq(desk.table.item_piece(desk.column, desk.side), &"", "and the desk shows no mug")
 	_eq(office.floor_view.presentation.walkers(), [], "and nobody walks")
 	await _same_as_rebuild(office, "after a same-animation change")
 	_done(office)
 
 
-## Nobody stands at their seat: OfficeRests.rest_of() only ever
-## answers the seat or the pantry, and only idle, not still launching, is the
-## pantry. A pane still launching with a done status sits and plays starting,
-## with no paper; a done agent sits at the desk with its paper; a done shell
-## has nobody at all.
+## Nobody stands at their seat: every state sits (D2, 2026-10-27: idle sits
+## with a mug; the pantry is a nook nobody walks to), and what the desk shows
+## is OfficeStation.desk_item()'s, the paper only for done and the mug only for
+## idle, never for a pane still launching or a shell. A pane still launching
+## with a done status sits and plays starting, with no paper; a done agent sits
+## at the desk with its paper; a done shell has nobody at all.
 func test_nobody_stands_at_their_seat() -> void:
 	for state: StringName in ArtContract.STATES:
-		var away := state == ArtContract.STATE_IDLE
-		var wanted := OfficeRests.Rest.PANTRY if away else OfficeRests.Rest.SEAT
-		_eq(OfficeRests.rest_of(state, false), wanted, "%s rests at the %s" % [state, "pantry" if away else "seat"])
-		_eq(OfficeRests.rest_of(state, true), OfficeRests.Rest.SEAT, "%s while starting sits" % state)
+		var want := &""
+		if state == ArtContract.STATE_DONE:
+			want = ArtContract.PROP_DONE_STACK_SMALL
+		elif state == ArtContract.STATE_IDLE:
+			want = ArtContract.PROP_IDLE_MUG
+		_eq(OfficeStation.desk_item(true, state), want, "%s shows %s at the seat" % [state, want])
+		_eq(OfficeStation.desk_item(false, state), &"", "%s while starting, or a shell, shows nothing" % state)
 	var office := await _live_office()
 	var launching := HerdrFleet.pane_key(LOCAL, "api:p2")
 	var shell := HerdrFleet.pane_key(LOCAL, "api:p3")
@@ -139,12 +146,12 @@ func test_nobody_stands_at_their_seat() -> void:
 	_eq(station.actor().animation, &"starting", "a launching pane plays starting")
 	_eq(str(station.actor().look.context), "desk", "seated")
 	_eq(station.actor().global_position, station.seat.global_position, "on its seat")
-	_check(not station.table.papers(station.column, station.side).visible, "with no paper")
+	_check(not station.table.item(station.column, station.side).visible, "with no paper")
 	_eq(_worker(_station(office, shell)), null, "a done shell has nobody")
 	var sitter := _station(office, done)
 	_eq(str(sitter.actor().look.context), "desk", "a done agent sits at the desk")
 	_eq(sitter.actor().global_position, sitter.seat.global_position, "on its seat")
-	_check(sitter.table.papers(sitter.column, sitter.side).visible, "with its paper")
+	_check(sitter.table.item(sitter.column, sitter.side).visible, "with its paper")
 	_eq(office.floor_view.presentation.walkers(), [], "and nobody walks")
 	await _same_as_rebuild(office, "with a launching done pane and a done shell")
 	_done(office)
@@ -277,39 +284,43 @@ func test_a_dropped_machine_keeps_done_seated_with_papers() -> void:
 	var station := _station(office, done)
 	var actor := station.actor()
 	_check(actor.is_playing(), "a live done worker moves")
-	_check(station.table.papers(station.column, station.side).visible, "with paper beside the laptop")
+	_check(station.table.item(station.column, station.side).visible, "with paper beside the laptop")
 	_set_online(office, false)
 	actor = _station(office, done).actor()
 	_eq(str(actor.look.context), "desk", "a lost machine gets nobody up")
 	_eq(actor.global_position, station.seat.global_position, "or moves them")
 	_check(not actor.is_playing(), "it freezes them")
-	_check(station.table.papers(station.column, station.side).visible, "and keeps their paper")
+	_check(station.table.item(station.column, station.side).visible, "and keeps their paper")
 	var later := HerdrFleet.pane_key(LOCAL, "api:p3")
 	var both_done := _with(_with(both_sides, "api:p1", {"agent_status": "done"}), "api:p3", {"agent_status": "done"})
 	_feed(office, both_done, false)
 	var sitter := _station(office, later)
 	var up := sitter.actor()
 	_eq(str(up.look.context), "desk", "a worker done while stale sits")
-	_check(sitter.table.papers(sitter.column, sitter.side).visible, "with paper")
+	_check(sitter.table.item(sitter.column, sitter.side).visible, "with paper")
 	_check(not up.is_playing(), "frozen like the rest of the floor")
 	await _same_as_rebuild(office, "with done workers while stale")
 	_done(office)
 
 
 ## A done agent's paper is the table's own node from the start: done and back
-## only shows and hides it. The table keeps every node, and so does every seat.
+## only shows and hides it, and idle shows the mug on the same node (D2,
+## 2026-10-27). The table keeps every node, and so does every seat.
 func test_papers_change_in_place() -> void:
 	var office := await _live_office()
 	var key := HerdrFleet.pane_key(LOCAL, "api:p1")
 	var station := _station(office, key)
 	var table := station.table
-	var stack := table.papers(station.column, station.side)
+	var stack := table.item(station.column, station.side)
 	var nodes := _subtree_ids(table)
 	var desks := _desk_ids(office, "")
 	_check(not stack.visible, "working: no paper")
-	for state: String in ["done", "working", "done"]:
+	for state: String in ["done", "working", "done", "idle", "done"]:
 		_feed(office, _with(fixture, "api:p1", {"agent_status": state}))
-		_eq(stack.visible, state == "done", "%s: the paper %s" % [state, "shows" if state == "done" else "is hidden"])
+		_eq(stack.visible, state != "working", "%s: the item %s" % [state, "hidden" if state == "working" else "shown"])
+		var piece := table.item_piece(station.column, station.side)
+		var want := ArtContract.PROP_IDLE_MUG if state == "idle" else ArtContract.PROP_DONE_STACK_SMALL
+		_eq(piece, want if state != "working" else &"", "%s: %s" % [state, piece])
 		_eq(_subtree_ids(table), nodes, "%s: the table keeps every node" % state)
 		_eq(_desk_ids(office, ""), desks, "%s: and every seat its nodes" % state)
 	_done(office)
@@ -1786,7 +1797,7 @@ func test_sorting_by_position() -> void:
 			var station: OfficeStation = office.floor_view.seats[key].node
 			var actor := station.actor()
 			# api's tables; the map's other zones seat theirs by the same rule,
-			# but their idle agents share the one pantry with api's (OfficeRests).
+			# and their idle agents sit at their own seats as api's do.
 			if actor == null or not key.begins_with(HerdrFleet.pane_key(LOCAL, "api:")):
 				continue
 			var table: OfficeTable = station.seat.get_parent().get_parent()

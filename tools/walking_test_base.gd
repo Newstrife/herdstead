@@ -42,9 +42,9 @@ func _initialize() -> void:
 	var fixture_file: Dictionary = parsed
 	fixture = _dict(fixture_file, "snapshot")
 	# The walking cases are about seats: every agent on api works (api:p2 is idle in
-	# the shared fixture, and an agent arriving at api:p3 would be too), so
-	# nobody rests in the pantry unless a case says so; the rests suite's cases
-	# say so.
+	# the shared fixture, and an agent arriving at api:p3 would be too), so every
+	# desk shows the same unless a case says so; the rests suite's cases say so.
+	# Whatever the state, everyone sits at their own seat (D2, 2026-10-27).
 	fixture = _with(_with(fixture, "api:p2", {"agent_status": "working"}), "api:p3", {"agent_status": "working"})
 	_run()
 
@@ -326,7 +326,7 @@ class FuzzState:
 	var p4_tab := false
 	var p2_gone := false
 	var p4_gone := false
-	## api:p2 and api:p4 flap too, so the pantry fills and empties
+	## api:p2 and api:p4 flap too, so their desks swap paper, mug and nothing
 	## (drawn after the others, so the older seeds keep theirs).
 	var p2 := "working"
 	var p4 := "working"
@@ -369,17 +369,6 @@ static func _table_legs(plan: FloorPlan) -> Dictionary[String, PackedVector2Arra
 	return legs
 
 
-## Every leg up to a spot of `plan`'s pantry, as pairs of points: the only way
-## onto the fixture row. Read off the plan's own fixtures, not the walk graph.
-static func _fixture_legs(plan: FloorPlan) -> PackedVector2Array:
-	var pairs := PackedVector2Array()
-	for counter in plan.fixtures():
-		for index in counter.spots.size():
-			pairs.append(counter.approaches[index])
-			pairs.append(counter.spots[index])
-	return pairs
-
-
 ## Whether the part of the axis-aligned segment from `a` to `b` that lies in
 ## `box` lies on one of the segments `pairs` holds (as pairs of points).
 static func _inside_on(a: Vector2, b: Vector2, box: Rect2, pairs: PackedVector2Array) -> bool:
@@ -400,18 +389,17 @@ static func _inside_on(a: Vector2, b: Vector2, box: Rect2, pairs: PackedVector2A
 
 
 ## Every live walk on `view`'s floor keeps to the rules, checked against the
-## plan (_table_legs(), _fixture_legs()), not the presentation's bookkeeping:
-## the walker is on its route; what it has left to walk is straight segments;
-## none enters an obstacle but a table along one of its far seat legs where it
-## stands now, the top wall's drawing clearance along the door's threshold leg,
-## and the fixture row along a pantry spot's leg (nothing
-## runs along the row otherwise); the route ends where the walker belongs (a
-## ghost's at the door); nobody walks faster than TOP_SPEED.
+## plan (_table_legs()), not the presentation's bookkeeping: the walker is on
+## its route; what it has left to walk is straight segments; none enters an
+## obstacle but a table along one of its far seat legs where it stands now and
+## the top wall's drawing clearance along the door's threshold leg (the pantry
+## counter, furniture, is never entered); the route ends where the walker
+## belongs, their seat (a ghost's at the door); nobody walks faster than
+## TOP_SPEED.
 func _check_routes(view: OfficeFloorView, people: PixelPeople, when: String) -> void:
 	var plan := view.plan
 	var graph := OfficeWalkGraph.of(plan, PixelPerson.footprint(), PixelPerson.drawing_rect(people))
 	var legs := _table_legs(plan)
-	var fixture_legs := _fixture_legs(plan)
 	var door := OfficeShell.door(plan)
 	var threshold := PackedVector2Array([door, graph.threshold])
 	var ghosts := view.presentation.ghosts()
@@ -439,8 +427,6 @@ func _check_routes(view: OfficeFloorView, people: PixelPeople, when: String) -> 
 					allowed = _inside_on(a, b, obstacle.rect, pairs)
 				elif obstacle.kind == OfficeWalkGraph.Kind.WALL_DRAWING:
 					allowed = _inside_on(a, b, obstacle.rect, threshold)
-				elif obstacle.kind == OfficeWalkGraph.Kind.FIXTURE:
-					allowed = _inside_on(a, b, obstacle.rect, fixture_legs)
 				if not allowed:
 					_fail(
 						(
@@ -453,15 +439,15 @@ func _check_routes(view: OfficeFloorView, people: PixelPeople, when: String) -> 
 		var goal := door
 		if not ghosts.has(body):
 			var station := body.get_parent() as OfficeStation
-			goal = station.position + station.rest_position()
+			goal = station.position
 		if not _last(route).is_equal_approx(goal):
 			_fail("%s: %s's route ends at %s, not at %s" % [when, body.name, _last(route), goal])
 
 
 ## The people of the shown floor as the rules want them after any step: one
 ## body per seat's worker and per ghost; a seat marked walking only while its
-## worker walks (the machine not stale); a worker at rest on the seat or the
-## spot, not playing the walk, at the family's own pace; no ghosts while stale.
+## worker walks (the machine not stale); a worker at rest on the seat, not
+## playing the walk, at the family's own pace; no ghosts while stale.
 func _check_invariants(office: OfficeDouble, when: String, frozen: bool) -> void:
 	var presentation := office.floor_view.presentation
 	var ghosts := presentation.ghosts()
@@ -478,7 +464,7 @@ func _check_invariants(office: OfficeDouble, when: String, frozen: bool) -> void
 			continue
 		if station.walking:
 			_fail(when + ": " + key + " marked walking with no walk")
-		var want := station.rest_position()
+		var want := Vector2.ZERO
 		if actor.position != want:
 			_fail(when + ": %s at rest at %s, not %s" % [key, actor.position, want])
 		if actor.track == ArtContract.TRACK_WALK:

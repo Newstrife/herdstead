@@ -16,12 +16,15 @@ extends RefCounted
 ## (OfficeZoneLayout.pod_row_cells()).
 
 const GRID := 32
-var version := 3
+var version := 4
 var width_cells := 32
 var wall_cells := 2
-## Three: the top wall's drawing clearance takes the first row, the fixture row
-## (the pantry's spots, OfficeFixturePlanner) the second, the walking lane the third.
-var entry_cells := 3
+## Two: the top wall's drawing clearance takes the first row, the walking lane
+## the second (OfficeShell.WALKING_LANE); the pantry counter stands at the band's
+## left end, its foot in front of the wall, and nobody stands at it.
+## D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to,
+## so its fixture row went with its people (SEATED-Q2).
+var entry_cells := 2
 var main_corridor_cells := 2
 var outer_side_cells := 1
 ## One lane of zones, the partition's pad inside a zone's left edge, and the
@@ -37,7 +40,7 @@ var map_top_aisle_cells := 1
 ## A new zone takes more lanes, up to the map's, rather than stand taller than
 ## this many pod rows (never fewer lanes than its widest table needs).
 var zone_tall_rows := 1
-var min_height_cells := 12
+var min_height_cells := 11
 var max_width_cells := 512
 var max_height_cells := 1024
 var max_floor_cells := 131072
@@ -140,7 +143,7 @@ func map_width(lanes: int) -> int:
 
 ## How many lanes a first plan `width` cells wide gets: as many as fit, at least
 ## two. Z1 (2026-10-27): the narrowest plan stays two lanes, so the smallest
-## window keeps a window, a picture and the pantry; FRAME-Q2.
+## window keeps a window and a picture; FRAME-Q2.
 func lanes_for(width: int) -> int:
 	return maxi(2, floori(float(width - 2 * outer_side_cells - main_corridor_cells + lane_aisle_cells) / lane_pitch()))
 

@@ -7,8 +7,9 @@ extends Node2D
 ## own feet: the far chair just behind its worker, the near chair just in
 ## front. The Overlay floats above the world (OVERLAY_Z) and holds the name
 ## plate, the lens line, the selection mark, herdr's state badge and, while the
-## agent is blocked, the chip on the badge's row (OfficeChip). A done agent's
-## stack of paper is on the desk, which is the pod's (OfficeTable.show_papers()).
+## agent is blocked, the chip on the badge's row (OfficeChip). The desk item
+## beside the laptop is the pod's (OfficeTable.show_item()): a done agent's
+## stack of paper, an idle one's mug.
 ##
 ## Rows, 30 units wide and centred on the column, stacked away from the pod:
 ## the tag row (the badge, or the chip), the lens row (only while `L` is held)
@@ -22,27 +23,22 @@ extends Node2D
 ## and select() change the station in place; a new state for the same worker
 ## only changes what that worker plays, so their animation carries on.
 ##
-## On a floor, its people walk (OfficePresentation): a worker coming in, going
-## to the pantry or back, or changing seats is still this seat's Actor, but while
-## `walking` the seat leaves their place and pose to the presentation and only
-## remembers what to seat them with; land() hands them back. The plate, the
-## badge, the chip, the paper and the click target never wait for the walk:
-## they are the signal.
+## On a floor, its people walk (OfficePresentation): a worker coming in or
+## changing seats is still this seat's Actor, but while `walking` the seat
+## leaves their place and pose to the presentation and only remembers what to
+## seat them with; land() hands them back. The plate, the badge, the chip, the
+## desk item and the click target never wait for the walk: they are the signal.
 ##
 ## The seat answers a click itself: `Target` is an Area2D on OfficeWorld.PICKABLE
-## holding both sides' rectangles, the chip's and the pantry's, and the
-## viewport picks it. A click on the seat's rectangle picks the pane (`picked`),
+## holding both sides' rectangles and the chip's, and the viewport picks it. A click on the seat's rectangle picks the pane (`picked`),
 ## one on the chip asks to answer it (`asked`). A vacant seat is not pickable
 ## at all. The pointer over the seat's or the chip's rectangle shows the plate;
 ## over the seat's, the office also shows the whole name in a tooltip.
 ##
-## A worker rests where their state says (OfficeRests, set by the presentation
-## with rest_at()): at the seat — blocked with a hand up and the chip, done
-## with the paper beside the laptop — or, idle, away from it in the floor's
-## pantry. What hangs over them hangs where they rest. While they are away the
-## seat itself still answers a click for the same pane (its empty chair and
-## laptop stay), and so does the place they rest at: the `Away` rectangle, a
-## second live target.
+## Every worker sits at their seat, whatever their state: blocked with a hand up
+## and the chip, done with the paper beside the laptop, idle with a mug there
+## (playing `desk_idle`), working and starting at the keys. Nobody leaves the
+## chair for the pantry, which is furniture (docs/VISUAL_LANGUAGE.md).
 
 ## A left click was released over this seat, at `at` in viewport pixels. Only a
 ## release can be a pick at all — a press is a drag that has not moved yet —
@@ -126,17 +122,6 @@ const UNDER_CHIP_SIZE := {"far": Vector2(30, 40), "near": Vector2(30, 38)}
 ## _place() lays it over the chip, CHIP_TARGET_AT from the chip's corner.
 const CHIP_TARGET := ^"Target/Chip"
 const CHIP_TARGET_AT := Vector2(15, 7)
-## Over a worker resting away (the pantry), relative to where they stand: the
-## badge right over the head; no plate: who is who is their coat, and a click on
-## them opens their card (the Away rectangle, scenes/world/station.tscn, 38
-## wide). The seat mark frames the standing figure (head -37), the lens row
-## hangs above the badge.
-const AWAY_BADGE_AT := Vector2(0, -47)
-const AWAY_SELECTION_AT := Vector2(0, 4)
-const AWAY_LENS_AT := Vector2(-15, -75)
-const AWAY_TARGET := ^"Target/Away"
-## The Away rectangle's centre over the feet: its foot 2 below them.
-const AWAY_TARGET_AT := Vector2(0, -26)
 
 ## Each side's rectangle while the chip shows (UNDER_CHIP_SIZE), made once and
 ## shared: a shape resource of the scene is shared by every station.
@@ -152,11 +137,6 @@ var side := "far"
 var table: OfficeTable
 var column := -1
 var seat: Marker2D
-## Where the worker here rests (OfficeRests.Rest), and, for the pantry, where
-## that is relative to the seat. The labels and the click targets
-## follow it; the body walks there (OfficePresentation).
-var rest := OfficeRests.Rest.SEAT
-var away_at := Vector2.ZERO
 var vacant := true
 ## Composite pane key (HerdrFleet.pane_key) of the pane seated here, as the
 ## office set it; empty while the seat is vacant. `picked` carries it.
@@ -164,8 +144,8 @@ var pane_key := ""
 ## Which way the chair faces, for the tests that hold a worker to their chair.
 var chair_view := &""
 ## The floor's presentation (OfficePresentation) is walking this seat's worker:
-## in, out of the way, to the pantry or back. Until it hands them back with land(), the
-## seat leaves where the worker is and what they play alone, and only
+## in, out of the way, or over from another seat. Until it hands them back with
+## land(), the seat leaves where the worker is and what they play alone, and only
 ## remembers what to seat them with; the plate, the badge and the click target
 ## still follow every observation at once.
 var walking := false
@@ -248,7 +228,7 @@ func rebind(at_table: OfficeTable, at_column: int, seat_side: String) -> bool:
 
 ## The near chair's back wears this seat's agent's provider mark
 ## (OfficeTable.mark_of(), at OfficeTable.MARK_AT["near"]; a far seat's is on
-## its laptop's lid, the table's), even while the agent is away from the chair.
+## its laptop's lid, the table's), even while the agent walks to or from it.
 ## A child of the chair, so it sorts with it, in front of the sitter; the chair
 ## is scaled for the table's family, so the mark undoes that and keeps its own
 ## family's scale. One that wears none holds no texture, as a rebuilt seat.
@@ -280,20 +260,17 @@ func furnish(
 	var animation := art.animation_for_state(state, starting)
 	_animation = animation
 	var seated := get_node_or_null("Actor") as PixelPerson
-	# Until the presentation says otherwise (rest_at()), at the seat.
-	rest = OfficeRests.Rest.SEAT
-	away_at = Vector2.ZERO
 	# What only a state draws at a seat: the chip over a blocked agent, the
-	# paper beside a done one's laptop. A pane still launching says nothing about
-	# its agent yet, unless herdr already says blocked: a start that asks at once
-	# is a blocked agent (blocked takes precedence; the caller passes PaneModel.launching()).
-	# A shell has no agent. Set before _place(), which enables
-	# the chip's rectangle only while it shows.
+	# paper beside a done one's laptop, the mug beside an idle one's. A pane
+	# still launching says nothing about its agent yet, unless herdr already says
+	# blocked: a start that asks at once is a blocked agent (blocked takes
+	# precedence; the caller passes PaneModel.launching()). A shell has no agent.
+	# Set before _place(), which enables the chip's rectangle only while it shows.
 	var agent := not starting and not provider.is_empty()
 	chip().visible = agent and state == ArtContract.STATE_BLOCKED
 	if not chip().visible:
 		chip().clear()
-	table.show_papers(column, side, agent and state == ArtContract.STATE_DONE)
+	table.show_item(column, side, desk_item(agent, state))
 	if provider.is_empty() and not starting:
 		_drop_actor()
 	elif seated == null:
@@ -357,7 +334,7 @@ func vacate() -> void:
 	pane_key = ""
 	table.equip(column, side, false)
 	table.light(column, side, OfficeTable.Lamp.OFF)
-	table.show_papers(column, side, false)
+	table.show_item(column, side, &"")
 	chip().visible = false
 	chip().clear()
 	_drop_actor()
@@ -369,8 +346,6 @@ func vacate() -> void:
 	lens.visible = false
 	var badge: StatusBadge = $Overlay/Badge
 	badge.clear(art)
-	rest = OfficeRests.Rest.SEAT
-	away_at = Vector2.ZERO
 	_place()
 	_pickable(false)
 	select(false)
@@ -389,7 +364,7 @@ func show_lens(held: bool, text: String) -> void:
 	_lens_held = held
 	chip().set_lensed(held)
 	var plate: Label = $Overlay/Plate
-	plate.position = rest_position() + _plate_at()
+	plate.position = _plate_at()
 	_show_plate()
 
 
@@ -400,10 +375,10 @@ func select(selected: bool) -> void:
 	_show_plate()
 
 
-## Whether the plate shows now: a seat somebody's pane has, worked at here
-## (not away), and hovered, selected or under the held lens.
+## Whether the plate shows now: a seat somebody's pane has, hovered, selected
+## or under the held lens.
 func plate_shown() -> bool:
-	return not vacant and not away() and (not _hovered.is_empty() or _selected or _lens_held)
+	return not vacant and (not _hovered.is_empty() or _selected or _lens_held)
 
 
 ## Where the plate hangs over the seat: the lens row's slot, or while the lens
@@ -426,16 +401,15 @@ func light(level: OfficeTable.Lamp) -> void:
 	table.light(column, side, level)
 
 
-## The person at this seat, sitting or in the pantry; null while the seat is vacant
-## or holds a shell. A worker the presentation walks in, out of the way or
+## The person at this seat, sitting or walking to it; null while the seat is
+## vacant or holds a shell. A worker the presentation walks in, out of the way or
 ## back is still this seat's, wherever on the floor they are.
 func actor() -> PixelPerson:
 	return get_node_or_null("Actor") as PixelPerson
 
 
-## The presentation has walked this seat's worker to where the seat says they
-## belong: take them back, seat them or stand them in the pantry, and play what the
-## last furnish() asked for, at the family's own pace.
+## The presentation has walked this seat's worker to the seat: take them back,
+## seat them and play what the last furnish() asked for, at the family's own pace.
 func land() -> void:
 	walking = false
 	var worker := actor()
@@ -445,34 +419,15 @@ func land() -> void:
 	_play(worker)
 
 
-## The worker here rests at `kind` of place (OfficeRests.Rest): at the seat, or
-## away at `at` (in the coordinates this station is placed in, the floor's) in
-## the pantry. The labels and click
-## targets move there at once; a worker not walking is posed there too, and one
-## walking is posed there by land(). Nothing is rebuilt, so the badge's pulse
-## and the wait go on. A vacant seat or a shell rests nobody.
-func rest_at(kind: OfficeRests.Rest, at := Vector2.ZERO) -> void:
-	var away_kind := kind == OfficeRests.Rest.PANTRY
-	var wanted := at - position if away_kind else Vector2.ZERO
-	if vacant or actor() == null or (kind == rest and wanted == away_at):
-		return
-	rest = kind
-	away_at = wanted
-	_place()
-	if not walking:
-		_pose(actor())
-		_play(actor())
-
-
-## Where the worker here rests, relative to the seat: the seat, or their spot
-## in the pantry.
-func rest_position() -> Vector2:
-	return away_at if away() else Vector2.ZERO
-
-
-## Whether the worker here rests away from the seat, in the pantry.
-func away() -> bool:
-	return rest == OfficeRests.Rest.PANTRY
+## What a seat's agent shows beside the laptop: the paper while done, the mug
+## while idle, nothing otherwise (working, blocked, starting, a shell: `agent`
+## false). The one rule furnish() puts on the table (OfficeTable.show_item()).
+static func desk_item(agent: bool, state: StringName) -> StringName:
+	if agent and state == ArtContract.STATE_DONE:
+		return ArtContract.PROP_DONE_STACK_SMALL
+	if agent and state == ArtContract.STATE_IDLE:
+		return ArtContract.PROP_IDLE_MUG
+	return &""
 
 
 ## The chip on this seat's tag row (OfficeChip), shown only while its agent is blocked.
@@ -516,12 +471,9 @@ func adopt_worker(worker: PixelPerson) -> void:
 
 
 ## Where this seat answers a click, in global coordinates: the rectangle of the
-## side it is on, as the scene placed it; while they rest away, the rectangle
-## over them there. What reveal() pans a desk in by.
+## side it is on, as the scene placed it. What reveal() pans a desk in by.
 func target_rect() -> Rect2:
 	var box := _target_of(side)
-	if away():
-		box = get_node(AWAY_TARGET)
 	var area: RectangleShape2D = box.shape
 	return Rect2(box.global_position - area.size / 2.0, area.size)
 
@@ -597,66 +549,46 @@ func _target_of(of_side: String) -> CollisionShape2D:
 	return get_node(path)
 
 
-## How the worker here looks in a pose: standing in the pantry, anyone faces
-## the viewer; at the desk, a near worker shows their back.
+## How the worker here looks in a pose: at the desk, a far worker faces the
+## viewer and a near one shows their back.
 func _pose_look() -> AvatarLook:
-	if rest != OfficeRests.Rest.SEAT:
-		return AvatarLook.facing(AvatarLook.STAND, AvatarLook.FRONT)
 	return AvatarLook.facing(AvatarLook.DESK, AvatarLook.FRONT if side == "far" else AvatarLook.BACK)
 
 
-## Put `worker` where they rest: sit them on the seat, or stand them in the
-## pantry, facing the viewer. Only the pose and the place change: the same
-## node, at the family's own pace (a walk's pace never outlasts the walk).
+## Sit `worker` on the seat. Only the pose and the place change: the same node,
+## at the family's own pace (a walk's pace never outlasts the walk).
 func _pose(worker: PixelPerson) -> void:
 	worker.pace(1.0)
 	var wanted := _pose_look()
 	if worker.look.context != wanted.context or worker.look.orientation != wanted.orientation:
 		worker.configure(art.people, worker.provider, wanted)
-	if rest == OfficeRests.Rest.SEAT:
-		worker.sit(seat)
-		worker.position = Vector2.ZERO
-		return
-	worker.stand_up()
-	# Whoever walked up to the spot faced the way they walked.
-	if worker.facing != PixelPeople.FRONT:
-		worker.face(PixelPeople.FRONT)
-	worker.position = rest_position()
+	worker.sit(seat)
+	worker.position = Vector2.ZERO
 
 
-## Play what the worker rests with: the pantry's cup by name (its `idle` is also
-## a seated worker's), anything else as the last furnish() asked, through the
-## family's state tracks for the pose (a seated blocked worker's is the raised
-## hand at the desk).
+## Play what the last furnish() asked, through the family's state tracks for
+## the pose (a seated blocked worker's is the raised hand at the desk, an idle
+## one's `desk_idle`).
 func _play(worker: PixelPerson) -> void:
-	if rest == OfficeRests.Rest.PANTRY:
-		worker.play_track(ArtContract.TRACK_DRINK)
-	elif not _animation.is_empty():
+	if not _animation.is_empty():
 		worker.play_state(_animation)
 
 
-## Hang the labels and the click targets where whoever is here rests: seated,
-## or away (see rest_at()). Only moves the nodes that are already there and
-## switches which rectangles answer a click: this side's seat rectangle always
-## (the other side's never), the chip's while it shows, and while away the
-## Away one too.
+## Hang the labels and the click targets over the seat. Only moves the nodes
+## that are already there and switches which rectangles answer a click: this
+## side's seat rectangle always (the other side's never) and the chip's while it
+## shows.
 func _place() -> void:
-	var away_here := away()
-	var at := rest_position()
 	var plate: Label = $Overlay/Plate
-	plate.position = at + _plate_at()
+	plate.position = _plate_at()
 	# Out of the tree the face is not on yet and a Label keeps the default
 	# font's 23-unit height; in it, the row is its own height again.
 	plate.size = PLATE_SIZE
 	var selection: Sprite2D = $Overlay/Selection
 	var lens: Label = $Overlay/Lens
 	lens.size = LENS_SIZE
-	if away_here:
-		selection.position = at + AWAY_SELECTION_AT
-		lens.position = at + AWAY_LENS_AT
-	else:
-		selection.position = at + SELECTION_AT[side]
-		lens.position = at + LENS_AT[side]
+	selection.position = SELECTION_AT[side]
+	lens.position = LENS_AT[side]
 	var shown := chip()
 	var chip_at: Vector2 = CHIP_AT[side]
 	shown.position = chip_at
@@ -677,9 +609,6 @@ func _place() -> void:
 		var swapped := under and each == side
 		box.shape = _under_chip[each] if swapped else _seat_shapes[each]
 		box.position = UNDER_CHIP_AT[each] if swapped else SEAT_TARGET_AT[each]
-	var away_target: CollisionShape2D = get_node(AWAY_TARGET)
-	away_target.disabled = not away_here
-	away_target.position = at + AWAY_TARGET_AT
 	# A rectangle that stopped answering is not hovered any more.
 	for shape: Node in _hovered.keys():
 		var box := shape as CollisionShape2D
@@ -692,12 +621,9 @@ func _place() -> void:
 
 
 ## The badge on the tag row: centred, or in the chip's left half while the
-## chip's frame is drawn; over the head of a worker resting away.
+## chip's frame is drawn.
 func _place_badge() -> void:
 	var badge: StatusBadge = $Overlay/Badge
-	if away():
-		badge.position = rest_position() + AWAY_BADGE_AT
-		return
 	var at: Vector2 = BADGE_AT[side]
 	var shown := chip()
 	if shown.visible and shown.framed():

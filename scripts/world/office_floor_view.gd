@@ -8,8 +8,8 @@ extends RefCounted
 ## their own, rebuilt only when the zone's rectangle changes) under its sign
 ## (OfficeZoneSign, whose text follows the zone's model on every reconcile).
 ## Its people walk between one observation and the next (`presentation`): in
-## at the lift door, out of it, over to a new seat, and to the pantry in the
-## entry band and back.
+## at the lift door, out of it, and over to a new seat. Nobody walks to the
+## pantry counter: an idle agent sits at their seat.
 
 
 ## A desk on the floor: its station node and what that station shows now, so
@@ -240,8 +240,8 @@ func furnishing() -> Array[CanvasItem]:
 
 
 ## Where pane `key`'s signal is, in the floor's own coordinates (the root's):
-## where its desk answers a click, which is where its worker rests (a pantry
-## worker's own rectangle), together with its chip while it shows (a chip
+## where its desk answers a click, which is the seat's own rectangle (every
+## worker sits there), together with its chip while it shows (a chip
 ## that draws nothing, under the lens or with no wait to say, still shows).
 ## What the pointer frames (point()) and the camera brings into view
 ## (OfficeScene.reveal()). The one extent of a desk's signal: an arrow's aim
@@ -384,7 +384,7 @@ func reconcile(next: FloorPlan, model: MapModel, frozen := false) -> void:
 	var same := next == plan and rooms_key == _rooms_signature
 	if not same:
 		# The pictures on the top wall hang where the windows, the door and the
-		# pantry leave room, so the shell is drawn again whenever one moves.
+		# pantry counter leave room, so the shell is drawn again whenever one moves.
 		var frames := OfficeShell.frames(next, _pen)
 		var shell_key := _shell_key(next, frames)
 		if shell_key != _shell_signature:

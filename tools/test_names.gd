@@ -168,8 +168,9 @@ func test_the_plate_says_the_name() -> void:
 	await _frames(2)
 	for pane_id: String in names:
 		var station := _station(office, _pk(pane_id))
-		# Idle in the pantry, a worker wears no plate: the lens shows the ones at their desks.
-		_eq(_plate(station).visible, not station.away(), "under L the plate of %s shows at its desk" % pane_id)
+		# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to:
+		# every worker is at their desk, so under L every plate shows there.
+		_check(_plate(station).visible, "under L the plate of %s shows at its desk" % pane_id)
 		_eq(_plate(station).text, names[pane_id], "and says the same name")
 	await _parsed(_l_key(false))
 	await _frames(2)

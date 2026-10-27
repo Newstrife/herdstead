@@ -12,7 +12,8 @@ nothing else):
   (see its docstring for what those drawings keep);
 - pieces drawn texel by texel at the pack's density 2 instead: the small
   paper stack `done_stack_small` (a state signal, the done seat's paper on a
-  pod desk), the seat selection mark `selection_seat` (ui), the zone
+  pod desk), the idle mug `idle_mug` (a state signal, the idle seat's mug on a
+  pod desk: the painted `desk_mug`'s pixels, texel for texel), the seat selection mark `selection_seat` (ui), the zone
   partition kit (`partition_*`, props) and the provider marks a laptop
   wears (`mark_<provider>`, ui).
 
@@ -39,7 +40,13 @@ What `done_stack_small` keeps: a 24x24-unit canvas (48x48 texels) on the
 pivot [12, 22], opaque exactly 6 units wide by 9 tall at x -3..3 and y -9..0
 about its pivot (units 9..14 by rows 13..21, inside the desk rows), with hard
 alpha: the painted `done_stack`'s paper-in-a-tray look, smaller, so it fits
-the 6 units between a pod laptop and its column's edge (PAPERS_ASIDE 13).
+the 6 units between a pod laptop and its column's edge (OfficeTable.ITEM_ASIDE 13).
+
+What `idle_mug` keeps: the same canvas and pivot, opaque exactly 7 units wide
+by 6.5 tall at x -3.5..3.5 and y -6.5..0 about its pivot, every texel the
+committed painted `art/daylight/props/desk_mug.png`'s (the desk pool's mug on a
+side table is furniture; this one, beside a laptop, is idle's signal), so it
+fits between a pod laptop and its column's edge (OfficeTable.MUG_ASIDE 12.5).
 
 What `selection_seat` keeps: a 32x48-unit canvas (64x96 texels) on the pivot
 [16, 46], four corner marks in `ui.selection`'s colour (`blocked`) and line
@@ -386,9 +393,32 @@ PAPERS_SMALL_LEGEND = {
     "I": "ink", "K": "deep", "P": "paper", "k": "skin", "L": "floor_light", "j": "skin_shadow",
     "J": "jacket_light", "M": "muted", "r": "terra", "s": "wood_shadow",
 }
-DENSE_AT = {"done_stack_small": (18, 26)}
-DENSE_SIZES = {"done_stack_small": (24, 24), "selection_seat": (32, 48)}
-DENSE_PIVOTS = {"done_stack_small": (12, 22), "selection_seat": (16, 46)}
+## idle_mug, texel by texel: 14x13 texels (7x6.5 units), the painted desk_mug's
+## pixels and letters for its palette colours: ink outline, a dark rim of
+## coffee (hair_dark) under a cream lip, a sage cup lit from the top left with
+## plaster highlights, its handle to the right.
+IDLE_MUG = (
+    ".IIIIIIII.....",
+    "IChhhhhhhI....",
+    "IcHHHHHHhGI...",
+    "IGHHHHHHKGI...",
+    "IGgggggghhfIII",
+    "IGLggggghhKggI",
+    "IGLggggghhhIhI",
+    "IGLggggghhI.II",
+    "IGLggggghhKIKI",
+    "IGGggggghhhgfI",
+    "IGGggggghhfII.",
+    "IgghhhhhhII...",
+    ".IIIIIIII.....",
+)
+IDLE_MUG_LEGEND = {
+    "I": "ink", "K": "deep", "C": "cream", "c": "cream_shadow", "H": "hair_dark", "G": "sage_light",
+    "g": "sage", "h": "sage_dark", "f": "leaf_dark", "L": "plaster",
+}
+DENSE_AT = {"done_stack_small": (18, 26), "idle_mug": (17, 31)}
+DENSE_SIZES = {"done_stack_small": (24, 24), "idle_mug": (24, 24), "selection_seat": (32, 48)}
+DENSE_PIVOTS = {"done_stack_small": (12, 22), "idle_mug": (12, 22), "selection_seat": (16, 46)}
 ## selection_seat: each corner's arm length and the line weight, in units. Four,
 ## not ui.selection's proportion (6): a seated worker's raised fist reaches
 ## x +10..+12 about the foot at the top of the far mark (SELECTION_AT (0, 10)),
@@ -408,6 +438,20 @@ def done_stack_small(palette: dict[str, str]) -> Image.Image:
             f"done_stack_small: opaque columns {left}..{right - 1}, not x -3..3 about the pivot")
     require((top, bottom) == (pivot_y - 9 * DENSE, pivot_y),
             f"done_stack_small: opaque rows {top}..{bottom - 1}, not y -9..0 about the pivot")
+    return result
+
+
+def idle_mug(palette: dict[str, str]) -> Image.Image:
+    """The mug an idle seat shows on a pod desk (see the module docstring)."""
+    width, height = DENSE_SIZES["idle_mug"]
+    result = Image.new("RGBA", (width * DENSE, height * DENSE), (0, 0, 0, 0))
+    pixel_map(result, IDLE_MUG, IDLE_MUG_LEGEND, palette, DENSE_AT["idle_mug"])
+    left, top, right, bottom = result.getchannel("A").getbbox()
+    pivot_x, pivot_y = (value * DENSE for value in DENSE_PIVOTS["idle_mug"])
+    require((left, right) == (pivot_x - 7, pivot_x + 7),
+            f"idle_mug: opaque columns {left}..{right - 1}, not x -3.5..3.5 about the pivot")
+    require((top, bottom) == (pivot_y - 13, pivot_y),
+            f"idle_mug: opaque rows {top}..{bottom - 1}, not y -6.5..0 about the pivot")
     return result
 
 
@@ -843,6 +887,7 @@ def draw(source: Path, output: Path) -> list[Path]:
     pieces = {name: desk_piece(name, palette) for name in DESK_PIECES}
     pieces.update({name: fixture_piece(name, palette) for name in FIXTURE_SIZES})
     pieces["done_stack_small"] = done_stack_small(palette)
+    pieces["idle_mug"] = idle_mug(palette)
     pieces.update({name: partition_piece(name, palette) for name in PARTITION_SIZES})
     written = []
     (output / "props").mkdir(parents=True)

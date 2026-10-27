@@ -5,7 +5,7 @@
 Herdstead is a [Godot](https://godotengine.org) 4.7 app that draws a [herdr](https://herdr.dev) session as a pixel
 open-plan office. Each herdr machine is one office map, each workspace a zone of it, each tab a pod of desks, each pane a seat, and each
 coding agent the person sitting in it. Blocked agents raise their hands, finished ones leave a stack of paper on the desk,
-idle ones walk over to the pantry. You can see who needs you at a glance, and answer them from the office.
+idle ones sit with a mug of coffee. You can see who needs you at a glance, and answer them from the office.
 
 ![A blocked agent in the staff panel: its question on screen, Answer one key away](docs/preview.png)
 

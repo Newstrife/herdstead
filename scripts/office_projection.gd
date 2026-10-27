@@ -456,9 +456,9 @@ static func zone_order(buildings: Array[BuildingModel]) -> Array[String]:
 
 
 ## Desks whose agent needs a human, across every live machine: blocked first,
-## then UNREAD, each in the order wait_order() gives, which is the order a map's
-## pantry is shared out in (OfficeRests): an unknown start first, as the one waiting
-## longest, then the earliest start; the projection order breaks every tie.
+## then UNREAD, each in the order wait_order() gives, the `N` key's: an unknown
+## start first, as the one waiting longest, then the earliest start; the
+## projection order breaks every tie.
 static func attention_queue(buildings: Array[BuildingModel]) -> Array[String]:
 	var blocked: Array[PaneModel] = []
 	var unread: Array[PaneModel] = []
@@ -487,7 +487,7 @@ static func attention_queue(buildings: Array[BuildingModel]) -> Array[String]:
 ## (PaneModel.state_since < 0) first, as having waited longest, then the
 ## earliest start first; ties, and the unknown among themselves, keep the order
 ## `panes` lists them in, which is the projection's. The one ranking of the
-## `N` key, the BLOCKED counter's queue and a map's pantry.
+## `N` key and the BLOCKED counter's queue.
 static func wait_order(panes: Array[PaneModel]) -> Array[PaneModel]:
 	var entries: Array = []
 	for index in panes.size():

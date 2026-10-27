@@ -29,7 +29,8 @@ var _name := ""
 ## lane B2a took the sign off) and 74 per column (21 of the pod's: a desk, an
 ## apron and a screen module, a bracket, 2 laptops, the far one's mark, 2
 ## three-node grommets, 2 lamps, 2 papers, 2 seat and 2 standing markers; 1
-## contact shadow; two 16-node stations, each chair with its mark, and two 10-node
+## contact shadow; two stations of at most 16 nodes (15 since the pantry's `Away`
+## rectangle went, D2: the bound keeps the spare), each chair with its mark, and two 10-node
 ## people). The bound decides which maps fit
 ## FloorLayoutPolicy.max_desk_nodes. Geometry tests count real dressed prefabs
 ## so changes to the scenes cannot silently invalidate this allocation

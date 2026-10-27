@@ -25,17 +25,13 @@ extends RefCounted
 ## where its worker sits or stands (see leg_to_seat() and leg_to_standing()).
 ## Those legs are the only way into an obstacle: every obstacle carries the
 ## exact segments that may enter it (its entries: a table the far seat legs that
-## run into its footprint, the top wall's drawing clearance the threshold leg,
-## the entry band's fixture row the legs up to the pantry's spots), and a check
-## lets a segment into an obstacle only along one of them, at that obstacle's
-## place in this plan. Nothing is exempt by name.
+## run into its footprint, the top wall's drawing clearance the threshold leg),
+## and a check lets a segment into an obstacle only along one of them, at that
+## obstacle's place in this plan. Nothing is exempt by name.
 ##
-## The fixture row (OfficeShell.FIXTURE_ROW) is where the pantry's people
-## stand, not a way anywhere: on every map with desks, pantry or not, it is an
-## obstacle from the left wall to the main corridor, so no route runs along it
-## and every way in from the door crosses the walking lane at the door's
-## column (to_lane(), from_lane()). People step up into it from the walking
-## lane below (leg_to_fixture()), only at the pantry's spots.
+## The pantry counter in the entry band's corner is furniture like any other
+## (Kind.FIXTURE, inflated by the feet, with no entries): nobody walks to it,
+## and the walking lane (OfficeShell.WALKING_LANE) runs in front of it.
 ##
 ## A zone's low partitions (ZonePlacement.partitions()) are obstacles of their
 ## own kind, inflated by the feet only: they draw no taller than a person, so
@@ -87,8 +83,7 @@ class Obstacle:
 	var tab_key := ""
 	## The only segments along which a route may enter this obstacle, as pairs
 	## of points: the seat legs that run into a table (its far seats are inside
-	## it), the threshold leg through the top wall's drawing clearance and the
-	## legs up to the pantry's spots on the fixture row.
+	## it) and the threshold leg through the top wall's drawing clearance.
 	var entries := PackedVector2Array()
 
 
@@ -117,11 +112,6 @@ var obstacles: Array[Obstacle] = []
 ## first walkable cell centre straight below it; INF when there is none.
 var door := Vector2.ZERO
 var threshold := Vector2.INF
-## The fixture row and the walking lane of a map with desks, as y (INF without,
-## or where the band cannot hold both): where the pantry's people stand, and
-## where everyone walks along the entry band.
-var fixture_row := INF
-var walking_lane := INF
 ## Graph work done on this graph so far: every node a search expanded and every
 ## node a route was read along. OfficePresentation budgets its routing in it.
 var expanded := 0
@@ -203,13 +193,6 @@ static func leg_to_standing(approach: Vector2, spot: Vector2, near: bool) -> Pac
 	if near:
 		return _deduplicated([centre(cell_of(approach)), approach, Vector2(spot.x, approach.y), spot])
 	return _deduplicated([centre(cell_of(approach)), approach, Vector2(approach.x, spot.y), spot])
-
-
-## The leg up to a spot on the fixture row (a queue's slot or a pantry's
-## spot) from the approach straight below it on the walking lane, starting on
-## the approach's node.
-static func leg_to_fixture(approach: Vector2, spot: Vector2) -> PackedVector2Array:
-	return _deduplicated([centre(cell_of(approach)), approach, spot])
 
 
 ## Whether the segment from `from` to `to` stays out of every rectangle in
@@ -352,38 +335,6 @@ func to_door(cell: Vector2i, departure := -1) -> PackedVector2Array:
 	var result := _centres(_descend(_index(cell), departure, _door_dist, PackedInt32Array(), 0))
 	result.append(door)
 	return result
-
-
-## The route from the node of `cell` down the door's field to the walking
-## lane: node centres from the cell to the first node on the lane, which is
-## where every seat reaches the entry band (the lane's node under the
-## threshold, or the corridor's other lane beside it). A cell above the lane
-## (the threshold) steps down onto it. Empty when the door does not reach the
-## cell or the floor has no lane.
-func to_lane(cell: Vector2i) -> PackedVector2Array:
-	if not is_finite(walking_lane) or door_distance(cell) < 0:
-		return PackedVector2Array()
-	var route := _centres(_descend(_index(cell), -1, _door_dist, PackedInt32Array(), 0))
-	for index in route.size():
-		if route[index].y == walking_lane:
-			return route.slice(0, index + 1)
-	route.append(Vector2(route[route.size() - 1].x, walking_lane))
-	return route
-
-
-## The route from the walking lane to the node of `cell`, read off the door's
-## field: node centres from the first node on the lane to the cell (see
-## to_lane()). Empty when the door does not reach the cell, the floor has no
-## lane, or the way in does not cross it.
-func from_lane(cell: Vector2i) -> PackedVector2Array:
-	if not is_finite(walking_lane) or door_distance(cell) < 0:
-		return PackedVector2Array()
-	var back := _centres(_descend(_index(cell), -1, _door_dist, PackedInt32Array(), 0))
-	back.reverse()
-	for index in back.size():
-		if back[index].y == walking_lane:
-			return back.slice(index)
-	return PackedVector2Array()
 
 
 ## The shortest route to the node of `goal` from whichever of `ends` (nodes) is
@@ -529,16 +480,6 @@ func _build(plan: FloorPlan) -> void:
 			obstacle.entries.append_array(PackedVector2Array([door, threshold]))
 	if threshold_problem().is_empty():
 		_threshold_index = _index(cell_of(threshold))
-	if _banded(plan):
-		var band_top := float(plan.entry_cells.position.y * GRID)
-		fixture_row = band_top + OfficeShell.FIXTURE_ROW
-		walking_lane = band_top + OfficeShell.WALKING_LANE
-
-
-## Whether `plan` has the entry band's two walked rows: a map with desks whose
-## band holds the fixture row and the walking lane under the wall's clearance.
-static func _banded(plan: FloorPlan) -> bool:
-	return not plan.desks.is_empty() and plan.entry_cells.size.y * GRID >= OfficeShell.WALKING_LANE + GRID / 2.0
 
 
 ## Every obstacle of the plan, inflated: the outer walls but the cutaway front,
@@ -585,26 +526,10 @@ func _collect(plan: FloorPlan) -> void:
 	_collect_fixtures(plan)
 
 
-## The pantry's counter, inflated by the feet like any furniture, and on every
-## map with desks the fixture row from the left wall to the main corridor: a
-## band of node centres, not a body, so it is not inflated. Its entries are
-## the pantry spots' legs; with no pantry it has none.
+## The pantry's counter, inflated by the feet like any furniture.
 func _collect_fixtures(plan: FloorPlan) -> void:
 	for fixture in plan.fixtures():
 		_add(_inflate(fixture.footprint, footprint), Kind.FIXTURE)
-	if not _banded(plan):
-		return
-	var band_top := float(plan.entry_cells.position.y * GRID)
-	var left := float(plan.entry_cells.position.x * GRID)
-	var row := Rect2(
-		left, band_top + OfficeShell.FIXTURE_ROW - GRID / 2.0, plan.main_corridor_cells.position.x * GRID - left, GRID
-	)
-	var entries := PackedVector2Array()
-	for fixture in plan.fixtures():
-		for index in fixture.spots.size():
-			entries.append(fixture.approaches[index])
-			entries.append(fixture.spots[index])
-	_add(row, Kind.FIXTURE, "", entries)
 
 
 func _add(rect: Rect2, kind: Kind, tab_key := "", entries := PackedVector2Array()) -> void:

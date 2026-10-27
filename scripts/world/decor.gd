@@ -94,7 +94,7 @@ func _notification(what: int) -> void:
 ## What `id` stands on, in units, measured at its foot (its pack entry's `item`
 ## footprint, docs/ITEMS.md): the prefab's own geometry, the way the
 ## cross-section is the table's. The entry band's pantry counter stands on
-## its whole width, which the fixture planner lays its spots out from. Zero
+## its whole width, which the fixture planner fits into the band's bay. Zero
 ## for a piece that does not stand on the floor.
 static func footprint_of(art: ArtPack, id: StringName) -> Vector2:
 	var sprite := art.prop_sprite(id)

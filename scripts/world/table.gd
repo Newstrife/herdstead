@@ -8,13 +8,14 @@ extends StaticBody2D
 ## 0..width along it. The pod itself is not y-sorted: what stands on it is its
 ## children, drawn in tree order (supports, desktops, apron, grommets, task
 ## lights, far laptops, the far laptops' marks, the low screen, near laptops,
-## papers), so nothing on the pod needs a depth rule.
+## desk items), so nothing on the pod needs a depth rule.
 ##
-## Every seat gets its laptop, its grommet, its task lamp and its stack of
-## paper, and every far seat its laptop's mark, when the pod is built, and what
-## a seat carries afterwards is only which of them are shown, what the mark
-## shows and how hard the lamp burns: equip(), light() and show_papers() never
-## add or drop a node. Nothing else stands on a desk: the trinkets and the cat
+## Every seat gets its laptop, its grommet, its task lamp and its desk item
+## (one sprite: the paper while done, the mug while idle), and every far seat
+## its laptop's mark, when the pod is built, and what a seat carries afterwards
+## is only which of them are shown, what the mark and the item show and how
+## hard the lamp burns: equip(), light() and show_item() never add or drop a
+## node. Nothing else stands on a desk: the trinkets and the cat
 ## are on side tables (OfficeDecor), never on a pod.
 ##
 ## Every number about the pod's cross-section lives here and nowhere else.
@@ -103,7 +104,7 @@ const LAMP_STRONG := 1.4
 const CHAIR_OFFSET := {"far": -4, "near": 6}
 ## How far outside render_rect the pod's selection frame is drawn: its 2-unit
 ## bars then lie on [-92, -90) over the far rows, [32, 34) under the near ones
-## and one bar's width beside the end desks, clear of the last column's paper
+## and one bar's width beside the end desks, clear of the last column's item
 ## (to x = width) and of the near chip (to 32). An overlay, never planned
 ## around: it stays inside the passage cells between pods and the row's own band.
 const FRAME_OUTSIDE := 2.0
@@ -123,21 +124,28 @@ const NEAR_RESERVE := 64
 ## the near edge's whole drawing.
 const BRACKET_DROP := -11
 const SIDES := ["far", "near"]
-## A done seat's stack of paper (ArtContract.PROP_DONE_STACK_SMALL, 6 wide and
-## 9 tall, opaque x-3..x+3 about its foot) stands PAPERS_ASIDE right of the
-## seat column: opaque over x+10..x+16, clear of the laptop (x-7..x+7), of the
-## next column's worker (from x+24) and inside the desktop on the last column
-## (x+16 is the pod's right edge). Its foot is on its side's working plane:
-## PAPERS_FAR puts it at -42..-33 (far plane -48..-32), below the far edge the
-## far worker shows above; PAPERS_NEAR at -24..-15 (near plane -26..-8), beside
-## the near worker, who sits over that plane: a done agent's head is x-6..x+6
-## there and the shoulders (x-8..x+8) start below the paper, at -11. A blocked
-## agent's raised hand (x+7..x+12, pod -28..-11 on the near side) would cover
-## the paper's left 2 units, and never does: a seat shows the paper (done) or
-## the hand (blocked), never both (OfficeStation.furnish()).
-const PAPERS_ASIDE := 13
-const PAPERS_FAR := -33
-const PAPERS_NEAR := -15
+## A seat's desk item: the paper (done) or the mug (idle), one sprite, never
+## both (OfficeStation.desk_item()). The stack of paper
+## (ArtContract.PROP_DONE_STACK_SMALL, 6 wide and 9 tall, opaque x-3..x+3 about
+## its foot) stands ITEM_ASIDE right of the seat column: opaque over
+## x+10..x+16, clear of the laptop (x-7..x+7), of the next column's worker (from
+## x+24) and inside the desktop on the last column (x+16 is the pod's right
+## edge). The mug (ArtContract.PROP_IDLE_MUG, opaque x-3.5..x+3.5 and 6.5 tall
+## about its foot, its handle the right half unit) stands half a unit further
+## in, MUG_ASIDE: opaque over x+9..x+16, so it too ends at the last column's
+## edge and keeps 2 clear of the laptop. Its foot is on its side's working
+## plane: ITEM_FAR puts the paper at -42..-33 and the mug at -39.5..-33 (far
+## plane -48..-32), below the far edge the far worker shows above; ITEM_NEAR at
+## -24..-15 and -21.5..-15 (near plane -26..-8), beside the near worker, who
+## sits over that plane: a done or idle agent's head is x-6..x+6 there and the
+## shoulders (x-8..x+8) start below the item, at -11 (the idle sitter's
+## `desk_idle` frames cover none of the mug: tools/test_office_geometry.gd). A
+## blocked agent's raised hand (x+7..x+12, pod -28..-11 on the near side) would
+## cover the item's left part, and never does: a blocked seat shows none.
+const ITEM_ASIDE := 13.0
+const MUG_ASIDE := 12.5
+const ITEM_FAR := -33
+const ITEM_NEAR := -15
 
 var art: ArtPack
 var width := 0.0
@@ -156,6 +164,9 @@ var _shell_seats: Dictionary[String, bool] = {}
 ## The provider whose mark each far seat's laptop wears ("" for none), so a
 ## rebuilt seat (_sync_seat()) wears it again.
 var _providers: Dictionary[String, String] = {}
+## The desk item each seat shows (OfficeTable.show_item(); &"" for none), so a
+## rebuilt seat shows it again.
+var _items: Dictionary[String, StringName] = {}
 var _shadow_holder: Node2D
 
 
@@ -238,12 +249,13 @@ func setup(pack: ArtPack, table_width: float, seat_columns: Array) -> bool:
 		for side: String in SIDES:
 			retained[_seat_name(index, side)] = true
 			_sync_seat(index, side)
-	for holder: Node in [$Grommets, $TaskLights, $FarMonitors, $NearMonitors, $Marks, $Papers, $Seats, $Standing]:
+	for holder: Node in [$Grommets, $TaskLights, $FarMonitors, $NearMonitors, $Marks, $Items, $Seats, $Standing]:
 		for child in holder.get_children():
 			if not retained.has(String(child.name)):
 				_lamp_levels.erase(String(child.name))
 				_shell_seats.erase(String(child.name))
 				_providers.erase(String(child.name))
+				_items.erase(String(child.name))
 				holder.remove_child(child)
 				child.free()
 	var shape: CollisionShape2D = $Footprint
@@ -298,7 +310,7 @@ func _rebuild_modules() -> void:
 	for x in columns:
 		_module($Supports, &"bracket", Vector2(x - 6, BRACKET_DROP))
 	# The frame stands FRAME_OUTSIDE outside the stationary drawing, so its bars
-	# cover neither the end desks' paper nor the near chips.
+	# cover neither the end desks' items nor the near chips.
 	var frame := geometry.render_rect.grow(FRAME_OUTSIDE)
 	for bounds: Rect2 in [
 		Rect2(frame.position, Vector2(frame.size.x, 2)),
@@ -350,16 +362,11 @@ func _sync_seat(index: int, side: String) -> void:
 	var from_y := float(-SURFACE_DEPTH + SCREEN_TOP + (0 if is_far else SCREEN_HEIGHT))
 	var to_y := float(-SURFACE_DEPTH if is_far else NEAR_SURFACE_EDGE)
 	lamp.polygon = _lamp(x, from_y, to_y)
-	var stack := $Papers.get_node_or_null(NodePath(id)) as Sprite2D
-	var spec := art.prop_sprite(ArtContract.PROP_DONE_STACK_SMALL)
-	if stack == null:
-		stack = art.sprite(spec)
-		stack.name = id
-		stack.visible = false
-		$Papers.add_child(stack)
-	else:
-		art.dress(stack, art.sprite_texture(spec), spec.pivot)
-	stack.position = Vector2(x + PAPERS_ASIDE, PAPERS_FAR if is_far else PAPERS_NEAR)
+	if $Items.get_node_or_null(NodePath(id)) == null:
+		var held := Sprite2D.new()
+		held.name = id
+		$Items.add_child(held)
+	show_item(index, side, item_piece(index, side))
 	_sync_marker($Seats, id, geometry.seat_position(index, side))
 	_sync_marker($Standing, id, geometry.standing_position(index, side))
 	var shell: bool = _shell_seats.get(id, false)
@@ -445,15 +452,31 @@ func equip(column: int, side: String, has_pane: bool, shell := false, provider :
 	grommet.visible = has_pane
 
 
-## Show that seat's stack of paper, or hide it: herdr says its agent is done
-## and nobody has looked yet. Same rule as equip(): the stack is already there.
-func show_papers(column: int, side: String, shown: bool) -> void:
-	papers(column, side).visible = shown
+## Show `piece` beside that seat's laptop, or nothing for &"": the stack of
+## paper (ArtContract.PROP_DONE_STACK_SMALL, herdr says its agent is done and
+## nobody has looked yet) or the mug (ArtContract.PROP_IDLE_MUG, its agent is
+## idle). Same rule as equip(): the item's sprite is already there, this only
+## dresses it; a seat showing nothing holds no texture, as a rebuilt one.
+func show_item(column: int, side: String, piece: StringName) -> void:
+	var id := _seat_name(column, side)
+	var spec := art.prop_sprite(piece) if piece != &"" else null
+	_items[id] = piece if spec != null else &""
+	var shown := item(column, side)
+	art.dress(shown, art.sprite_texture(spec), spec.pivot if spec != null else Vector2.ZERO)
+	var x := columns[column] + (MUG_ASIDE if piece == ArtContract.PROP_IDLE_MUG else ITEM_ASIDE)
+	shown.position = Vector2(x, ITEM_FAR if side == "far" else ITEM_NEAR)
+	shown.visible = spec != null
 
 
-## The stack of paper on that seat's side of the table (shown or not).
-func papers(column: int, side: String) -> Sprite2D:
-	return $Papers.get_node(_seat_name(column, side))
+## The desk item on that seat's side of the table (shown or not).
+func item(column: int, side: String) -> Sprite2D:
+	return $Items.get_node(_seat_name(column, side))
+
+
+## The piece that seat's item shows (show_item()), &"" for none.
+func item_piece(column: int, side: String) -> StringName:
+	var piece: StringName = _items.get(_seat_name(column, side), &"")
+	return piece
 
 
 ## Burn that seat's task lamp at `level`. Same rule as equip(): the wedge is
@@ -603,7 +626,7 @@ func _lamp(x: float, from_y: float, to_y: float) -> PackedVector2Array:
 
 
 ## What every part of one seat is called inside the table: its marker, its
-## monitor, its grommet, its task lamp and its paper all answer to this.
+## monitor, its grommet, its task lamp and its desk item all answer to this.
 func _seat_name(column: int, side: String) -> String:
 	return "%s%d" % [side.capitalize(), column]
 

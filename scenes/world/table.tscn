@@ -24,7 +24,7 @@ script = ExtResource("1_table")
 
 [node name="NearMonitors" type="Node2D" parent="."]
 
-[node name="Papers" type="Node2D" parent="."]
+[node name="Items" type="Node2D" parent="."]
 
 [node name="Seats" type="Node2D" parent="."]
 

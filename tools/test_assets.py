@@ -879,9 +879,10 @@ class PixelSourceTests(unittest.TestCase):
             len(draw_pixel_sources.DESK_PIECES) + len(draw_pixel_sources.FIXTURE_SIZES)
             + len(draw_pixel_sources.DENSE_SIZES) + len(draw_pixel_sources.PARTITION_SIZES)
             + len(draw_pixel_sources.MARK_PROVIDERS) + 18,
-            "8 desk props, 2 fixture props, 2 density-2 pieces, 7 partition pieces, 23 provider marks (D3, 2026-10-27), "
-            "the pod family's 17 images, 1 manifest",
+            "8 desk props, 2 fixture props, 3 density-2 pieces (the idle mug: D2, 2026-10-27), 7 partition pieces, "
+            "23 provider marks (D3, 2026-10-27), the pod family's 17 images, 1 manifest",
         )
+        self.assertEqual(len(draw_pixel_sources.DENSE_SIZES), 3, "the paper stack, the idle mug and the seat mark")
         self.assertEqual(files, sorted(path.relative_to(second) for path in second.rglob("*") if path.is_file()))
         for relative in files:
             self.assertEqual((first / relative).read_bytes(), (second / relative).read_bytes(), relative)
@@ -1136,6 +1137,35 @@ class PixelSourceTests(unittest.TestCase):
             draw_pixel_sources.draw(ROOT / "art/daylight", occupied)
         self.assertEqual([path.name for path in occupied.iterdir()], ["artist.png"])
         self.assertEqual((occupied / "artist.png").read_bytes(), b"artist work")
+
+    def test_the_idle_mug_ships_as_drawn_and_is_the_desk_mugs_picture(self):
+        """D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
+
+        The mug beside an idle agent's laptop is a prop of its own (never in a
+        pool: a signal, as the paper stack is), drawn by the tool texel by
+        texel as the painted desk pool's mug, shipped exactly as drawn.
+        """
+        drawn = self.draw("drawn")
+        d = draw_pixel_sources.DENSE
+        with Image.open(drawn / "props/idle_mug.png") as mug, \
+                Image.open(ROOT / "art/daylight/props/idle_mug.png") as shipped, \
+                Image.open(ROOT / "art/daylight/props/desk_mug.png") as painted:
+            self.assertEqual(mug.size, (24 * d, 24 * d))
+            self.assertEqual(mug.convert("RGBA").tobytes(), shipped.convert("RGBA").tobytes(), "shipped as drawn")
+            self.assertEqual(mug.convert("RGBA").tobytes(), painted.convert("RGBA").tobytes(),
+                             "the painted desk mug's pixels, texel for texel")
+            alpha = mug.getchannel("A")
+            self.assertEqual({value for _, value in alpha.getcolors()}, {0, 255}, "hard alpha")
+            # 7 wide by 6.5 tall, x -3.5..3.5 and y -6.5..0 about the pivot [12, 22].
+            self.assertEqual(alpha.getbbox(), (17, 31, 31, 44))
+        manifest = json.loads((ROOT / "art/daylight/pack.json").read_text())
+        declared = manifest["props"]["idle_mug"]
+        self.assertEqual(declared, {"path": "props/idle_mug.png", "size": [24, 24], "pivot": [12, 22]},
+                         "its canvas and pivot, and no item block: never in a pool")
+        self.assertIn("item", manifest["props"]["desk_mug"], "the desk pool's mug stays furniture")
+        built = json.loads((ROOT / "assets/daylight/manifest.json").read_text())
+        self.assertIn("idle_mug", built["props"], "the built pack carries it")
+        self.assertTrue((ROOT / "assets/daylight/props/idle_mug.png").is_file(), "and its picture")
 
     def test_a_desk_piece_on_the_rows_the_table_keeps_free_is_refused(self):
         palette = draw_pixel_sources.palette_of(ROOT / "art/daylight/pack.json")

@@ -39,9 +39,10 @@ func _marker() -> String:
 	return "RECONCILE TESTS"
 
 
-## The stack of paper on `station`'s side of its table (a done agent's).
-static func _papers(station: OfficeStation) -> Sprite2D:
-	return station.table.papers(station.column, station.side)
+## Whether the stack of paper shows on `station`'s side of its table (a done agent's).
+static func _papers(station: OfficeStation) -> bool:
+	var item := station.table.item(station.column, station.side)
+	return item.visible and station.table.item_piece(station.column, station.side) == ArtContract.PROP_DONE_STACK_SMALL
 
 
 ## bee's connection drops, as _set_online(office, false) drops Local's; a
@@ -505,12 +506,18 @@ func test_the_gap_between_the_card_and_next_takes_no_click() -> void:
 	var hole := gap.get_global_rect()
 	var seen: OfficeStation = null
 	var at := Vector2.ZERO
+	# D2 (2026-10-27): the band is two cells (SEATED-Q2): the desks stand 32
+	# higher, and the near row's centres (372 at no pan) come to just above the
+	# gap (374..450), so the click goes where a seat's own rectangle shows
+	# through the gap, not only at its centre.
 	for down: float in [0.0, 48.0, 96.0, 144.0, 192.0]:
 		office.camera.pan = Vector2(0.0, down)
 		await _frames(2)
 		for station in _seats(office):
-			var point := station.target_rect().get_center() - office.camera.position
-			if hole.has_point(point) and station.pane_key != office.picked_key:
+			var seat := station.target_rect()
+			var through := Rect2(seat.position - office.camera.position, seat.size).intersection(hole)
+			var point := through.get_center()
+			if through.has_area() and station.pane_key != office.picked_key:
 				seen = station
 				at = point
 				break
@@ -682,7 +689,7 @@ func _check_last_valid_people(office: OfficeScene, signature: String) -> void:
 	_check(first != null and first.actor() != null, "last-valid worker is reconstructed")
 	if first != null and first.actor() != null:
 		_eq(first.actor().provider, "claude", "invalid input cannot change the last-valid provider")
-		_check(not _papers(first).visible, "invalid done state cannot put paper on the last-valid desk")
+		_check(not _papers(first), "invalid done state cannot put paper on the last-valid desk")
 		var badge: StatusBadge = first.get_node("Overlay/Badge")
 		_eq(badge.state, ArtContract.STATE_WORKING, "last-valid badge agrees with last-valid worker")
 	var texts := PackedStringArray()
@@ -745,12 +752,12 @@ func test_invalid_input_keeps_last_valid_people_across_theme_and_floor_changes()
 	_feed(office, _with(fixture, "api:p1", {"agent": "codex", "agent_status": "done"}))
 	_check(office.layout_problems().is_empty(), "corrected input clears the diagnostic")
 	_eq(_seat_node(office, "api:p1").actor().provider, "codex", "valid recovery applies the newer provider")
-	_check(_papers(_seat_node(office, "api:p1")).visible, "valid recovery applies the newer paper")
+	_check(_papers(_seat_node(office, "api:p1")), "valid recovery applies the newer paper")
 	_eq(office.layout_attempt_count(), attempts + 1, "corrected geometry is attempted once")
 	_feed(office, _with(fixture, "api:p1", {"agent": "codex", "agent_status": "working"}))
 	_eq(office.layout_attempt_count(), attempts + 1, "valid status changes still hit the successful cache")
 	office.rebuild_world()
-	_check(not _papers(_seat_node(office, "api:p1")).visible, "successful cache hits update the retained display model")
+	_check(not _papers(_seat_node(office, "api:p1")), "successful cache hits update the retained display model")
 	_done(office)
 
 

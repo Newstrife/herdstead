@@ -1068,7 +1068,7 @@ func _in_world(bounds: Rect2) -> Rect2:
 
 
 ## Give every pane of the frame when its state began (PaneModel.state_since),
-## seated or not: it orders the pantry and the `N` key (OfficeNavigator.waiting(),
+## seated or not: it orders the `N` key (OfficeNavigator.waiting(),
 ## which ranks the panes no zone seats as it ranks the seated), and the
 ## terminal monitor's title reads it from frame.pane(). A live machine's come
 ## from the fleet, and are kept; a stale machine's are the ones kept from when

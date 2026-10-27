@@ -230,11 +230,12 @@ func test_zones_take_the_top_most_left_most_fit_in_lanes() -> void:
 		["machine/1", "machine/2", "machine/3", "machine/4"],
 		"in order"
 	)
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
 	var expected := {
-		"machine/1": Rect2i(1, 6, 9, 2 * pod),
-		"machine/2": Rect2i(11, 6, 4, pod),
-		"machine/3": Rect2i(16, 6, 4, pod),
-		"machine/4": Rect2i(11, 7 + pod, 4, pod),
+		"machine/1": Rect2i(1, 5, 9, 2 * pod),
+		"machine/2": Rect2i(11, 5, 4, pod),
+		"machine/3": Rect2i(16, 5, 4, pod),
+		"machine/4": Rect2i(11, 6 + pod, 4, pod),
 	}
 	var lanes := {"machine/1": [0, 2], "machine/2": [2, 1], "machine/3": [3, 1], "machine/4": [2, 1]}
 	for zone in plan.zones:
@@ -245,7 +246,7 @@ func test_zones_take_the_top_most_left_most_fit_in_lanes() -> void:
 			zone.zone_key + ": its slot is its aisle row and it"
 		)
 		_eq([zone.first_lane, zone.lanes], lanes[zone.zone_key], zone.zone_key + ": its lanes")
-	_eq(plan.floor_cells.size.y, 7 + 2 * pod, "as deep as the lowest slot")
+	_eq(plan.floor_cells.size.y, 6 + 2 * pod, "as deep as the lowest slot")
 	for index in plan.zones.size():
 		for later in range(index + 1, plan.zones.size()):
 			_check(not plan.zones[index].slot().intersects(plan.zones[later].slot()), "slots never overlap")
@@ -270,12 +271,13 @@ func test_the_fixture_floors_map_stands_four_zones_abreast() -> void:
 	_eq(cache.problems(), PackedStringArray(), "the fixture's map is planned")
 	if plan == null:
 		return
-	_eq([plan.lanes, plan.floor_cells.size], [4, Vector2i(23, 19)], "four lanes (23 cells), 19 cells deep")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_eq([plan.lanes, plan.floor_cells.size], [4, Vector2i(23, 18)], "four lanes (23 cells), 18 cells deep")
 	var pod := OfficeZoneLayout.pod_row_cells()
-	var row_two := 7 + pod
+	var row_two := 6 + pod
 	var expected: Dictionary[String, Array] = {
-		"api": [0, 2, Rect2i(1, 6, 9, pod)],
-		"web": [2, 2, Rect2i(11, 6, 9, pod)],
+		"api": [0, 2, Rect2i(1, 5, 9, pod)],
+		"web": [2, 2, Rect2i(11, 5, 9, pod)],
 		"infra": [0, 2, Rect2i(1, row_two, 9, pod)],
 		"notes": [2, 1, Rect2i(11, row_two, 4, pod)],
 		"data": [3, 1, Rect2i(16, row_two, 4, pod)],
@@ -343,7 +345,8 @@ func test_the_map_keeps_its_extents_when_its_last_zone_goes() -> void:
 	var back: Array[ZoneModel] = [_zoned("machine/9", 9, [_room("z", 2)])]
 	var small := _map_plan(back, empty)
 	_eq(small.floor_cells, first.floor_cells, "a smaller zone comes back: the map stays")
-	_eq(small.zone("machine/9").cells.position, Vector2i(1, 6), "at the top-left")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_eq(small.zone("machine/9").cells.position, Vector2i(1, 5), "at the top-left")
 
 
 ## A zone that grows taller grows down in place while the rows below it are
@@ -423,7 +426,8 @@ func test_a_pod_that_needs_more_lanes_widens_the_map_first() -> void:
 	_eq(first.zone("machine/1").lanes, 2, "8 panes (4 columns, 5 cells) took two lanes")
 	_eq([width, lanes], [25, 6], "48 panes: 24 columns, 25 cells, six lanes")
 	_eq([first.lanes, grown.lanes], [4, 6], "the map widened from four lanes to six")
-	_eq(first.zone("machine/2").cells.position, Vector2i(1, 13), "the other zone stands under it")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_eq(first.zone("machine/2").cells.position, Vector2i(1, 12), "the other zone stands under it")
 	_eq(grown.zone("machine/1").lanes, lanes, "the zone spans them")
 	_eq(grown.lanes, lanes, "the map widened to them first")
 	_eq(grown.floor_cells.size.x - first.floor_cells.size.x, 5 * (lanes - first.lanes), "by five cells a lane")
@@ -489,9 +493,10 @@ func test_a_mezzanine_lands_below_its_source_once_and_grouping_moves_nothing() -
 	if first == null or fitted == null or below == null:
 		return
 	var source := first.zone("machine/1")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
 	_eq(
 		fitted.zone("machine/9").cells.position,
-		Vector2i(16, 6),
+		Vector2i(16, 5),
 		"a plain zone takes the first fit, beside 2 at the top"
 	)
 	_eq(
@@ -540,14 +545,15 @@ func test_a_mezzanine_hint_steers_only_its_first_placement() -> void:
 	if first == null or opened == null or moved == null:
 		return
 	var pod := OfficeZoneLayout.pod_row_cells()
-	_eq(first.zone("machine/9").cells.position, Vector2i(1, 6), "no source open: the first fit, lane 0 at the top")
-	_eq(first.zone("machine/11").cells.position, Vector2i(1, 7 + pod), "B under it")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_eq(first.zone("machine/9").cells.position, Vector2i(1, 5), "no source open: the first fit, lane 0 at the top")
+	_eq(first.zone("machine/11").cells.position, Vector2i(1, 6 + pod), "B under it")
 	var source := opened.zone("machine/1")
-	_eq(source.cells.position, Vector2i(16, 6), "the source opens as any new zone does: lane 3, at the top")
+	_eq(source.cells.position, Vector2i(16, 5), "the source opens as any new zone does: lane 3, at the top")
 	_eq(opened.zone("machine/9").cells, first.zone("machine/9").cells, "the mezzanine stays where it is")
 	var zone := moved.zone("machine/9")
 	_eq(zone.cells.size.y, 2 * pod, "grown to two pod rows, it had to move")
-	_eq(zone.cells.position, Vector2i(11, 7 + pod), "to the first fit, lane 2 under A")
+	_eq(zone.cells.position, Vector2i(11, 6 + pod), "to the first fit, lane 2 under A")
 	_check(zone.slot().position != Vector2i(source.cells.position.x, source.cells.end.y), "not below its source")
 
 
@@ -874,7 +880,8 @@ func test_lane_gap_pieces_keep_their_keys_when_another_zone_grows() -> void:
 		)
 		. plan
 	)
-	_check(first != null and first.zone("machine/2").cells == Rect2i(6, 6, 9, 18), "zone 2 grew three rows deep")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_check(first != null and first.zone("machine/2").cells == Rect2i(6, 5, 9, 18), "zone 2 grew three rows deep")
 	zones[1].rooms.append(_room("e", ROW, 3))
 	var retained := (
 		OfficeFloorLayout
@@ -1040,8 +1047,8 @@ func test_a_taller_line_stays_on_the_zone_signs_board() -> void:
 ## moved (codex's review of ba943f9, P1): in one refresh the blocker left of A
 ## (one ROW pod, two lanes) goes, A grows 2 → 20 panes (three lanes) and B under
 ## both grows 20 → 48 (six lanes). Widened zone by zone, A was judged against
-## the four-lane map and moved to (1, 6) although its own place fits the
-## six-lane map B brings; widened first, A grows right in place at (11, 6) and
+## the four-lane map and moved to (1, 5) although its own place fits the
+## six-lane map B brings; widened first, A grows right in place at (11, 5) and
 ## B grows in place under it.
 ## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
 func test_the_map_widens_for_every_zone_before_any_zone_is_moved() -> void:
@@ -1055,7 +1062,7 @@ func test_the_map_widens_for_every_zone_before_any_zone_is_moved() -> void:
 		return
 	_eq(
 		[first.zone("machine/0").cells, first.zone("machine/a").cells, first.zone("machine/b").cells],
-		[Rect2i(1, 6, 9, 6), Rect2i(11, 6, 4, 6), Rect2i(1, 13, 14, 6)],
+		[Rect2i(1, 5, 9, 6), Rect2i(11, 5, 4, 6), Rect2i(1, 12, 14, 6)],
 		"the blocker and A side by side, B of three lanes under both"
 	)
 	var signature := first.geometry_signature()
@@ -1065,8 +1072,9 @@ func test_the_map_widens_for_every_zone_before_any_zone_is_moved() -> void:
 		return
 	_eq(first.geometry_signature(), signature, "the previous map is unchanged")
 	_eq(grown.lanes, 6, "the map widened to B's six lanes")
-	_eq(grown.zone("machine/a").cells, Rect2i(11, 6, 14, 6), "A grew right in place, from (11, 6), over three lanes")
-	_eq(grown.zone("machine/b").cells, Rect2i(1, 13, 29, 6), "B grew right in place under it, over six")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_eq(grown.zone("machine/a").cells, Rect2i(11, 5, 14, 6), "A grew right in place, from (11, 5), over three lanes")
+	_eq(grown.zone("machine/b").cells, Rect2i(1, 12, 29, 6), "B grew right in place under it, over six")
 
 
 ## Empty workspaces are bounded work (codex's review of ba943f9, P2): each is a
@@ -1138,7 +1146,8 @@ func test_a_lane_gap_stands_both_plants_between_its_side_tables() -> void:
 		)
 		. plan
 	)
-	_check(plan != null and plan.zone("machine/1").cells == Rect2i(1, 6, 14, 18), "zone 1 grew three rows deep")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to; the band is two cells (SEATED-Q2): zones start at row 5.
+	_check(plan != null and plan.zone("machine/1").cells == Rect2i(1, 5, 14, 18), "zone 1 grew three rows deep")
 	if plan == null:
 		return
 	var gaps := OfficeDecorPlanner.lane_gaps(plan, _real_rules(25))

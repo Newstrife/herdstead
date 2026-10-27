@@ -112,8 +112,10 @@ func test_holding_l_adds_the_wait_line_and_letting_go_restores_everything() -> v
 	# infra's three and data's two, every zone being drawn now.
 	_eq(agents, 10, "every agent of the map says how long")
 	_eq(_signals(office), signals, "the plates' words and the badges are as they were")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to:
+	# every plate shows at its desk under the lens, api:p2's (idle) too.
 	for station in _seats(office):
-		_eq(_plate(station).visible, not station.away(), "held, the plate shows at the desk: " + station.pane_key)
+		_check(_plate(station).visible, "held, the plate shows at the desk: " + station.pane_key)
 	_eq(office.hud.bar.theme_line(), "LENS · hold L", "the top bar says the lens is on")
 	await _let_go()
 	_check(not office.lens.held, "let go: no lens")
@@ -493,8 +495,7 @@ func test_a_stale_floor_says_no_wait_and_washes_slate() -> void:
 	_check(office.lens.held, "the lens is held over a dropped floor too")
 	for station in _seats(office):
 		_check(not _lens(station).visible, "no wait on a dropped floor: " + station.pane_key)
-		if not station.away():
-			_check(_plate(station).visible, "its plate is still there: " + station.pane_key)
+		_check(_plate(station).visible, "its plate is still there: " + station.pane_key)
 	for tab: String in office.floor_view.desks:
 		_eq(_wash_tone(office, tab), ArtContract.SLATE, "every rug slate: " + tab)
 	await _let_go()
@@ -542,25 +543,30 @@ func test_the_lens_ticks_with_the_top_bar_and_not_at_all_released() -> void:
 	_done(office)
 
 
-## An idle agent rests in the pantry: the line hangs over them there, centred
-## on them and above their badge, not at the empty seat.
-func test_a_pantry_worker_gets_the_line_over_them() -> void:
+## An idle agent sits at their seat: the line is on that seat's lens row,
+## centred on the seat's column and above its badge, as anyone's. D2
+## (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to (the
+## line hung over them in the pantry, away from the empty seat).
+func test_an_idle_worker_gets_the_line_at_the_seat() -> void:
 	var office := await _live_office()
 	office.settle()
 	await _frames(2)
 	var station := _station(office, _pk("api:p2"))
-	_eq(station.rest, OfficeRests.Rest.PANTRY, "api:p2 idles in the pantry")
+	_eq(office.frame.pane(_pk("api:p2")).state, "idle", "api:p2 idles")
+	_eq(station.actor().position, Vector2.ZERO, "at its seat")
 	await _hold()
 	var line := _lens(station)
-	_check(line.visible, "the pantry worker has a line")
+	_check(line.visible, "the idle worker has a line")
 	_check(not line.text.is_empty(), "saying how long: " + line.text)
+	_eq(line.position, OfficeStation.LENS_AT[station.side], "on the seat's lens row")
 	var drawn := _line_text(line)
-	var worker := station.global_position + station.away_at
-	_eq(drawn.get_center().x, worker.x, "centred over them")
+	_check(absf(drawn.get_center().x - station.global_position.x) <= 1.0, "centred on the seat's column")
 	var badge: Sprite2D = station.get_node("Overlay/Badge")
 	var mark := badge.global_transform * badge.get_rect()
-	_check(drawn.end.y <= mark.position.y, "above their badge: %s over %s" % [drawn, mark])
-	_check(absf(drawn.get_center().x - station.global_position.x) > 1.0, "not at the empty seat")
+	if station.side == "far":
+		_check(drawn.end.y <= mark.position.y, "above its badge: %s over %s" % [drawn, mark])
+	else:
+		_check(drawn.position.y >= mark.end.y, "below its badge: %s under %s" % [drawn, mark])
 	await _let_go()
 	_done(office)
 

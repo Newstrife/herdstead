@@ -23,7 +23,8 @@ extends SceneTree
 ##                 minimized for 2 s. From 80 at work: `blocked40`:
 ##                 40 go blocked at once (all raise a hand at their
 ##                 desks under 40 chips; nobody walks); `idle40`: 40 go idle
-##                 at once (to the pantry); `approve`: once those 40 are
+##                 at once (each sits with a mug; nobody walks: D2,
+##                 2026-10-27); `approve`: once those 40 are
 ##                 blocked, one of them is answered every APPROVE_EVERY
 ##                 seconds, 8 times (a chip goes each time); `queuegrow`: 40
 ##                 go blocked, and 1.5 s later tab 0 grows by 12 under them.

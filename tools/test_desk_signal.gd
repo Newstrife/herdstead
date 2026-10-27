@@ -16,6 +16,9 @@ extends "res://tools/office_test_base.gd"
 ## in the second row) and the one-lane zones' widths moved.
 ## When a desk's rows (OfficeStation), a pod's measure or the map's plan change
 ## on purpose, these numbers change with them: a failure prints the new one.
+## D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to;
+## the band is two cells (SEATED-Q2): every y is 32 less, x unchanged, and the
+## two idle workers (api:p2, infra:p3) answer at their own seats.
 
 ## Where the bare world stands, as the HUD's free corner would put it, and the
 ## floor's root in it, as the office puts it under the plate.
@@ -29,17 +32,18 @@ const PLAN_WIDTH := 800.0
 const VIEW := Vector2(512, 308)
 
 ## What each pane of the fixture is, so a changed fixture says so first:
-## its seat's side, its state as the map draws it, and where it rests.
+## its seat's side, its state as the map draws it, where its worker is (every
+## one at the seat: D2, 2026-10-27) and what the desk shows beside the laptop.
 const SEATED: Dictionary[String, String] = {
 	"api:p1": "far working seat",
-	"api:p2": "far idle pantry",
+	"api:p2": "far idle seat mug",
 	"api:p3": "near shell seat",
 	"api:p4": "far working seat",
 	"data:p1": "far working seat",
 	"data:p2": "near working seat",
 	"infra:p1": "far blocked seat chip",
-	"infra:p2": "far done seat",
-	"infra:p3": "near idle pantry",
+	"infra:p2": "far done seat paper",
+	"infra:p3": "near idle seat mug",
 	"notes:p1": "far shell seat",
 	"web:p1": "far blocked seat chip",
 	"web:p2": "near blocked seat chip",
@@ -47,153 +51,137 @@ const SEATED: Dictionary[String, String] = {
 }
 ## signal_extent(): the click area and, while it shows, the chip.
 const EXTENT: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(65, 230, 30, 58),
-	"api:p2": Rect2(277, 58, 38, 56),
-	"api:p3": Rect2(97, 296, 30, 56),
-	"api:p4": Rect2(161, 230, 30, 58),
-	"data:p1": Rect2(545, 454, 30, 58),
-	"data:p2": Rect2(545, 520, 30, 56),
-	"infra:p1": Rect2(65, 456, 30, 56),
-	"infra:p2": Rect2(161, 454, 30, 58),
-	"infra:p3": Rect2(421, 58, 38, 56),
-	"notes:p1": Rect2(385, 454, 30, 58),
-	"web:p1": Rect2(385, 232, 30, 56),
-	"web:p2": Rect2(385, 296, 30, 56),
-	"web:p3": Rect2(481, 230, 30, 58),
+	"api:p1": Rect2(65, 198, 30, 58),
+	"api:p2": Rect2(97, 198, 30, 58),
+	"api:p3": Rect2(97, 264, 30, 56),
+	"api:p4": Rect2(161, 198, 30, 58),
+	"data:p1": Rect2(545, 422, 30, 58),
+	"data:p2": Rect2(545, 488, 30, 56),
+	"infra:p1": Rect2(65, 424, 30, 56),
+	"infra:p2": Rect2(161, 422, 30, 58),
+	"infra:p3": Rect2(161, 488, 30, 56),
+	"notes:p1": Rect2(385, 422, 30, 58),
+	"web:p1": Rect2(385, 200, 30, 56),
+	"web:p2": Rect2(385, 264, 30, 56),
+	"web:p3": Rect2(481, 198, 30, 58),
 }
 ## arrow_target(): the chip alone while it shows, else the click area.
 const TARGET: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(65, 230, 30, 58),
-	"api:p2": Rect2(277, 58, 38, 56),
-	"api:p3": Rect2(97, 296, 30, 56),
-	"api:p4": Rect2(161, 230, 30, 58),
-	"data:p1": Rect2(545, 454, 30, 58),
-	"data:p2": Rect2(545, 520, 30, 56),
-	"infra:p1": Rect2(65, 456, 30, 16),
-	"infra:p2": Rect2(161, 454, 30, 58),
-	"infra:p3": Rect2(421, 58, 38, 56),
-	"notes:p1": Rect2(385, 454, 30, 58),
-	"web:p1": Rect2(385, 232, 30, 16),
-	"web:p2": Rect2(385, 336, 30, 16),
-	"web:p3": Rect2(481, 230, 30, 58),
+	"api:p1": Rect2(65, 198, 30, 58),
+	"api:p2": Rect2(97, 198, 30, 58),
+	"api:p3": Rect2(97, 264, 30, 56),
+	"api:p4": Rect2(161, 198, 30, 58),
+	"data:p1": Rect2(545, 422, 30, 58),
+	"data:p2": Rect2(545, 488, 30, 56),
+	"infra:p1": Rect2(65, 424, 30, 16),
+	"infra:p2": Rect2(161, 422, 30, 58),
+	"infra:p3": Rect2(161, 488, 30, 56),
+	"notes:p1": Rect2(385, 422, 30, 58),
+	"web:p1": Rect2(385, 200, 30, 16),
+	"web:p2": Rect2(385, 304, 30, 16),
+	"web:p3": Rect2(481, 198, 30, 58),
 }
 ## pod_extent(): the whole pod the desk stands at.
 const POD: Dictionary[String, Rect2] = {
-	"api:p1": Rect2(64, 230, 64, 122),
-	"api:p2": Rect2(64, 230, 64, 122),
-	"api:p3": Rect2(64, 230, 64, 122),
-	"api:p4": Rect2(160, 230, 64, 122),
-	"data:p1": Rect2(544, 454, 64, 122),
-	"data:p2": Rect2(544, 454, 64, 122),
-	"infra:p1": Rect2(64, 454, 64, 122),
-	"infra:p2": Rect2(160, 454, 64, 122),
-	"infra:p3": Rect2(160, 454, 64, 122),
-	"notes:p1": Rect2(384, 454, 64, 122),
-	"web:p1": Rect2(384, 230, 64, 122),
-	"web:p2": Rect2(384, 230, 64, 122),
-	"web:p3": Rect2(480, 230, 64, 122),
+	"api:p1": Rect2(64, 198, 64, 122),
+	"api:p2": Rect2(64, 198, 64, 122),
+	"api:p3": Rect2(64, 198, 64, 122),
+	"api:p4": Rect2(160, 198, 64, 122),
+	"data:p1": Rect2(544, 422, 64, 122),
+	"data:p2": Rect2(544, 422, 64, 122),
+	"infra:p1": Rect2(64, 422, 64, 122),
+	"infra:p2": Rect2(160, 422, 64, 122),
+	"infra:p3": Rect2(160, 422, 64, 122),
+	"notes:p1": Rect2(384, 422, 64, 122),
+	"web:p1": Rect2(384, 198, 64, 122),
+	"web:p2": Rect2(384, 198, 64, 122),
+	"web:p3": Rect2(480, 198, 64, 122),
 }
 ## zone_opening(): as wide as the zone's cells, from its sign's top to the
 ## bottom of its cells.
 const OPENING: Dictionary[String, Rect2] = {
-	"api": Rect2(32, 174, 288, 210),
-	"web": Rect2(352, 174, 288, 210),
-	"infra": Rect2(32, 398, 288, 210),
-	"notes": Rect2(352, 398, 128, 210),
-	"data": Rect2(512, 398, 128, 210),
+	"api": Rect2(32, 142, 288, 210),
+	"web": Rect2(352, 142, 288, 210),
+	"infra": Rect2(32, 366, 288, 210),
+	"notes": Rect2(352, 366, 128, 210),
+	"data": Rect2(512, 366, 128, 210),
 }
 ## Where 6413cec's reveal(key) and reveal(key, true) left the pan of a VIEW-sized
 ## view of this floor, in the world's coordinates, from each of FROM.
 const FROM: Array[Vector2] = [Vector2(0, 0), Vector2(400, 600), Vector2(137.5, 211.25)]
 const REVEALED: Dictionary[String, Array] = {
-	"api:p1":
-	[Vector2(0, 12), Vector2(0, 76), Vector2(65, 230), Vector2(64, 230), Vector2(65, 211.25), Vector2(64, 211.25)],
-	"api:p2":
-	[Vector2(0, 0), Vector2(0, 0), Vector2(277, 58), Vector2(277, 58), Vector2(137.5, 58), Vector2(137.5, 58)],
+	"api:p1": [Vector2(0, 0), Vector2(0, 44), Vector2(65, 198), Vector2(64, 198), Vector2(65, 198), Vector2(64, 198)],
+	"api:p2": [Vector2(0, 0), Vector2(0, 44), Vector2(97, 198), Vector2(64, 198), Vector2(97, 198), Vector2(64, 198)],
 	"api:p3":
-	[Vector2(0, 76), Vector2(0, 76), Vector2(97, 296), Vector2(64, 230), Vector2(97, 211.25), Vector2(64, 211.25)],
+	[Vector2(0, 44), Vector2(0, 44), Vector2(97, 264), Vector2(64, 198), Vector2(97, 211.25), Vector2(64, 198)],
 	"api:p4":
-	[
-		Vector2(0, 12),
-		Vector2(0, 76),
-		Vector2(161, 230),
-		Vector2(160, 230),
-		Vector2(137.5, 211.25),
-		Vector2(137.5, 211.25)
-	],
+	[Vector2(0, 0), Vector2(0, 44), Vector2(161, 198), Vector2(160, 198), Vector2(137.5, 198), Vector2(137.5, 198)],
 	"data:p1":
 	[
-		Vector2(63, 236),
-		Vector2(96, 300),
-		Vector2(400, 454),
-		Vector2(400, 454),
-		Vector2(137.5, 236),
-		Vector2(137.5, 300)
+		Vector2(63, 204),
+		Vector2(96, 268),
+		Vector2(400, 422),
+		Vector2(400, 422),
+		Vector2(137.5, 211.25),
+		Vector2(137.5, 268)
 	],
 	"data:p2":
 	[
-		Vector2(63, 300),
-		Vector2(96, 300),
-		Vector2(400, 520),
-		Vector2(400, 454),
-		Vector2(137.5, 300),
-		Vector2(137.5, 300)
+		Vector2(63, 268),
+		Vector2(96, 268),
+		Vector2(400, 488),
+		Vector2(400, 422),
+		Vector2(137.5, 268),
+		Vector2(137.5, 268)
 	],
 	"infra:p1":
-	[Vector2(0, 236), Vector2(0, 300), Vector2(65, 456), Vector2(64, 454), Vector2(65, 236), Vector2(64, 300)],
+	[Vector2(0, 204), Vector2(0, 268), Vector2(65, 424), Vector2(64, 422), Vector2(65, 211.25), Vector2(64, 268)],
 	"infra:p2":
-	[Vector2(0, 236), Vector2(0, 300), Vector2(161, 454), Vector2(160, 454), Vector2(137.5, 236), Vector2(137.5, 300)],
+	[
+		Vector2(0, 204),
+		Vector2(0, 268),
+		Vector2(161, 422),
+		Vector2(160, 422),
+		Vector2(137.5, 211.25),
+		Vector2(137.5, 268)
+	],
 	"infra:p3":
-	[Vector2(0, 0), Vector2(0, 0), Vector2(400, 58), Vector2(400, 58), Vector2(137.5, 58), Vector2(137.5, 58)],
+	[Vector2(0, 268), Vector2(0, 268), Vector2(161, 488), Vector2(160, 422), Vector2(137.5, 268), Vector2(137.5, 268)],
 	"notes:p1":
-	[Vector2(0, 236), Vector2(0, 300), Vector2(385, 454), Vector2(384, 454), Vector2(137.5, 236), Vector2(137.5, 300)],
+	[
+		Vector2(0, 204),
+		Vector2(0, 268),
+		Vector2(385, 422),
+		Vector2(384, 422),
+		Vector2(137.5, 211.25),
+		Vector2(137.5, 268)
+	],
 	"web:p1":
-	[
-		Vector2(0, 12),
-		Vector2(0, 76),
-		Vector2(385, 232),
-		Vector2(384, 230),
-		Vector2(137.5, 211.25),
-		Vector2(137.5, 211.25)
-	],
+	[Vector2(0, 0), Vector2(0, 44), Vector2(385, 200), Vector2(384, 198), Vector2(137.5, 200), Vector2(137.5, 198)],
 	"web:p2":
-	[
-		Vector2(0, 76),
-		Vector2(0, 76),
-		Vector2(385, 296),
-		Vector2(384, 230),
-		Vector2(137.5, 211.25),
-		Vector2(137.5, 211.25)
-	],
+	[Vector2(0, 44), Vector2(0, 44), Vector2(385, 264), Vector2(384, 198), Vector2(137.5, 211.25), Vector2(137.5, 198)],
 	"web:p3":
-	[
-		Vector2(0, 12),
-		Vector2(32, 76),
-		Vector2(400, 230),
-		Vector2(400, 230),
-		Vector2(137.5, 211.25),
-		Vector2(137.5, 211.25)
-	],
+	[Vector2(0, 0), Vector2(32, 44), Vector2(400, 198), Vector2(400, 198), Vector2(137.5, 198), Vector2(137.5, 198)],
 }
 ## Where 6413cec's reveal_zone(zone) left that pan, from each of FROM: the
 ## zones are 288 or 128 wide (Z1), narrower than VIEW.
 const OPENED: Dictionary[String, Array] = {
-	"api": [Vector2(0, 206), Vector2(32, 206), Vector2(32, 206)],
-	"web": [Vector2(128, 206), Vector2(352, 206), Vector2(137.5, 206)],
-	"infra": [Vector2(0, 430), Vector2(32, 430), Vector2(32, 430)],
-	"notes": [Vector2(0, 430), Vector2(352, 430), Vector2(137.5, 430)],
-	"data": [Vector2(128, 430), Vector2(400, 430), Vector2(137.5, 430)],
+	"api": [Vector2(0, 174), Vector2(32, 174), Vector2(32, 174)],
+	"web": [Vector2(128, 174), Vector2(352, 174), Vector2(137.5, 174)],
+	"infra": [Vector2(0, 398), Vector2(32, 398), Vector2(32, 398)],
+	"notes": [Vector2(0, 398), Vector2(352, 398), Vector2(137.5, 398)],
+	"data": [Vector2(128, 398), Vector2(400, 398), Vector2(137.5, 398)],
 }
 ## And of a view NARROW wide, narrower than a zone: its left edge, whatever the pan was.
 ## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
 ## The narrowest zone is one lane, 128 units, so the view is 96 wide (160 before).
 const NARROW := Vector2(96, 120)
 const OPENED_NARROW: Dictionary[String, Vector2] = {
-	"api": Vector2(32, 206),
-	"web": Vector2(352, 206),
-	"infra": Vector2(32, 430),
-	"notes": Vector2(352, 430),
-	"data": Vector2(512, 430),
+	"api": Vector2(32, 174),
+	"web": Vector2(352, 174),
+	"infra": Vector2(32, 398),
+	"notes": Vector2(352, 398),
+	"data": Vector2(512, 398),
 }
 
 var art: ArtPack
@@ -211,7 +199,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	var fixture_file: Dictionary = parsed
-	# Both seat sides in every rest (SEATED): web:p2 (near) asks beside web:p1
+	# Both seat sides in every state (SEATED): web:p2 (near) asks beside web:p1
 	# (far), data:p2 (near) works.
 	fixture = _dict(fixture_file, "snapshot")
 	fixture = _with(_with(fixture, "web:p2", {"agent_status": "blocked"}), "data:p2", {"agent_status": "working"})
@@ -244,7 +232,7 @@ func _pk(pane_id: String) -> String:
 
 ## The fixture's map on a bare floor view: a world node at `origin` in the
 ## tree, the floor's root under it at UNDER_PLATE, every desk furnished and
-## every worker where they rest.
+## every worker in their seat.
 func _floor_view(origin := ORIGIN) -> OfficeFloorView:
 	var machines: Array[MachineView] = [MachineView.new(LOCAL, "LOCAL", HerdrSnapshot.from_wire(fixture), false)]
 	frame = OfficeProjection.frame(machines, art.state_names())
@@ -271,7 +259,13 @@ func _seated(view: OfficeFloorView, pane_id: String) -> String:
 	var station := view.seat(_pk(pane_id)).node
 	var pane := frame.pane(_pk(pane_id))
 	var words := PackedStringArray([station.side, "shell" if pane.provider.is_empty() else pane.state])
-	words.append("pantry" if station.away() else "seat")
+	var worker := station.actor()
+	words.append("seat" if worker == null or worker.position == Vector2.ZERO else "away")
+	var item := station.table.item_piece(station.column, station.side)
+	if item == ArtContract.PROP_IDLE_MUG:
+		words.append("mug")
+	elif item == ArtContract.PROP_DONE_STACK_SMALL:
+		words.append("paper")
 	if station.chip().visible:
 		words.append("chip")
 	return " ".join(words)
@@ -298,8 +292,8 @@ func _answers(view: OfficeFloorView, where: String) -> void:
 
 
 ## The signal's extent is where the desk answers a click (the seat's rectangle
-## on its side, 30x58 far and 30x56 near; a pantry worker's own 38x56 where
-## they stand, away from the pod) together with the chip while it shows: a far
+## on its side, 30x58 far and 30x56 near; an idle worker's too, who sits there)
+## together with the chip while it shows: a far
 ## chip stands on the shortened seat rectangle and a near one hangs under it,
 ## 30x56 either way. A shell's is its seat's.
 func test_a_signal_extent_is_where_the_desk_answers_and_its_chip() -> void:
@@ -335,13 +329,14 @@ func test_an_arrow_target_is_the_chip_alone_or_where_the_desk_answers() -> void:
 
 
 ## The pod's extent is the whole pod as drawn, the same for both sides of a
-## column and for a worker of it who rests in the pantry.
+## column and for an idle worker of it, who sits at it with a mug.
 func test_a_pod_extent_is_the_whole_pod_the_desk_stands_at() -> void:
 	var view := _floor_view()
 	for pane_id: String in POD:
 		_eq(view.pod_extent(_pk(pane_id)), POD[pane_id], "%s's pod extent" % pane_id)
-	_eq(view.pod_extent(_pk("api:p2")), view.pod_extent(_pk("api:p1")), "a pantry worker's pod is their desk's")
-	_check(not view.pod_extent(_pk("api:p2")).intersects(view.signal_extent(_pk("api:p2"))), "which they are away from")
+	_eq(view.pod_extent(_pk("api:p2")), view.pod_extent(_pk("api:p1")), "an idle worker's pod is their desk's")
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks to.
+	_check(view.pod_extent(_pk("api:p2")).encloses(view.signal_extent(_pk("api:p2"))), "and holds their signal")
 	var table := view.seat(_pk("web:p1")).node.table
 	_eq(view.pod_extent(_pk("web:p1")).size, table.geometry.render_rect.size, "as large as the pod's drawing")
 
@@ -401,9 +396,9 @@ func test_pointing_frames_the_signal_extent() -> void:
 		view.point(_pk(pane_id))
 		_eq([pointer.key, pointer.visible], [_pk(pane_id), true], "the pointer is at %s" % pane_id)
 		_eq(pointer.rect, EXTENT[pane_id].grow(OfficePointer.GROW), "around %s's extent, two units off" % pane_id)
-	_eq(pointer.rect, Rect2(479, 228, 34, 62), "the last one, web:p3, as 6413cec framed it")
+	_eq(pointer.rect, Rect2(479, 196, 34, 62), "the last one, web:p3, as 6413cec framed it")
 	view.point(_pk("web:p1"))
-	_eq(pointer.rect, Rect2(383, 230, 34, 60), "a blocked desk's frame takes its chip in")
+	_eq(pointer.rect, Rect2(383, 198, 34, 60), "a blocked desk's frame takes its chip in")
 	view.point("")
 	_eq([pointer.key, pointer.visible, pointer.rect], ["", false, Rect2()], "pointing at nothing clears it")
 	view.point(_pk("web:p1"))
@@ -442,7 +437,7 @@ func test_a_zone_opens_at_its_signs_top_across_its_cells() -> void:
 	_eq(view.zone_opening(""), Rect2(), "and no key")
 	var board := view.zone_sign(_pk("api"))
 	board.get_parent().remove_child(board)
-	_eq(view.zone_opening(_pk("api")), Rect2(32, 160, 288, 224), "api without its sign drawn: from its aisle row's top")
+	_eq(view.zone_opening(_pk("api")), Rect2(32, 128, 288, 224), "api without its sign drawn: from its aisle row's top")
 	_eq(view.zone_opening(_pk("web")), OPENING["web"], "the others keep theirs")
 	board.free()
 
@@ -492,7 +487,8 @@ func test_revealing_pans_just_enough_with_headroom() -> void:
 
 ## The pod joins a desk's framing only when the two together fit the view with
 ## the headroom: exactly fitting they do, one unit short on either axis the
-## desk stays alone, and a pantry worker far above their pod is framed alone.
+## desk stays alone, and the fixture's idle worker, at their desk, is framed
+## with their pod.
 func test_the_pod_joins_the_framing_only_when_both_fit() -> void:
 	var desk := Rect2(65, 262, 30, 58)
 	var pod := Rect2(64, 262, 64, 122)
@@ -512,18 +508,15 @@ func test_the_pod_joins_the_framing_only_when_both_fit() -> void:
 	var near := Rect2(385, 328, 30, 56)
 	var near_pod := Rect2(384, 262, 64, 122)
 	_eq(OfficeCamera.framing(near, near_pod, VIEW), Rect2(384, 262, 64, 122), "a near desk inside its pod's drawing")
-	# The fixture's pantry worker, 172 units above their pod.
+	# D2 (2026-10-27): idle sits with a mug; the pantry is a nook nobody walks
+	# to. The fixture's idle worker sits at their desk, inside their pod's
+	# drawing (it was 172 units above it, in the pantry, and framed alone).
 	var view := _floor_view()
 	var worker := _in_world(view, view.signal_extent(_pk("api:p2")))
 	var their_pod := _in_world(view, view.pod_extent(_pk("api:p2")))
-	_eq(worker.merge(their_pod), Rect2(64, 90, 251, 294), "a pantry worker and their pod together")
-	_check(not OfficeCamera.fits(worker.merge(their_pod), VIEW), "do not fit a 512x308 view under its headroom")
-	_eq(OfficeCamera.framing(worker, their_pod, VIEW), worker, "so the worker is framed alone")
-	_eq(
-		OfficeCamera.framing(worker, their_pod, Vector2(512, 326)),
-		worker.merge(their_pod),
-		"and with the pod where both fit"
-	)
+	_eq(worker.merge(their_pod), their_pod, "an idle worker and their pod together are the pod")
+	_check(OfficeCamera.fits(worker.merge(their_pod), VIEW), "which fits a 512x308 view under its headroom")
+	_eq(OfficeCamera.framing(worker, their_pod, VIEW), their_pod, "so the worker is framed with the pod")
 
 
 ## opened() is another rule: the opening's top at the view's top whatever the
@@ -589,7 +582,7 @@ func test_the_floors_answers_pan_the_view_where_it_was_panned() -> void:
 	var bare := _in_world(view, view.zone_opening(_pk("api")))
 	_eq(
 		OfficeCamera.opened(Vector2(400, 600), bare, VIEW),
-		Vector2(32, 192),
+		Vector2(32, 160),
 		"api without its sign: its aisle row's top"
 	)
 	board.free()
@@ -608,7 +601,7 @@ func test_an_arrow_stands_by_its_target_not_by_the_extent() -> void:
 	var view := _floor_view()
 	var chip := view.arrow_target(_pk("web:p1"))
 	var extent := view.signal_extent(_pk("web:p1"))
-	_eq([chip, extent], [Rect2(385, 232, 30, 16), Rect2(385, 232, 30, 56)], "web:p1's chip, and its chip over its seat")
+	_eq([chip, extent], [Rect2(385, 200, 30, 16), Rect2(385, 200, 30, 56)], "web:p1's chip, and its chip over its seat")
 	var target := EdgeArrowModel.Target.new()
 	target.zone_key = _pk("web")
 	target.pane_key = _pk("web:p1")
@@ -634,14 +627,15 @@ func test_an_arrow_stands_by_its_target_not_by_the_extent() -> void:
 		0,
 		"a unit of the chip in view: none"
 	)
-	# The view's left edge against the chip's right edge.
-	var beside := Rect2(Vector2(chip.end.x, 100), VIEW)
+	# The view's left edge against the chip's right edge. D2 (2026-10-27): the
+	# band is two cells (SEATED-Q2): the chip is 32 higher, and so is the view.
+	var beside := Rect2(Vector2(chip.end.x, 68), VIEW)
 	arrows = EdgeArrowModel.of(beside, targets)
 	_eq(arrows.size(), 1, "the chip just left of the view: its arrow")
 	_eq([arrows[0].blocked, arrows[0].edge], [1, EdgeArrowModel.Edge.LEFT], "on the left edge")
 	_eq("%.4f" % arrows[0].along, "0.4571", "along it toward the chip")
 	_eq(
-		EdgeArrowModel.of(Rect2(Vector2(chip.end.x - 1, 100), VIEW), targets).size(),
+		EdgeArrowModel.of(Rect2(Vector2(chip.end.x - 1, 68), VIEW), targets).size(),
 		0,
 		"a unit of the chip in view: none"
 	)
