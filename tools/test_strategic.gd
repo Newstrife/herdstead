@@ -112,8 +112,8 @@ func test_s_opens_it_over_the_world_only() -> void:
 
 
 ## `S` again or Escape closes it, and the world under it is the very same nodes.
-## Escape peels one layer at a time: an opened staff panel folds first, then
-## the view closes. (Answer mode, the first layer, needs an operator office;
+## Escape peels one layer at a time: an opened bottom panel (a short window's)
+## folds first, then the view closes. (Answer mode, the first layer, needs an operator office;
 ## inspector.take_key() runs before any of this in OfficeScene._act_on().)
 func test_s_and_esc_close_it_and_the_world_is_the_same_nodes() -> void:
 	var office := await _live_office(fixture, WIDE)
@@ -128,9 +128,15 @@ func test_s_and_esc_close_it_and_the_world_is_the_same_nodes() -> void:
 	_eq(office.world.get_instance_id(), world_id, "the same world")
 	_eq(_world_ids(office), ids, "the same nodes")
 	_eq(office.hud.bar.theme_line(), theme, "the theme line is the pack's again")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: a tall
+	# window docks the panel,
+	# which never folds; the layer Escape peels first is a short window's opened panel.
+	office.test_screen = Vector2(480, 320)
+	office.refresh()
+	await _frames(2)
 	await _office_key(office, KEY_S)
 	await _tap(KEY_ENTER)
-	_check(not office.hud.card_compact(), "Enter opens the staff panel under it")
+	_check(not office.hud.card_compact(), "Enter opens the bottom panel under it")
 	await _tap(KEY_ESCAPE)
 	_check(office.hud.card_compact(), "the first Escape folds the panel")
 	_check(office.hud.strategic_open(), "and leaves the view open")
@@ -549,8 +555,9 @@ func test_no_s_under_the_monitor_the_overview_or_a_text_field() -> void:
 	await _press(close)
 	await _frames(2)
 	_check(not office.hud.monitor_open(), "the monitor closes")
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(2)
 	var filter: LineEdit = office.hud.agent_list.get_node("%Filter")
 	await _press(filter)
@@ -606,7 +613,10 @@ func test_n_keeps_it_open_and_moves_the_corners() -> void:
 	_eq(plan.picked_key(), office.picked_key, "the corners follow")
 	var after_n := office.picked_key
 	var card := office.hud.inspector
-	if not office.hud.card_compact():
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked,
+	# Escape has nothing to
+	# fold and would close the view; only an opened short-window panel folds first.
+	if office.hud.card_expanded():
 		await _tap(KEY_ESCAPE)
 	var on: Button = card.get_node("%StepOn")
 	await _press(on)
@@ -614,8 +624,9 @@ func test_n_keeps_it_open_and_moves_the_corners() -> void:
 	_check(office.picked_key != after_n, "› picks the next in NEXT's queue")
 	_check(office.hud.strategic_open(), "still open")
 	_eq(plan.picked_key(), office.picked_key, "the corners follow ›")
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(3)
 	var target := _spk("w0:t4:p4")
 	var row := office.hud.agent_list.row_for(target)
@@ -636,8 +647,9 @@ func test_n_keeps_it_open_and_moves_the_corners() -> void:
 ## whichever zone it sits.
 func test_hovering_a_list_row_dashes_its_square() -> void:
 	var office := await _live_office(fixture, WIDE)
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(3)
 	await _office_key(office, KEY_S)
 	var plan := _plan(office)
@@ -744,15 +756,25 @@ func test_the_stress_fit_at_2x_4x_and_min() -> void:
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width:
 	# the world is 128 wider at 2x (772 -> 900: the named column's 136 and its
 	# gap, less the 16 inset) and 80 at the minimum (340 -> 420: the rail's 88).
-	_eq(rooms[WIDE], Vector2(884, 274), "the room at 2x, above the card")
-	_eq(rooms[SMALL], Vector2(404, 166), "the room at 4x and the minimum")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# world 936x241 at 2x (to the
+	# right edge, under the 52 bar, above the 151 docked panel) and 456x202 at the minimum: 36
+	# wider both, 50 shorter at 2x and 2 taller at the minimum. Shorter columns hold fewer rows,
+	# so the 400 panes stand in 13 columns of 8-unit cells at 2x (10 of 12) and 9 at the minimum (8); 80 bare
+	# in 5 (4).
+	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the room at 2x
+	# 207 -> 242 high; the minimum's (not docked) is unchanged.
+	_eq(rooms[WIDE], Vector2(920, 242), "the room at 2x, above the docked panel")
+	_eq(rooms[SMALL], Vector2(440, 168), "the room at 4x and the minimum")
 	var eighty := _rows_of(10)
 	var four_hundred := _rows_of(50)
 	var cases := [
-		[eighty, WIDE, 32, 5, false, 4],
+		[eighty, WIDE, 32, 5, false, 5],
 		[eighty, SMALL, 16, 5, false, 5],
-		[four_hundred, WIDE, 12, 10, false, 10],
-		[four_hundred, SMALL, 8, 8, true, 8],
+		# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the taller
+		# columns hold the 400 panes in 13 columns of 12-unit cells at 2x (were 8-unit).
+		[four_hundred, WIDE, 12, 13, false, 13],
+		[four_hundred, SMALL, 8, 9, true, 9],
 	]
 	for each: Array in cases:
 		var rows: Array[PackedInt32Array] = each[0]
@@ -1045,6 +1067,7 @@ func test_a_section_splits_only_when_taller_than_the_room() -> void:
 ## machine's squares stay as they are, and the view stays open.
 func test_a_rail_click_while_open_scrolls_to_its_section() -> void:
 	var office := await _live_office(_many_zones(40), SMALL)
+	await _narrow(office)
 	await _office_key(office, KEY_S)
 	await _frames(3)
 	var plan := _plan(office)
@@ -1087,6 +1110,7 @@ func test_a_machine_with_the_same_map_has_its_own_sections() -> void:
 	_feed_bee(office, raw)
 	office.refresh()
 	await _frames(3)
+	await _narrow(office)
 	await _office_key(office, KEY_S)
 	await _frames(3)
 	var plan := _plan(office)
@@ -1144,6 +1168,7 @@ func test_a_machine_with_the_same_map_has_its_own_sections() -> void:
 func test_a_workspace_replaced_under_the_same_caption_is_a_new_section() -> void:
 	var raw := _many_zones(40)
 	var office := await _live_office(raw, SMALL)
+	await _narrow(office)
 	await _office_key(office, KEY_S)
 	await _frames(3)
 	var plan := _plan(office)
@@ -1358,6 +1383,16 @@ func _caption_seen(office: OfficeDouble, key: String) -> bool:
 
 ## `count` workspaces `z0`.. of one tab of two working agents each, herdr's
 ## focus in the first: a map of many small zones.
+## The drawer opened over the minimum window's world (setup), so its room is
+## the 280x168 the 404x166 one was short of: forty zones scroll in it.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: with the
+## drawer closed the
+## room is 440x168, and forty zones fit it whole.
+func _narrow(office: OfficeDouble) -> void:
+	office.hud.open_drawer()
+	await _frames(2)
+
+
 func _many_zones(count: int) -> Dictionary:
 	var raw := {"workspaces": [], "tabs": [], "panes": [], "layouts": [], "focused_pane_id": "z0:t:p0"}
 	for zone in count:

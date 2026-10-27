@@ -1,16 +1,19 @@
 class_name OfficePaneInspector
 extends HdPanel
-## The agent card, which is the staff panel along the screen's bottom (the
-## names "card" and "inspector" stay: card = the staff panel): who is at the
-## selected desk, in what state, for how long and where; a live preview of that
-## pane's terminal; "Switch herdr here", which switches herdr's own view to the
-## pane; and answer mode, which sends an approval key or one line of text to an
-## agent's terminal. At its right end, NEXT names whom `N` picks next.
+## The agent card, the AGENT page of the bottom panel (OfficeBottomPanel; the
+## names "card" and "inspector" stay): who is at the selected desk, in what
+## state, for how long and where; a live preview of that pane's terminal;
+## "Switch herdr here", which switches herdr's own view to the pane; and answer
+## mode, which sends an approval key or one line of text to an agent's
+## terminal. At its right end, NEXT names whom `N` picks next, with `‹ ›`
+## (NEXT's queue, selection only) under it.
 ##
-## The HUD shows the panel as one line (set_compact()) at every size until it is
-## opened: Enter, the line's `Open` and answer mode open it to full height,
-## Escape out of answer mode and `▾ Esc` fold it (OfficeHud._fit_staff()). The
-## line keeps `‹ ›` (NEXT's queue, selection only), Monitor and NEXT.
+## On a screen at least `staff_tall_from` high the HUD docks the panel along the
+## bottom, always open (set_docked()), its preview DOCKED_ROWS rows. Below that
+## it is one line (set_compact()) until it is opened: Enter, the line's `Open`
+## and answer mode open it to full height with the whole preview, Escape out of
+## answer mode and `▾ Esc` fold it (OfficeHud._fit_staff()). The line keeps
+## Monitor, `Open` and NEXT with `‹ ›`.
 ##
 ## Every label is permanent and reached by its unique name; a refresh writes
 ## text, never nodes. The portrait is re-configured only when the provider or
@@ -28,7 +31,7 @@ extends HdPanel
 ## itself sends nothing. The HUD then stands the card in the middle of the
 ## screen as a modal (OfficeHud._fit_staff()), and the card turns its boxes to
 ## lay itself out top to bottom (_show_answer()): the header, the preview across
-## the whole card (still 12 rows), the answer keys, "Send Esc", the reply box
+## the whole card (its whole 12 rows, docked or not), the answer keys, "Send Esc", the reply box
 ## and the best-effort line under it, and Monitor, Close and the outcome along
 ## the foot. It trades the switch and the details list for them. Buttons are aimed at their
 ## press and sent at their release, and never take keyboard focus. In answer
@@ -181,7 +184,6 @@ const KEY_CODES: Dictionary[StringName, Key] = {
 	&"card_key_9": KEY_9,
 	&"card_key_y": KEY_Y,
 }
-const HEADING := "AGENT"
 ## Kind buttons in the START AGENT block (LaunchBlock, which shows it).
 const KINDS_MAX := LaunchBlock.KINDS_MAX
 ## How long a confirm armed by a first click waits for the second one.
@@ -201,11 +203,18 @@ const FROM_THE_BLOCK: Array[CommandContext.Kind] = [
 ## At a card narrower than this, the START AGENT block takes the PANE
 ## details' place; at this width or more both show (the scene sets it).
 @export var details_beside_launch_from := 0.0
-## The card's width in card mode (set_card()); the scene sets it.
-@export var card_width := 0.0
-## NEXT's height in card mode, where it is a pill on one line standing in the
-## middle of the slot; elsewhere it fills its column. The scene sets it.
-@export var next_pill_height := 0.0
+## The START AGENT / NEW PANE block's width: its column on an opened or
+## answering card, and across the docked panel, where its title, kinds or
+## split button share a row and its notes take one line (the scene sets both).
+@export var launch_width := 0.0
+@export var launch_docked_width := 0.0
+## `%Left`'s share of the card's width beside the preview and the launch block:
+## `left_ratio`, and `left_wide_ratio` on a card at least `left_wide_from` wide,
+## where the names have their room whole (960x480 and up) without starving the
+## preview of a narrower card (the scene sets all three).
+@export var left_ratio := 0.0
+@export var left_wide_ratio := 0.0
+@export var left_wide_from := 0.0
 
 ## Null until the office connects one; the card then reads and writes through it.
 var _fleet: HerdrFleet
@@ -281,8 +290,8 @@ var _compact := false
 var _key_enter_icon: Texture2D
 ## The screen is wide enough for the line's long words (set_wide()).
 var _wide := true
-## The HUD shows the compact panel as a card (set_card()).
-var _card := false
+## The HUD docks the panel along a tall screen's bottom, always open (set_docked()).
+var _docked := false
 ## The viewer closed the card (card_closed): nothing of it shows until
 ## show_pane() sees their own pick again.
 var _closed := false
@@ -350,6 +359,9 @@ func _ready() -> void:
 	branch.text_changed.connect(_on_branch_changed)
 	branch.gui_input.connect(_on_branch_input)
 	resized.connect(_show_more)
+	resized.connect(_share_left)
+	# PANE's details give way to the block whenever it shows, by any path.
+	_block().visibility_changed.connect(_show_more)
 	var box: LineEdit = %ReplyBox
 	box.text_changed.connect(_on_draft_changed)
 	box.gui_input.connect(_on_reply_input)
@@ -361,7 +373,8 @@ func _ready() -> void:
 	_show_preview()
 	_show_action()
 	show_next(null)
-	# The card's own frame shows only in card mode (set_card()).
+	# The bottom panel draws the one frame (OfficeBottomPanel); the card draws none.
+	set_framed(false)
 	var frame: HdPanel = %CardFrame
 	frame.set_framed(false)
 
@@ -449,7 +462,7 @@ func duration_label() -> Label:
 
 
 ## The HUD shows the panel as one line until it is opened: provider, state and
-## seat, the wait, `‹ ›`, Monitor, `Open`, and NEXT. The line holds no
+## seat, the wait, Monitor, `Open`, and NEXT with `‹ ›`. The line holds no
 ## preview, so the office counts a one-line panel as covered and reads nothing for it.
 func set_compact(on: bool) -> void:
 	if on == _compact:
@@ -461,22 +474,22 @@ func set_compact(on: bool) -> void:
 	_word_next()
 
 
-## On a screen tall enough (OfficeHud._fit_staff()), the compact panel is a
-## card at the bottom-left, draft C's: the portrait, the name, the state pill
-## and the seat over the line's buttons (`‹ ›`, Monitor, Open), in a frame of
-## its own (%CardFrame), with NEXT at the panel's right end and the office
-## showing between them. The panel's own frame is not drawn then. It is still
-## the compact panel: it reads nothing (compact()), and the same nodes show.
-func set_card(on: bool) -> void:
-	if on == _card:
+## On a screen tall enough (OfficeHud._fit_staff()) the panel is docked along
+## the bottom and always open: the details, a preview of DOCKED_ROWS rows
+## (CardPicture.rows_of()), the verbs, and NEXT in a row. Nothing folds there.
+func set_docked(on: bool) -> void:
+	if on == _docked:
 		return
-	_card = on
+	_docked = on
 	_show_stack()
+	_show_preview()
+	_word_next()
+	_show_action()
 
 
-## Whether the compact panel is a card (set_card()).
-func card() -> bool:
-	return _card
+## Whether the panel is docked (set_docked()).
+func docked() -> bool:
+	return _docked
 
 
 ## Whether the viewer closed the card (card_closed); only their own pick
@@ -490,8 +503,9 @@ func compact() -> bool:
 	return _compact
 
 
-## The card's `×`: it closes at once (nothing of it shows, only NEXT stays)
-## and answer mode ends with it; the office forgets the pick on card_closed.
+## The card's `×`: it closes at once (the empty state says how to open one
+## again, and NEXT stays) and answer mode ends with it; the office forgets the
+## pick on card_closed.
 func _on_card_close_pressed() -> void:
 	_closed = true
 	leave_answer()
@@ -517,11 +531,20 @@ func set_next_shown(shown: bool) -> void:
 	slot.visible = shown
 
 
-## NEXT's width, the HUD's (its `next_width`, or `next_wide_width` on a wide line).
+## NEXT's width, the HUD's (its `next_width`, or `next_wide_width` where NEXT
+## says its words in a row).
 func set_next_width(width: float) -> void:
 	var slot: Control = %NextSlot
 	if slot.custom_minimum_size.x != width:
 		slot.custom_minimum_size = Vector2(width, 0)
+
+
+## NEXT's height where it is a pill in a row over `‹ ›` (the docked panel), the
+## HUD's (`next_docked_height`); 0 elsewhere, where it fills its line or column.
+func set_next_height(height: float) -> void:
+	var button: Control = %NextButton
+	if button.custom_minimum_size.y != height:
+		button.custom_minimum_size = Vector2(0, height)
 
 
 ## NEXT names whom `N` picks next (OfficeNavigator.peek_next()): provider,
@@ -573,10 +596,11 @@ func next_text() -> String:
 	return line.text if wait.text.is_empty() or short else line.text + " " + wait.text
 
 
-## Write the stack (CardPicture.stack_of()): the pane's details at full
-## height, its compact line, the card form of it, or the empty state; the
-## line's long words; and how NEXT reads (down at full height, along a wide
-## line, whom alone on a narrow one). The boxes only change what shows.
+## Write the stack (CardPicture.stack_of()): the pane's details (docked or
+## opened), its compact line, or the empty state; the line's long words; and
+## how NEXT reads (a pill in a row over `‹ ›` docked, down and wrapped when
+## opened on a short screen, along a wide line, whom alone on a narrow one).
+## The boxes only change what shows.
 func _show_stack() -> void:
 	var stack := CardPicture.stack_of(_facts(Time.get_ticks_msec()))
 	_shows += 1
@@ -587,55 +611,71 @@ func _show_stack() -> void:
 
 
 func _write_stack(stack: CardPicture.Stack) -> void:
-	var carded := stack.carded
 	var detail: Control = %Detail
 	var line: Control = %CompactRow
 	detail.visible = stack.detail
 	line.visible = stack.line
-	# Card mode: the header (from %Detail) over the line's buttons (from
-	# %CompactRow), which sit on its foot; the line's words and the rest of
-	# the details stay hidden.
-	for part: Control in [%Middle, %Actions]:
-		part.visible = not carded
-	# The header alone in the card takes the card's whole width.
-	var left: Control = %Left
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL if carded else Control.SIZE_FILL
-	var title: Control = %Title
-	title.visible = stack.title
-	_details().set_noted(not carded)
 	_show_more()
-	for words: Control in [%CompactLine, %CompactWait]:
-		words.visible = not carded
 	var monitor: Button = %CompactMonitor
 	var open: Button = %CompactOpen
 	monitor.text = stack.monitor_word
 	open.text = stack.open_word
 	var line_close: Button = %CompactClose
 	line_close.visible = stack.line_close
-	set_framed(not carded and not stack.closed)
-	var frame: HdPanel = %CardFrame
-	frame.visible = not stack.closed
-	frame.set_framed(carded)
-	frame.size_flags_horizontal = Control.SIZE_FILL if carded else Control.SIZE_EXPAND_FILL
-	frame.custom_minimum_size.x = card_width if carded else 0.0
-	var gap: Control = %CardGap
-	gap.visible = carded
-	var next_button: Control = %NextButton
-	next_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER if carded else Control.SIZE_EXPAND_FILL
-	next_button.custom_minimum_size.y = next_pill_height if carded else 0.0
 	var empty: Control = %Empty
 	var no_pane: Control = %NoPane
 	var message: Label = %Message
 	empty.visible = stack.empty
-	no_pane.visible = stack.full
+	no_pane.visible = stack.no_pane
 	if stack.empty:
 		message.text = stack.message
+	# The right-hand column (`%Side`): NEXT, and the verbs under it while the
+	# details show. Docked, NEXT is a pill beside `‹ ›` and the verbs take the
+	# rest of the column (B2's one verbs column); opened or answering, NEXT fills
+	# the column over `‹ ›` and the verbs stand at its foot; along the line NEXT
+	# and `‹ ›` sit in a row and the verbs are the line's own.
+	var actions: Control = %Actions
+	actions.visible = stack.detail
+	var slot: BoxContainer = %NextSlot
+	var next_button: Control = %NextButton
+	slot.vertical = stack.full and not stack.docked_form
+	slot.size_flags_vertical = Control.SIZE_FILL if stack.docked_form else Control.SIZE_EXPAND_FILL
+	next_button.size_flags_vertical = Control.SIZE_FILL if stack.docked_form else Control.SIZE_EXPAND_FILL
+	var outcome: Label = %Outcome
+	outcome.max_lines_visible = stack.outcome_lines
+	_write_launch_form(stack.docked_form)
+	# Down and wrapped only where NEXT fills a column (opened on a short screen).
+	var down := stack.full and not stack.next_row
 	var next: BoxContainer = %NextText
 	var wait: Control = %NextWait
 	var next_line: Label = %NextLine
-	next.vertical = stack.full
+	next.vertical = down
 	wait.visible = stack.next_wait
-	next_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if stack.full else TextServer.AUTOWRAP_OFF
+	next_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if down else TextServer.AUTOWRAP_OFF
+
+
+## The launch block across the docked panel: its title beside the kinds or
+## the split button, the title whole on one line, Close · New space · branch ·
+## Worktree on one line, the block `launch_docked_width` wide and the close
+## confirm's line at most LaunchBlock.CLOSE_LINE_ROWS_DOCKED rows. Elsewhere
+## each stands over the next in a `launch_width` column.
+func _write_launch_form(docked_form: bool) -> void:
+	var block := _block()
+	block.custom_minimum_size = Vector2(launch_docked_width if docked_form else launch_width, 0)
+	block.set_docked(docked_form)
+	var head: BoxContainer = %LaunchHead
+	head.vertical = not docked_form
+	var manage: BoxContainer = %ManageLine
+	manage.vertical = not docked_form
+	var title: Label = %LaunchTitle
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF if docked_form else TextServer.AUTOWRAP_WORD_SMART
+	title.text_overrun_behavior = (TextServer.OVERRUN_NO_TRIMMING if docked_form else TextServer.OVERRUN_TRIM_ELLIPSIS)
+
+
+## `%Left`'s share for the card's width now (left_wide_from).
+func _share_left() -> void:
+	var left: Control = %Left
+	left.size_flags_stretch_ratio = left_wide_ratio if size.x >= left_wide_from else left_ratio
 
 
 ## The portrait's person while there is one; null in the empty state.
@@ -732,6 +772,11 @@ func leave_answer() -> void:
 	_aim = null
 	_actions.clear()
 	if was:
+		# The docked preview goes back to its DOCKED_ROWS (CardPicture.rows_of()),
+		# and NEXT to its row (CardPicture.Stack.next_row).
+		_show_stack()
+		_word_next()
+		_show_preview()
 		_show_action()
 
 
@@ -1219,7 +1264,7 @@ func _facts(now_msec: int) -> CardPicture.Facts:
 	facts.connected = _fleet != null
 	facts.read_only = _fleet != null and _fleet.read_only()
 	facts.compact = _compact
-	facts.card = _card
+	facts.docked = _docked
 	facts.wide = _wide
 	facts.answering = _answering
 	facts.launch_shown = _block().visible
@@ -1339,6 +1384,11 @@ func _enter_answer() -> void:
 	_answering = true
 	# The block goes with answer mode, and any confirm armed on it.
 	_actions.clear()
+	# Answer mode shows the whole question: every row (CardPicture.rows_of()),
+	# and NEXT reads down in its column, as when opened.
+	_show_stack()
+	_word_next()
+	_show_preview()
 	_show_action()
 
 
@@ -1350,8 +1400,8 @@ func _on_answer_button() -> void:
 		_enter_answer()
 
 
-## Answer mode's chip, title, keys and "Send line", as the preview's state
-## leaves them (_set_state()).
+## Answer mode's chip, keys and "Send line", as the preview's state leaves
+## them (_set_state()).
 func _show_answer() -> void:
 	var facts := _facts(Time.get_ticks_msec())
 	_refusals(facts)
@@ -1366,7 +1416,6 @@ func _show_answer() -> void:
 ## Only `visible`, `disabled`, text and tooltips change: the scene holds the
 ## layout.
 func _write_answer(answer: CardPicture.Answer) -> void:
-	var title: Label = %Title
 	var hint: Button = %AnswerButton
 	var header: Control = %Header
 	var controls: Control = %Answer
@@ -1379,17 +1428,12 @@ func _write_answer(answer: CardPicture.Answer) -> void:
 	controls.visible = answer.open
 	# Answer mode is a modal (OfficeHud._fit_staff()) laid out top to bottom:
 	# who and where, the terminal across the whole panel, the keys and the
-	# reply under it, the actions and what became of the last write along the
-	# foot. The same nodes, only the boxes turn: nothing moves between parents.
+	# reply under it; NEXT and the verbs keep the right-hand column. The same
+	# nodes, only the boxes turn: nothing moves between parents.
 	var detail: BoxContainer = %Detail
 	var middle: BoxContainer = %Middle
-	var actions: BoxContainer = %Actions
 	detail.vertical = answer.open
 	middle.vertical = answer.open
-	actions.vertical = not answer.open
-	title.visible = answer.title
-	title.text = answer.title_text
-	title.tooltip_text = answer.title_tip
 	for key: Button in _key_buttons():
 		key.disabled = answer.keys_off
 		key.tooltip_text = answer.key_tip(_key_of(key))
@@ -1679,13 +1723,41 @@ func _on_branch_changed(_text_now: String) -> void:
 
 
 ## Escape in the branch box only lets the box go; Enter, which the box takes
-## as "submit", sends nothing (nothing is wired to it).
+## as "submit", sends nothing (nothing is wired to it). PageUp / PageDown let
+## the box go and are not taken: a focused box accepts them otherwise, and
+## released here the same key goes on to the office as its zone step
+## (measured on 4.7.2: the release in this handler is enough).
 func _on_branch_input(event: InputEvent) -> void:
 	var box: LineEdit = _block().branch_box()
 	if box.has_ime_text():
 		return
 	if event.is_action_pressed(&"card_leave"):
 		box.accept_event()
+		box.release_focus()
+	elif event.is_action_pressed(&"office_floor_up") or event.is_action_pressed(&"office_floor_down"):
+		box.release_focus()
+
+
+## A press anywhere outside the branch box's row (the box and its Worktree
+## button) lets it go, and does what it does there: the box holds the keyboard
+## only while the viewer works in it, so `L`, `N` and the page keys are the
+## office's again. A press on Worktree keeps it: what is typed while that
+## button is held still edits the branch, and is refused at the release
+## (BRANCH_EDITED), never typed into the office instead. The reply box keeps
+## answer mode's own rule (only Escape lets it go): released by a click, it
+## would hand the next digit to answer mode as a key.
+func _input(event: InputEvent) -> void:
+	var press := event as InputEventMouseButton
+	if press == null or not press.pressed:
+		return
+	var box: LineEdit = _block().branch_box()
+	if not box.has_focus():
+		return
+	# Where the press is, from the event itself: the pointer's last known place
+	# may be older than a press that came with no motion before it.
+	var row: Control = %WorktreeRow
+	var at := (row.make_input_local(press) as InputEventMouseButton).position
+	if not Rect2(Vector2.ZERO, row.size).has_point(at):
 		box.release_focus()
 
 

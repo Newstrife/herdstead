@@ -660,10 +660,12 @@ func test_nothing_closes_without_a_gesture() -> void:
 
 ## The confirm goes with the block: answer mode (Enter on an idle agent), the
 ## panel folding to its line, and back. After either the button reads Close
-## again and one click sends nothing.
+## again and one click sends nothing. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall
+## screens, no drawer tab:
+## at 480x320, where the panel folds (docked, it never does).
 func test_answer_mode_and_folding_cancel_the_confirm() -> void:
 	_fakes()
-	var office := await _office_with()
+	var office := await _office_with(false, true, true, Vector2(480, 320))
 	var card := _card(office)
 	var closer := _close_button(office)
 	await _pick_local(office, "alpha:p3")

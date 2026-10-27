@@ -8,10 +8,13 @@ extends "res://tools/office_test_base.gd"
 ## The frame rates walks are stepped at: the office in use, and minimized.
 const FPS := 30.0
 const MINIMIZED_FPS := 8.0
-## The window these suites lay floors out in: 628x480 plans a floor 488 units
-## wide (OfficeHud.plan_width()). The walks, pantries and rows the
-## cases here measure stand on that geometry.
-const PLAN_SCREEN := Vector2(628, 480)
+## The window these suites lay floors out in: 592x480 plans a floor 568 units
+## wide (OfficeHud.plan_width(): 17 cells, two lanes). The walks, pantries and
+## rows the cases here measure stand on that geometry. S3 PANEL-a1
+## (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens,
+## no drawer tab; 628 planned 568 while the closed drawer's tab took 36 of it,
+## and plans 604 (three lanes) without it, so the window is 36 narrower.
+const PLAN_SCREEN := Vector2(592, 480)
 ## How many agents api:t1 takes on in _stacked(): enough that its pod (twelve
 ## panes, six columns, seven cells) and api:t2's (three cells) no longer share a
 ## pod row of the suites' one-lane map (eight inner cells), so api:t2 is laid

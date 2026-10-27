@@ -87,7 +87,7 @@ func _capture() -> void:
 	_ctl("control-a", "set_preview", {"pane_id": BLOCKED, "source": "detection", "text": _question(8, false)})
 	_ctl("control-a", "status", {"pane_id": BLOCKED, "agent_status": "blocked"})
 	await _pick(office, key)
-	# Picked, nothing pressed: the staff panel's one line (at every size).
+	# Picked, nothing pressed: the bottom panel docked (two rows at the minimum).
 	await _shoot("picked", func() -> bool: return office.picked_key == key)
 	await _open_up(office)
 	# 0. Picked and answerable, answer mode not open yet: the heading's chip.
@@ -205,8 +205,9 @@ func _pick(office: OfficeDouble, key: String) -> void:
 	await _until(func() -> bool: return office.picked_key == key, "picked " + key)
 
 
-## The picked agent's card is the staff panel's one line until opened (at every
-## size): Enter opens it up, as a viewer would, so it reads and shows the terminal.
+## The picked agent's card is docked and open on a tall screen; at the minimum it
+## is two rows until opened: Enter opens it up, as a viewer would, so it reads
+## and shows the terminal.
 func _open_up(office: OfficeDouble) -> void:
 	if office.hud.card_compact():
 		await _tap(KEY_ENTER)

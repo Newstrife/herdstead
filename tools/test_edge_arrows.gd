@@ -534,10 +534,12 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 	hud.show_edge_arrows(EdgeArrowModel.of(view, _beyond(view, EdgeArrowModel.Edge.BOTTOM, 8)))
 	await _frames(2)
 	var least := _standing(hud, "480x320")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# world runs to the right edge.
 	_eq(
 		[hud.world_rect().size.x, least.ways.size(), least.folded],
-		[420.0, 8, 0],
-		"the minimum: 420 wide, eight compact"
+		[456.0, 8, 0],
+		"the minimum: 456 wide, eight compact"
 	)
 	hud.open_drawer()
 	await _frames(2)
@@ -548,7 +550,7 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 	hud.fit(Vector2(960, 480))
 	await _frames(2)
 	var wide := _standing(hud, "960x480")
-	_eq([wide.ways.size(), wide.folded], [8, 0], "a 900-wide world has room for all eight: every zone its own arrow")
+	_eq([wide.ways.size(), wide.folded], [8, 0], "a 936-wide world has room for all eight: every zone its own arrow")
 	_eq(wide.ways, ["z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7"], "in the order handed, longest wait first")
 	_check(
 		hud.edge_arrows.shown().all(
@@ -556,14 +558,20 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 		),
 		"each a way there, in full"
 	)
-	# 640x320 with the drawer open: 456 wide (full arrows); at 480x320, 296 and compact.
+	# 640x320: 616 wide, full arrows; with the drawer open 456, compact, as the minimum is
+	# (S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# compact form starts below 460, D-ARROWS, where
+	# it started below 440 and the 456-wide world here showed full arrows, folded).
 	hud.fit(Vector2(640, 320))
+	await _frames(2)
+	_check(not hud.edge_arrows_compact(), "640x320: 616 wide, full arrows")
+	var full := _standing(hud, "640x320")
+	_eq(full.ways.size() + full.folded, 8, "640x320: all eight counted")
 	hud.open_drawer()
 	await _frames(2)
-	_check(not hud.edge_arrows_compact(), "640x320, the drawer open: full arrows")
+	_check(hud.edge_arrows_compact(), "640x320, the drawer open: 456 wide, compact")
 	var closed := _standing(hud, "640x320, the drawer open")
-	_eq(closed.ways.size() + closed.folded, 8, "640x320: all eight counted")
-	_check(closed.folded > 0, "640x320: folded again: " + closed.said())
+	_eq([closed.ways.size(), closed.folded], [8, 0], "640x320, the drawer open: all eight compact, as at the minimum")
 	hud.fit(Vector2(480, 320))
 	await _frames(2)
 	_check(hud.edge_arrows_compact(), "narrower still: compact")
@@ -693,6 +701,10 @@ func test_an_arrow_click_pans_to_the_desk_and_selects_nothing() -> void:
 	var revision := navigator.nav_revision
 	var pan := office.camera.pan
 	var world := office.world.get_instance_id()
+	# The pointer comes onto the arrow first, as a real click's does. S3 PANEL-a1 (2026-10-27): after the
+	# overlay case before it, a press with no motion before it reached no button there (measured in the
+	# whole suite, not alone; the arrow stood hovered after it). Root cause not found; said in the lane report.
+	await _pointer_to(arrow.get_global_rect().get_center())
 	await _click_at(arrow.get_global_rect().get_center())
 	await _frames(2)
 	_eq(navigator.nav_revision, revision + 1, "one navigation")

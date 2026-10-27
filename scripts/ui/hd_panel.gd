@@ -57,8 +57,8 @@ func _init() -> void:
 
 
 ## Whether the frame is drawn, and the content kept inside it (`HdPanel`), or
-## neither (`HdPanelBare`: no frame, no margins). The staff panel's card mode
-## draws the card's frame round the card alone (OfficePaneInspector.set_card()).
+## neither (`HdPanelBare`: no frame, no margins). The bottom panel's pages
+## draw none of their own (OfficeBottomPanel draws the one frame).
 func set_framed(on: bool) -> void:
 	_frame.visible = on
 	theme_type_variation = &"HdPanel" if on else &"HdPanelBare"

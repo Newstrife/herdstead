@@ -89,13 +89,13 @@ func test_status_change_redraws_one_desk() -> void:
 
 func test_same_look_keeps_the_worker() -> void:
 	# Three idle agents on api and three residents, all first seen idle, every one at its seat with a mug
-	# (D2, 2026-10-27: idle sits with a mug; the pantry is a nook nobody walks to). 628 wide: the map is planned
-	# 568 units wide (488 before S3 BAR-b retired the rail), 17 cells: two lanes of 4 (one of 9 before Z1), 13 cells.
+	# (D2, 2026-10-27: idle sits with a mug; the pantry is a nook nobody walks to). 592 wide (628 before S3
+	# PANEL-a1 dropped the drawer tab): the map is planned 568 wide, 17 cells: two lanes of 4, 13 cells.
 	var idle := _with(
 		_with(_with_residents(fixture), "api:p1", {"agent_status": "idle"}), "api:p2", {"agent_status": "idle"}
 	)
 	idle = _with(idle, "api:p4", {"agent_status": "idle"})
-	var office := await _live_office(idle, Vector2(628, 480))
+	var office := await _live_office(idle, Vector2(592, 480))
 	_eq(office.hud.plan_width(), 568.0, "planned 568 wide")
 	var desk: OfficeStation = office.floor_view.seats[HerdrFleet.pane_key(LOCAL, "api:p4")].node
 	_eq(
@@ -445,13 +445,13 @@ func test_a_click_over_a_panel_picks_nothing() -> void:
 	# reflow on resize, so neither zero nor maximum pan implies an overlap.
 	office.test_screen = Vector2(480, 320)
 	office.refresh()
-	# The drawer open (a real click on its tab), so the right column is the list.
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _click(tab.get_global_rect().get_center())
+	# The drawer open, so the right column is the list. S3 PANEL-a1 (2026-10-27):
+	# the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab (setup opens it).
+	office.hud.open_drawer()
 	await _frames(2)
-	_check(office.hud.drawer_open(), "the tab opens the drawer")
-	# The right column is the agent list's drawer; the card is the staff panel along the bottom.
-	for panel: Control in [office.hud.right_column, office.hud.inspector, office.hud.news]:
+	_check(office.hud.drawer_open(), "the drawer is open")
+	# The right column is the agent list's drawer; the bottom panel (NEWS in it) along the bottom.
+	for panel: Control in [office.hud.right_column, office.hud.staff]:
 		var bounds := office.hud.placed(panel)
 		# The seat goes under a spot of the panel with no button on it: a click
 		# on a minimap row or a list row is that panel's own gesture, not a desk's.
@@ -1225,8 +1225,9 @@ func test_a_room_change_moves_the_world_at_once() -> void:
 	var office := await _live_office()
 	office.test_screen = Vector2(800, 480)
 	office.refresh()
-	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(office.camera.free_rect().size, Vector2(740, 308), "the room with the drawer closed to its tab, above the card")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab.
+	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: 241 -> 276.
+	_eq(office.camera.free_rect().size, Vector2(776, 276), "the room to the right edge, above the docked panel")
 	office.hud.open_drawer()
 	await _frames(1)
 	_eq(office.camera.free_rect(), office.hud.world_rect(), "the camera's room is the HUD's new one")
@@ -1240,13 +1241,13 @@ func test_a_room_change_moves_the_world_at_once() -> void:
 ## (camera.free_rect() fits the HUD). That refresh lays the new room out itself:
 ## one refresh per resize, never one nested in another. (S3 BAR-b, 2026-10-27:
 ## it crossed the SPACES rail's line, `spaces_named_from`; the rail is gone and
-## the world starts 16 in at every width. A resize does not move the staff
-## panel: it is one line at every size until opened.)
+## the world starts 16 in at every width. A resize does not move the bottom
+## panel: docked at both, S3 PANEL-a1, 2026-10-27, no drawer tab.)
 func test_a_resize_moves_the_room_in_one_refresh() -> void:
 	var office := await _live_office()
 	var rooms: Array[bool] = []
 	office.hud.room_changed.connect(func() -> void: rooms.append(true))
-	for step: Array in [[Vector2(1280, 480), 1220.0, 16.0], [Vector2(800, 480), 740.0, 16.0]]:
+	for step: Array in [[Vector2(1280, 480), 1256.0, 16.0], [Vector2(800, 480), 776.0, 16.0]]:
 		var screen: Vector2 = step[0]
 		office.refreshes = 0
 		office.deepest_refresh = 0
@@ -1258,7 +1259,7 @@ func test_a_resize_moves_the_room_in_one_refresh() -> void:
 		_eq(office.deepest_refresh, 1, "%s: never nested" % screen)
 		_eq(office.camera.free_rect().size.x, step[1], "%s: the world's room as wide as the window leaves it" % screen)
 		_eq(office.camera.free_rect().position.x, step[2], "%s: 16 in from the left" % screen)
-		_check(office.hud.card_compact(), "%s: the staff panel one line throughout" % screen)
+		_check(office.hud.inspector.docked(), "%s: the bottom panel docked throughout" % screen)
 		_eq(office.world.position, office.camera.free_rect().position, "%s: the world stands in it" % screen)
 		await _frames(2)
 		_eq(office.refreshes, 1, "%s: and no refresh after it" % screen)
@@ -1274,16 +1275,16 @@ func test_the_first_plan_uses_the_window_the_refresh_is_for() -> void:
 	var office := await _two_machine_office()
 	_eq(office.navigator.shown_key, LOCAL, "Local's map is shown")
 	_eq(office.plans.plan(BEE), null, "bee's has not been planned yet")
-	_eq(office.hud.world_rect().size.x, 740.0, "the HUD is laid out for the 800-wide window")
-	# 960 wide leaves the world 900 units (drawer closed), 28 cells: five lanes, a map 28 wide, not the
-	# four lanes (23 cells) the 800-wide window's 23 hold. (S3 BAR-b, 2026-10-27, the rail gone: it was 880 -> 740, 23, four.)
+	_eq(office.hud.world_rect().size.x, 776.0, "the HUD is laid out for the 800-wide window")
+	# 960 wide leaves the world 936 units (no drawer tab, S3 PANEL-a1), 29 cells: five lanes, a map 28 wide, not
+	# the four lanes the 800-wide window's 24 cells hold. (S3 BAR-b: 880 -> 740, 23, four, the rail gone.)
 	office.test_screen = Vector2(960, 480)
 	var unfocused: Dictionary = fixture.duplicate(true)
 	unfocused.erase("focused_pane_id")
 	_feed(office, unfocused)
 	_eq(office.navigator.shown_key, BEE, "herdr's focus, now only bee's, shows bee's map, planned for the first time")
-	_eq(office.hud.world_rect().size.x, 900.0, "the HUD is laid out for the 960-wide window")
-	_eq(office.hud.plan_width(), 900.0, "which is the width a first plan asks for")
+	_eq(office.hud.world_rect().size.x, 936.0, "the HUD is laid out for the 960-wide window")
+	_eq(office.hud.plan_width(), 936.0, "which is the width a first plan asks for")
 	_eq([office.layout_plan().lanes, office.layout_plan().initial_width_cells], [5, 28], "and the plan is made for it")
 	_done(office)
 

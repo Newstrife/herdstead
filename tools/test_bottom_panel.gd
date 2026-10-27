@@ -1,0 +1,1231 @@
+extends "res://tools/office_test_base.gd"
+## The bottom panel (OfficeBottomPanel): docked along a tall screen's bottom,
+## always open, its card's preview six rows; two rows (the top row over the
+## card's line) on a short one until it is opened; its AGENT / HISTORY /
+## EVENTS tabs with NEWS beside them in the top row; NEXT and `‹ ›` at its
+## right end; the HISTORY page's lines; the bar's band (52 tall on a tall
+## screen, 32 on a short one); and the world running to the screen's right
+## edge now that the drawer has no closed tab. The HUD cases drive a bare HUD,
+## the pick cases a live office with no herdr; clicks and keys go through real
+## input. Run through run_tests.sh.
+##
+## godot --headless --path . --script tools/test_bottom_panel.gd -- \
+##     --read-only --socket=<a socket nobody listens on> --work=<short tmp dir>
+##
+## Ten cases came from tools/test_agent_list.gd (S3 PANEL-a1, 2026-10-27),
+## rewritten for the docked panel, the 52-unit bar band on tall screens and no
+## drawer tab; each says where it came from.
+
+const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
+const FLOORS := "res://tools/fixtures/snapshot_floors.json"
+
+var art: ArtPack
+var pen: OfficeDraw
+var hud: OfficeHud
+var recorder: Recorder
+
+
+## Whatever input nothing in the GUI took: what the office would be handed.
+class Recorder:
+	extends Node
+	var keys: Array[Key] = []
+	var wheels := 0
+
+	func _unhandled_input(event: InputEvent) -> void:
+		if event is InputEventKey and event.is_pressed():
+			keys.append((event as InputEventKey).keycode)
+		elif event is InputEventMouseButton and event.is_pressed():
+			wheels += 1
+
+
+func _initialize() -> void:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--") and "=" in argument:
+			var cut := argument.find("=")
+			args[argument.substr(2, cut - 2)] = argument.substr(cut + 1)
+	for name: String in ["socket", "work"]:
+		if not args.has(name):
+			print("TEST_HARNESS_ERROR: missing --%s= (use tools/run_tests.sh)" % name)
+			quit(2)
+			return
+	# Nothing here may reach the user's herdr, machines or forwards.
+	OS.set_environment("HERDSTEAD_SOCKET_DIR", args.work.path_join("bottom-panel-socks"))
+	OS.set_environment("HERDR_BIN_PATH", args.work.path_join("no-herdr"))
+	MachineLink.reset_socket_directory()
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(FLOORS))
+	if parsed is not Dictionary:
+		print("TEST_HARNESS_ERROR: cannot read snapshot_floors.json")
+		quit(2)
+		return
+	var file: Dictionary = parsed
+	fixture = _dict(file, "snapshot")
+	_run()
+
+
+func _run() -> void:
+	await process_frame
+	root.size = SCREEN
+	art = ArtPack.from_manifest(MANIFESTS[0])
+	pen = OfficeDraw.new(art)
+	await process_frame
+	await run_cases()
+
+
+func _marker() -> String:
+	return "BOTTOM PANEL TESTS"
+
+
+func _after_case() -> void:
+	super()
+	if is_instance_valid(hud):
+		hud.free()
+	if is_instance_valid(recorder):
+		recorder.free()
+	root.size = SCREEN
+
+
+# --- forms and room ---------------------------------------------------------------
+
+
+## At the 480x320 minimum the panel is two rows along the bottom: the top row
+## (tabs and NEWS) over the card's line (who, state and seat, the wait, and
+## NEXT with `‹ ›`), 448x50, and the world keeps 456x202 above it. Opened (Enter,
+## `Open`, answer mode) it stands 448x149 with the whole preview, the world
+## 456x103; folded it gives the room back. Each move is said once.
+## From tools/test_agent_list.gd `test_the_staff_panel_is_one_row_at_the_smallest_screen`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; the line gained the top row, the opened panel
+## holds its whole 12-row column (149, was 128 with 3 units of it clipped), and
+## the world runs to the right edge).
+func test_the_panel_is_two_rows_at_the_smallest_screen_and_opens_to_its_whole_preview() -> void:
+	await _bare_hud(Vector2i(480, 320))
+	var frame := _frame_of(fixture)
+	hud.inspector.show_pane(frame.pane(_key_of("api:p1")), "", false)
+	await _frames(3)
+	var line: Control = hud.inspector.get_node("%CompactRow")
+	var detail: Control = hud.inspector.get_node("%Detail")
+	var next: Control = hud.inspector.get_node("%NextButton")
+	var preview: Control = hud.inspector.get_node("%Preview")
+	var top: Control = hud.staff.get_node("%TopRow")
+	_check(hud.card_compact(), "the panel is folded")
+	_eq(hud.placed(hud.staff), Rect2(16, 266, 448, 50), "two rows along the bottom, 4 up")
+	_eq(hud.staff.size, Vector2(448, 50), "and really that size")
+	_check(top.is_visible_in_tree(), "the top row")
+	_check(line.is_visible_in_tree() and not detail.is_visible_in_tree(), "over its compact line, not its details")
+	_eq(
+		hud.inspector.get_node("%CompactLine").get("text"),
+		"refactor the fleet · WORKING · api / main",
+		"the pane's name, state and place"
+	)
+	_check(next.is_visible_in_tree(), "NEXT is on it")
+	_check(hud.staff.get_global_rect().encloses(next.get_global_rect()), "inside the panel")
+	_check(not preview.is_visible_in_tree(), "the preview is out of it")
+	_eq(hud.world_rect(), Rect2(16, 48, 456, 202), "the world stops above it and runs to the right edge")
+	var rooms: Array[bool] = []
+	hud.room_changed.connect(func() -> void: rooms.append(true))
+	hud.expand_card()
+	await _frames(2)
+	_check(not hud.card_compact(), "opened up")
+	_eq(hud.staff.size, Vector2(448, 149), "the panel stands at its full height")
+	_check(detail.is_visible_in_tree() and not line.is_visible_in_tree(), "with its details")
+	_check(hud.staff.get_global_rect().encloses(preview.get_global_rect()), "the preview inside it")
+	_eq((preview as Label).text.split("\n").size(), OfficePaneInspector.PREVIEW_ROWS, "all twelve rows")
+	_eq(hud.world_rect(), Rect2(16, 48, 456, 103), "the world gives it the room")
+	_eq(rooms.size(), 1, "said once")
+	hud.compact_card()
+	await _frames(2)
+	_check(hud.card_compact() and line.is_visible_in_tree(), "folded back to its line")
+	_eq(hud.staff.size, Vector2(448, 50), "two rows again")
+	_eq(hud.world_rect(), Rect2(16, 48, 456, 202), "and the world has its room back")
+	_eq(rooms.size(), 2, "said once more")
+
+
+## From 400 high the panel is docked: 768x151 at 800x480, always open, the
+## card's details, its six-row preview, no `Open` and no `▾ Esc`; the world
+## 776x276 above it. Below 400 it folds to two rows, and only a real click on
+## `Open` opens it and on `▾ Esc` folds it. A window that crosses 400 moves
+## the slot, said once.
+## From tools/test_agent_list.gd `test_the_staff_panel_is_compact_at_every_size_until_opened`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; the card form is gone, a tall screen docks).
+## S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151),
+## the world 35 taller: the panel's rect and the world's room under it.
+func test_tall_screens_dock_the_panel_and_short_ones_fold_it() -> void:
+	await _bare_hud(Vector2i(800, 480))
+	var frame := _frame_of(fixture)
+	hud.inspector.show_pane(frame.pane(_key_of("api:p1")), "", false)
+	await _frames(3)
+	var line: Control = hud.inspector.get_node("%CompactRow")
+	var detail: Control = hud.inspector.get_node("%Detail")
+	var open: Button = hud.inspector.get_node("%CompactOpen")
+	var fold: Button = hud.inspector.get_node("%FoldButton")
+	var preview: Label = hud.inspector.get_node("%Preview")
+	_check(not hud.card_compact() and hud.inspector.docked(), "800x480: docked")
+	_eq(hud.placed(hud.staff), Rect2(16, 360, 768, 116), "along the bottom, 4 up")
+	_eq(hud.staff.get_global_rect(), Rect2(16, 360, 768, 116), "and really there")
+	_check(detail.is_visible_in_tree() and not line.is_visible_in_tree(), "the details, not the line")
+	_check(preview.is_visible_in_tree(), "the preview in it")
+	_eq(preview.text.split("\n").size(), CardPicture.DOCKED_ROWS, "six rows of it")
+	_check(not open.is_visible_in_tree(), "no `Open`")
+	_check(not fold.is_visible_in_tree(), "and no `▾ Esc`: nothing to fold")
+	_check(not hud.card_expanded(), "Escape has nothing to fold")
+	_eq(hud.world_rect(), Rect2(16, 68, 776, 276), "the world above it, from the 52-unit bar")
+	var rooms: Array[bool] = []
+	hud.room_changed.connect(func() -> void: rooms.append(true))
+	root.size = Vector2i(480, 320)
+	hud.fit(Vector2(480, 320))
+	await _frames(3)
+	_eq(rooms.size(), 1, "a short window folds it: said once")
+	_check(hud.card_compact() and not hud.inspector.docked(), "480x320: folded, not docked")
+	_eq(hud.staff.size, Vector2(448, 50), "two rows")
+	_check(open.is_visible_in_tree() and open.icon != null, "`Open`, with the pack's Enter icon")
+	_eq(open.text, "", "the icon alone below 640 wide")
+	await _tap(open)
+	_check(not hud.card_compact() and not hud.inspector.answering(), "a click on `Open` only opens the panel")
+	_eq(hud.staff.size, Vector2(448, 149), "at its full height")
+	_check(fold.is_visible_in_tree(), "`▾ Esc` is in the actions")
+	_check(hud.staff.get_global_rect().encloses(fold.get_global_rect()), "inside the panel")
+	_eq(rooms.size(), 2, "said once")
+	await _tap(fold)
+	_check(hud.card_compact(), "`▾ Esc` folds it back")
+	_eq(hud.world_rect(), Rect2(16, 48, 456, 202), "and the world has its room back")
+	_eq(rooms.size(), 3, "said once more")
+	root.size = Vector2i(800, 480)
+	hud.fit(Vector2(800, 480))
+	await _frames(3)
+	_check(not hud.card_compact() and hud.inspector.docked(), "tall again: docked")
+	_eq(rooms.size(), 4, "said once")
+	_eq(recorder.keys, [], "nothing went past the HUD")
+
+
+## Both forms close without opening first (the line's `×`, the docked
+## header's `×`): the AGENT page then says how to open a card again in
+## `%Empty`, the world keeps its room and NEXT stays. Herdr's focus and an
+## opening keep it closed; the viewer's own pick opens it again.
+## From tools/test_agent_list.gd `test_both_compact_forms_close_and_reopen_on_a_pick`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; the panel keeps its height, D-EMPTY).
+func test_the_card_closes_on_both_forms_and_a_pick_opens_it_again() -> void:
+	await _bare_hud(Vector2i(480, 320))
+	var pane := _frame_of(fixture).pane(_key_of("api:p1"))
+	var card := hud.inspector
+	var closed: Array[bool] = []
+	card.card_closed.connect(func() -> void: closed.append(true))
+	var line_close: Button = card.get_node("%CompactClose")
+	var header_close: Button = card.get_node("%CardClose")
+	var empty: Control = card.get_node("%Empty")
+	var message: Label = card.get_node("%Message")
+	var details: Control = card.get_node("%Detail")
+	var next: Control = card.get_node("%NextButton")
+	for screen: Vector2i in [Vector2i(480, 320), Vector2i(800, 480)]:
+		root.size = screen
+		hud.fit(Vector2(screen))
+		card.show_pane(pane, "", false, OfficePaneInspector.Pick.PICKED)
+		await _frames(3)
+		var button := line_close if screen.y < 400 else header_close
+		var other := header_close if screen.y < 400 else line_close
+		_check(button.is_visible_in_tree() and not other.is_visible_in_tree(), "%s: exactly one close" % screen)
+		_check(hud.staff.get_global_rect().encloses(button.get_global_rect()), "%s: inside the panel" % screen)
+		var room := hud.world_rect()
+		var slot := hud.placed(hud.staff)
+		var before := closed.size()
+		await _tap(button)
+		_check(card.closed(), "%s: a click closes the card" % screen)
+		_eq(closed.size(), before + 1, "%s: one close signal" % screen)
+		_check(empty.is_visible_in_tree() and not details.is_visible_in_tree(), "%s: the empty state" % screen)
+		_eq(message.text, CardPicture.CLOSED_MESSAGE, "%s: saying how to open one again" % screen)
+		_check(next.is_visible_in_tree(), "%s: NEXT stays" % screen)
+		_eq(hud.world_rect(), room, "%s: closing does not change the world's room" % screen)
+		_eq(hud.placed(hud.staff), slot, "%s: nor the panel's" % screen)
+		card.show_pane(pane, "", false)
+		hud.expand_card()
+		await _frames(2)
+		_check(card.closed(), "%s: focus and opening do not reopen it" % screen)
+		hud.compact_card()
+		card.show_pane(pane, "", false, OfficePaneInspector.Pick.PICKED)
+		await _frames(2)
+		_check(not card.closed() and button.is_visible_in_tree(), "%s: a viewer pick reopens it" % screen)
+
+
+## Docked, the note that explains a state (UNREAD's under a done agent, a
+## dropped machine's) shows under the header, inside the panel, with the name,
+## the state pill and the seat.
+## From tools/test_agent_list.gd `test_the_card_holds_all_it_shows_for_a_state_with_a_note`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; the card form that had no row for the note is gone).
+func test_the_docked_card_says_its_state_note_inside_the_panel() -> void:
+	await _bare_hud(Vector2i(800, 480))
+	var frame := _frame_of(fixture)
+	var footnote: Label = hud.inspector.get_node("%Footnote")
+	var shown: Array[Control] = [footnote]
+	for unique: String in ["%CardName", "%CaptionPill", "%Seat", "%PortraitArea"]:
+		var part: Control = hud.inspector.get_node(unique)
+		shown.append(part)
+	for step: Array in [["web:p2", false, "done"], ["api:p1", true, "a dropped machine's"]]:
+		var what: String = step[2]
+		var dropped: bool = step[1]
+		hud.inspector.show_pane(frame.pane(_key_of(str(step[0]))), "", dropped)
+		await _frames(3)
+		_check(hud.inspector.docked() and not hud.card_compact(), "%s: docked" % what)
+		for part: Control in shown:
+			_check(part.is_visible_in_tree(), "%s: %s shows" % [what, part.name])
+			_check(
+				hud.staff.get_global_rect().encloses(part.get_global_rect()),
+				(
+					"%s: %s inside the panel: %s in %s"
+					% [what, part.name, part.get_global_rect(), hud.staff.get_global_rect()]
+				)
+			)
+	_eq(recorder.keys, [], "nothing went past the HUD")
+
+
+## Monitor is offered exactly when there is a pane and a fleet: on the line
+## (480x320, the icon alone) and docked (800x480, `Monitor`); each real click
+## asks for that pane's monitor once.
+## From tools/test_agent_list.gd `test_the_one_line_monitor_button_asks_for_the_monitor`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; at 800x480 the docked panel's own Monitor).
+func test_the_lines_monitor_button_asks_for_the_monitor() -> void:
+	await _bare_hud(Vector2i(480, 320))
+	var asked: Array[String] = []
+	hud.monitor_requested.connect(func(key: String) -> void: asked.append(key))
+	var pane := _frame_of(fixture).pane(_key_of("api:p1"))
+	hud.inspector.show_pane(pane, "", false)
+	await _frames(2)
+	var line_button: Button = hud.inspector.get_node("%CompactMonitor")
+	var docked_button: Button = hud.inspector.get_node("%MonitorButton")
+	_check(not line_button.is_visible_in_tree(), "no fleet, no monitor")
+	var fleet := HerdrFleet.new()
+	root.add_child(fleet)
+	hud.inspector.connect_fleet(fleet, func() -> bool: return false)
+	hud.inspector.show_pane(pane, "", false)
+	await _frames(2)
+	_check(line_button.is_visible_in_tree(), "with a fleet it is on the line")
+	_eq(line_button.text, "", "the icon alone below 640 wide")
+	_check(line_button.icon != null, "the expand hint is the pack's icon")
+	_check(line_button.tooltip_text.begins_with("M: "), "its tooltip names its key: " + line_button.tooltip_text)
+	await _tap(line_button)
+	_eq(asked, [pane.key], "a click asks for that pane's monitor")
+	root.size = Vector2i(800, 480)
+	hud.fit(Vector2(800, 480))
+	await _frames(3)
+	_check(docked_button.is_visible_in_tree() and not line_button.is_visible_in_tree(), "docked: the panel's own")
+	_eq(docked_button.text, "Monitor", "in its words")
+	_check(docked_button.tooltip_text.begins_with("M: "), "its tooltip names its key too")
+	await _tap(docked_button)
+	_eq(asked, [pane.key, pane.key], "and it asks once")
+	hud.inspector.show_pane(null, "", false)
+	await _frames(1)
+	_check(not docked_button.is_visible_in_tree(), "no pane, no Monitor")
+	fleet.free()
+
+
+## NEXT says what a press does and to whom. Docked: `NEXT:`, the verb and
+## whom, and the wait in a row inside the button, `‹ ›` beside it. On the
+## 480x320 line: whom alone, `‹ ›` beside it. An office that cannot write
+## says whom and herdr's state; with nobody next it is off and a press asks
+## for nothing.
+## From tools/test_agent_list.gd `test_the_next_button_says_who_n_would_pick`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; docked NEXT says it all in a row, `‹ ›` moved
+## under it). S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall
+## (was 151), the world 35 taller; `‹ ›` beside the pill, the verbs under
+## both, B2's one column: "under it" became "beside it, level with it".
+func test_next_says_who_n_would_pick_on_both_forms() -> void:
+	await _bare_hud(Vector2i(800, 480))
+	var frame := _frame_of(fixture)
+	var blocked := frame.pane(_key_of("web:p1"))
+	hud.inspector.show_next(NextModel.of(blocked, "", true))
+	hud.inspector.set_next_wait("12m (N)")
+	await _frames(2)
+	var button: Button = hud.inspector.get_node("%NextButton")
+	var title: Control = hud.inspector.get_node("%NextTitle")
+	var line: Label = hud.inspector.get_node("%NextLine")
+	var wait: Label = hud.inspector.get_node("%NextWait")
+	var steps: Control = hud.inspector.get_node("%StepRow")
+	_eq(line.text, "Answer needs approval", "what a press does, and to whom: the pane's name")
+	_eq(wait.text, "12m (N)", "how long, and the key")
+	_check(title.is_visible_in_tree() and wait.is_visible_in_tree(), "docked: `NEXT:` and the wait")
+	_check(
+		(
+			title.get_global_rect().end.x <= line.get_global_rect().position.x
+			and line.get_global_rect().end.x <= wait.get_global_rect().position.x
+		),
+		"`NEXT:`, whom and the wait in a row"
+	)
+	for label: Control in [title, line, wait]:
+		var across := label.get_global_rect()
+		var room := button.get_global_rect()
+		_check(
+			across.position.x >= room.position.x and across.end.x <= room.end.x,
+			"%s across the button: %s in %s" % [label.name, across, room]
+		)
+	_check(button.is_visible_in_tree() and not button.disabled, "on")
+	_check(hud.staff.get_global_rect().encloses(button.get_global_rect()), "at the panel's right end")
+	_check(steps.is_visible_in_tree(), "`‹ ›` with it")
+	var pill := button.get_global_rect()
+	var step_at := steps.get_global_rect()
+	_check(
+		step_at.position.x >= pill.end.x and step_at.position.y >= pill.position.y and step_at.end.y <= pill.end.y,
+		"beside it, level with it: %s by %s" % [step_at, pill]
+	)
+	var asked: Array[bool] = []
+	hud.next_requested.connect(func() -> void: asked.append(true))
+	await _tap(button)
+	_eq(asked.size(), 1, "a press asks for N")
+	root.size = Vector2i(480, 320)
+	hud.fit(Vector2(480, 320))
+	await _frames(3)
+	_check(hud.card_compact(), "480x320: the line")
+	_eq(hud.inspector.next_text(), "needs approval", "the line's NEXT says whom alone")
+	_check(not title.is_visible_in_tree(), "with no `NEXT:` before it")
+	_check(steps.get_global_rect().position.x >= button.get_global_rect().end.x, "`‹ ›` beside it")
+	_check(hud.staff.get_global_rect().encloses(steps.get_global_rect()), "inside the panel")
+	hud.inspector.show_next(NextModel.of(blocked, "bee", true))
+	root.size = Vector2i(800, 480)
+	hud.fit(Vector2(800, 480))
+	await _frames(2)
+	_eq(line.text, "Answer needs approval @ bee", "with more than one machine, which one")
+	var unread := frame.pane(_key_of("web:p2"))
+	hud.inspector.show_next(NextModel.of(unread, "", true))
+	_eq(line.text, "Read %s" % unread.name, "a done one is read")
+	hud.inspector.show_next(NextModel.of(blocked, ""))
+	_eq(line.text, "needs approval · blocked", "no verb where the office cannot write: whom and why")
+	hud.inspector.show_next(null)
+	await _frames(1)
+	_eq([line.text, wait.text], ["All clear", ""], "nobody next, waiting for nothing")
+	_check(button.disabled, "and off")
+	await _tap(button)
+	_eq(asked.size(), 1, "an off NEXT asks for nothing")
+
+
+## Nobody next, the NEXT pill is off but not hollow: its fill is the pill's own
+## `deep`, opaque, inside a `slate` edge; a switched-off card action stays hollow.
+## From tools/test_agent_list.gd `test_nobody_next_is_an_opaque_pill`, unchanged.
+func test_nobody_next_is_an_opaque_pill() -> void:
+	await _bare_hud()
+	hud.inspector.show_next(null)
+	await _frames(1)
+	var button: Button = hud.inspector.get_node("%NextButton")
+	_check(button.disabled, "nobody next: the pill is off")
+	var off := button.get_theme_stylebox("disabled") as StyleBoxFlat
+	_check(off != null, "its box is a flat one")
+	if off == null:
+		return
+	_eq(off.bg_color, art.color(ArtContract.DEEP), "filled deep")
+	_eq(off.bg_color.a, 1.0, "opaque: the world does not show through it")
+	_eq(off.border_color, art.color(ArtContract.SLATE), "inside a slate edge")
+	_eq(off.get_border_width(SIDE_LEFT), 1, "one unit wide")
+	_eq(off.get_corner_radius(CORNER_TOP_LEFT), 6, "with the pill's corners")
+	var on := button.get_theme_stylebox("normal") as StyleBoxFlat
+	_eq(off.bg_color, on.bg_color, "the same fill as the pill when somebody is next")
+	var action := button.get_theme_stylebox("disabled", "CardAction") as StyleBoxFlat
+	_check(action != null and action.bg_color.a == 0.0, "a switched-off card action stays hollow")
+
+
+## A slot takes room from the world only while it is shown: the bottom panel,
+## shown, stops the world and the right column above it; hidden, it gives the
+## room back down to the screen's bottom gap; shown again it takes it again.
+## Each change is said once.
+## From tools/test_agent_list.gd `test_a_hidden_slot_takes_no_room_and_a_shown_one_does`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; no NEWS strip under the panel any more).
+## S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151),
+## the world 35 taller: the room and the column's bottom, 35 lower.
+func test_a_hidden_panel_takes_no_room_and_a_shown_one_does() -> void:
+	await _bare_hud()
+	var changes: Array[bool] = []
+	hud.room_changed.connect(func() -> void: changes.append(true))
+	var shown := Rect2(16, 68, 776, 276)
+	_eq(hud.world_rect(), shown, "shown, the world stops above the docked panel")
+	_eq(hud.right_column.offset_bottom, -136.0, "and so does the right column")
+	hud.staff.visible = false
+	hud.fit(Vector2(800, 480))
+	_eq(hud.world_rect(), Rect2(16, 68, 776, 396), "hidden, the room comes back to the bottom gap")
+	_eq(hud.right_column.offset_bottom, -16.0, "to the right column too")
+	_eq(changes.size(), 1, "said once")
+	hud.fit(Vector2(800, 480))
+	_eq(changes.size(), 1, "the same room again is not a change")
+	hud.staff.visible = true
+	hud.fit(Vector2(800, 480))
+	_eq(hud.world_rect(), shown, "shown again, the world stops above it")
+	_eq(hud.right_column.offset_bottom, -136.0, "and so does the column")
+	_eq(changes.size(), 2, "said once more")
+
+
+## NEWS has no strip of its own any more: it stands in the bottom panel's top
+## row, right of the tabs, on every page and both forms, and a click on it is
+## its own.
+## From tools/test_agent_list.gd `test_the_news_slot_takes_the_bottom_and_moves_the_staff_panel_up`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; NEWS moved into the panel's top row, D-NEWS).
+## That it hides with the row in answer mode is pinned where answer mode is
+## (tools/test_answers.gd, the modal's case).
+func test_news_stands_in_the_panels_top_row_on_every_page() -> void:
+	await _bare_hud()
+	_check(hud.get_node_or_null("Screen/News") == null, "no NEWS strip under the screen")
+	var news: Control = hud.news
+	var top: Control = hud.staff.get_node("%TopRow")
+	var tabs: Control = hud.staff.get_node("%PageTabs")
+	_eq(news.get_parent(), top, "NEWS is in the panel's top row")
+	_check(tabs.get_index() < news.get_index(), "right of the tabs")
+	for screen: Vector2i in [Vector2i(800, 480), Vector2i(480, 320)]:
+		root.size = screen
+		hud.fit(Vector2(screen))
+		for page: OfficeBottomPanel.Page in [
+			OfficeBottomPanel.Page.AGENT, OfficeBottomPanel.Page.HISTORY, OfficeBottomPanel.Page.EVENTS
+		]:
+			await _tap_tab(page)
+			_check(news.is_visible_in_tree(), "%s, page %d: NEWS shows" % [screen, page])
+			_check(hud.staff.get_global_rect().encloses(news.get_global_rect()), "%s: inside the panel" % screen)
+		await _tap_tab(OfficeBottomPanel.Page.AGENT)
+	await _click_at(news.get_global_rect().get_center())
+	await _frames(1)
+	_eq(recorder.wheels, 0, "a click on NEWS goes no further")
+	hud.news_wanted = false
+	hud.fit(Vector2(480, 320))
+	_check(not news.is_visible_in_tree(), "the showroom's HUD has none")
+
+
+## Opened at the smallest screen, the card keeps every identity it shows in
+## its details and tooltips.
+## From tools/test_agent_list.gd `test_inspector_keeps_complete_identity_in_compact_details`;
+## its checks unchanged, on the opened panel at 480x320.
+func test_inspector_keeps_complete_identity_in_compact_details() -> void:
+	await _bare_hud(Vector2i(480, 320))
+	var pane := PaneModel.new()
+	pane.pane_id = "pane-1"
+	pane.terminal_id = "terminal-stable-identity"
+	pane.provider = "claude"
+	pane.state = "blocked"
+	pane.label = "一条非常长但必须完整保留的工作标签 / ".repeat(3)
+	pane.cwd = "/workspace/a-very-long-repository/worktrees/task-one"
+	pane.foreground_cwd = pane.cwd + "/nested/frontend"
+	pane.terminal_title = "A long terminal title ".repeat(10)
+	pane.session = AgentSessionIdentity.new()
+	pane.session.provider = "claude"
+	pane.session.source = "hook"
+	pane.session.kind = "session_id"
+	pane.session.value = "session-identity-that-must-never-be-lost-by-truncation"
+	hud.inspector.show_pane(pane, "Remote", false)
+	hud.expand_card()
+	await _frames(2)
+	var label: Label = hud.inspector.get_node("%PaneLabel")
+	var cwd: Label = hud.inspector.get_node("%Cwd")
+	var foreground: Label = hud.inspector.get_node("%ForegroundCwd")
+	var session_label: Label = hud.inspector.get_node("%Session")
+	var pane_id: Label = hud.inspector.get_node("%PaneId")
+	var caption: Label = hud.inspector.get_node("%Caption")
+	_eq(label.tooltip_text, pane.label, "complete pane label survives clipping")
+	_check(cwd.tooltip_text.contains(pane.cwd), "working-directory tooltip preserves the full path")
+	_check(
+		foreground.visible and foreground.tooltip_text.contains(pane.foreground_cwd), "distinct foreground cwd is shown"
+	)
+	_check(
+		session_label.visible and session_label.tooltip_text.contains(pane.session.value),
+		"complete session remains inspectable"
+	)
+	_check(pane_id.tooltip_text.contains(pane.terminal_id), "terminal identity is available with pane identity")
+	_eq(caption.tooltip_text, "Launch status not reported", "missing launch association stays explicit")
+	var footnote: Label = hud.inspector.get_node("%Footnote")
+	_check(
+		hud.inspector.get_global_rect().encloses(footnote.get_global_rect()),
+		"small-window footnote stays inside inspector"
+	)
+	pane.session = null
+	pane.label = ""
+	pane.foreground_cwd = pane.cwd
+	pane.starting_known = true
+	hud.inspector.show_pane(pane, "", false)
+	_eq(caption.tooltip_text, "Not launching", "known false remains distinct from an absent launch status")
+	_check(
+		not label.visible and not foreground.visible and not session_label.visible,
+		"missing details do not leave stale fields"
+	)
+
+
+# --- tabs and pages ---------------------------------------------------------------
+
+
+## The tabs show one page at a time, by real clicks; on a tall screen neither
+## the world nor the panel moves for it, and nothing is said.
+func test_the_tabs_show_one_page_and_never_move_the_world_on_a_tall_screen() -> void:
+	await _bare_hud()
+	var rooms: Array[bool] = []
+	hud.room_changed.connect(func() -> void: rooms.append(true))
+	var room := hud.world_rect()
+	var slot := hud.placed(hud.staff)
+	var pages: Array[Control] = [hud.inspector, hud.history_list, hud.event_list]
+	for page: OfficeBottomPanel.Page in [
+		OfficeBottomPanel.Page.HISTORY,
+		OfficeBottomPanel.Page.EVENTS,
+		OfficeBottomPanel.Page.AGENT,
+		OfficeBottomPanel.Page.EVENTS,
+	]:
+		await _tap_tab(page)
+		_eq(hud.page(), page, "a click shows page %d" % page)
+		var shown := pages.filter(func(node: Control) -> bool: return node.is_visible_in_tree())
+		_eq(shown, [pages[page]], "page %d alone" % page)
+		_eq(hud.world_rect(), room, "page %d: the world unmoved" % page)
+		_eq(hud.placed(hud.staff), slot, "page %d: the panel unmoved" % page)
+	_eq(rooms.size(), 0, "nothing said")
+	_eq(recorder.keys, [], "nothing went past the HUD")
+
+
+## On a short screen HISTORY and EVENTS open the folded panel to its full
+## height (said once), switching between them moves nothing, and AGENT folds
+## it back to its two rows (said once).
+func test_history_and_events_open_the_folded_panel_on_a_short_screen() -> void:
+	await _bare_hud(Vector2i(480, 320))
+	var rooms: Array[bool] = []
+	hud.room_changed.connect(func() -> void: rooms.append(true))
+	_check(hud.card_compact(), "folded to start with")
+	await _tap_tab(OfficeBottomPanel.Page.HISTORY)
+	_eq(hud.staff.size, Vector2(448, 149), "HISTORY opens it")
+	_check(hud.history_list.is_visible_in_tree(), "on its page")
+	_eq(hud.world_rect(), Rect2(16, 48, 456, 103), "the world gives it the room")
+	_eq(rooms.size(), 1, "said once")
+	await _tap_tab(OfficeBottomPanel.Page.EVENTS)
+	_eq(hud.staff.size, Vector2(448, 149), "EVENTS keeps it open")
+	_eq(rooms.size(), 1, "and says nothing")
+	await _tap_tab(OfficeBottomPanel.Page.AGENT)
+	_check(hud.card_compact(), "AGENT folds it back")
+	_eq(hud.staff.size, Vector2(448, 50), "to its two rows")
+	_eq(rooms.size(), 2, "said once more")
+
+
+## Every run starts on the AGENT page, whatever an earlier HUD showed: the
+## scene's tab, the card shown and the other pages hidden.
+func test_every_run_starts_on_the_agent_page() -> void:
+	var scene: OfficeBottomPanel = (HUD_SCENE.instantiate() as OfficeHud).get_node("Screen/Staff")
+	var tabs: TabBar = scene.get_node("%PageTabs")
+	_eq(tabs.current_tab, OfficeBottomPanel.Page.AGENT, "the scene's tab is AGENT")
+	_eq(tabs.tab_count, 3, "of three")
+	_eq(
+		[tabs.get_tab_title(0), tabs.get_tab_title(1), tabs.get_tab_title(2)],
+		["AGENT", "HISTORY", "EVENTS"],
+		"in that order"
+	)
+	_check(not (scene.get_node("%History") as Control).visible, "HISTORY hidden")
+	_check(not (scene.get_node("%Events") as Control).visible, "EVENTS hidden")
+	scene.get_parent().get_parent().free()
+	await _bare_hud()
+	await _tap_tab(OfficeBottomPanel.Page.EVENTS)
+	hud.free()
+	recorder.free()
+	await _bare_hud()
+	_eq(hud.page(), OfficeBottomPanel.Page.AGENT, "a new HUD starts on AGENT, whatever the last one showed")
+	_check(hud.inspector.is_visible_in_tree(), "the card shown")
+
+
+# --- HISTORY ----------------------------------------------------------------------
+
+
+## The HISTORY page reads the StateLog: a line per pane that was blocked or
+## done this run and no longer is, newest first, one line each: the badge of
+## what it was, the name, the space, and OFFLINE or GONE (none for ENDED).
+## A line that cannot be located is greyed and cannot be clicked; its tooltip
+## says why. From tools/test_agent_list.gd `test_history_lines_show_what_became_of_each_record`
+## (S3 PANEL-a1, 2026-10-27: the docked bottom panel, the 52-unit bar band on
+## tall screens, no drawer tab; History is the panel's page, D-HIST).
+func test_history_lines_say_what_became_of_each_pane() -> void:
+	await _bare_hud()
+	var picked: Array[String] = []
+	hud.history_picked.connect(func(key: String) -> void: picked.append(key))
+	var raw := fixture
+	var bee_raw := _only(raw, "web:p1")
+	var ledger := StateLog.new()
+	var start := _frame_of(raw, bee_raw)
+	_log(ledger, start, LOCAL, true, 1000)
+	_log(ledger, start, "bee", true, 1000)
+	# Bee drops with its agent blocked; infra:p2 (done) closes; infra:p1 stops waiting.
+	_log(ledger, start, "bee", false, 1500)
+	var closed := _without(raw, "infra:p2")
+	_log(ledger, _frame_of(closed), LOCAL, true, 2500)
+	var now := _with(closed, "infra:p1", {"agent_status": "idle"})
+	var frame := _frame_of(now, bee_raw, true)
+	_log(ledger, frame, LOCAL, true, 3500)
+	var live: Dictionary[String, bool] = {LOCAL: true, "bee": false}
+	await _tap_tab(OfficeBottomPanel.Page.HISTORY)
+	hud.show_history(AgentHistory.of(ledger, frame, live, 4000), "", ledger.opened_unix)
+	await _frames(2)
+	var ended := _key_of("infra:p1")
+	var gone := _key_of("infra:p2")
+	var offline := HerdrFleet.pane_key("bee", "web:p1")
+	var list := hud.history_list
+	_eq(list.shown_keys(), PackedStringArray([ended, gone, offline]), "a line per pane, newest first")
+	var tails := []
+	for key in list.shown_keys():
+		var tail: Label = list.row_for(key).get_node("%Tail")
+		tails.append(tail.text if tail.visible else "")
+	_eq(tails, ["", "GONE", "OFFLINE"], "each says what became of its pane; an ENDED one needs no word")
+	_check(list.row_for(_key_of("web:p1")) == null, "a pane still waiting has no line")
+	var ended_row := list.row_for(ended)
+	_check(ended_row.shown_text().begins_with("deploy"), "what the office called the pane: " + ended_row.shown_text())
+	_eq(ended_row.mark(), art.state(ArtContract.STATE_BLOCKED).badge, "its badge: it was blocked")
+	_eq(list.row_for(gone).mark(), art.state(ArtContract.STATE_DONE).badge, "this one's: it was done")
+	_eq(ended_row.size.y, 18.0, "one line, 18 tall")
+	var tip := ended_row.tooltip_text
+	_check(tip.contains("Local / infra / deploy"), "its place, in the tooltip: " + tip)
+	_check(tip.contains("ENDED · No longer waiting: idle since"), "ENDED and what it does now")
+	_check(tip.contains("blocked 1×"), "and how often it was blocked")
+	_check(not ended_row.disabled, "it can be located")
+	for key: String in [gone, offline]:
+		var row := list.row_for(key)
+		_check(row.disabled, "%s cannot be clicked" % key)
+		var tone: Label = row.get_node("%Name")
+		_eq(tone.theme_type_variation, &"LabelMuted", "%s is greyed" % key)
+	_check(list.row_for(gone).tooltip_text.contains(HistoryRow.NOT_HERE + HistoryRow.WHY_GONE), "why: it closed")
+	_check(
+		list.row_for(offline).tooltip_text.contains(HistoryRow.NOT_HERE + HistoryRow.WHY_OFFLINE),
+		"why: its machine is offline"
+	)
+	var since: Label = list.get_node("%Since")
+	_eq(since.text, "since %s · 3 lines" % OfficeAttention.wall_clock(ledger.opened_unix), "since when, how many")
+	await _tap(list.row_for(gone))
+	await _tap(list.row_for(offline))
+	_eq(picked, [], "a gone pane and an offline machine's cannot be picked")
+	await _tap(ended_row)
+	_eq(picked, [ended], "the ENDED one can")
+
+
+## A History line picks its pane only while the pane is the terminal the
+## StateLog saw: another terminal in it greys the line and says why; the same
+## terminal again picks it. The office checks it again on the click
+## (test_picks_show_the_agent_page_but_a_log_rows_pick_keeps_its_page).
+## From tools/test_agent_list.gd `test_a_history_line_locates_only_the_same_terminal`
+## and tools/test_attention_integration.gd `:290` (S3 PANEL-a1, 2026-10-27).
+func test_a_history_line_locates_only_the_same_terminal() -> void:
+	await _bare_hud()
+	var picked: Array[String] = []
+	hud.history_picked.connect(func(key: String) -> void: picked.append(key))
+	var ledger := StateLog.new()
+	_log(ledger, _frame_of(fixture), LOCAL, true, 1000)
+	var ended := _with(fixture, "infra:p1", {"agent_status": "idle"})
+	_log(ledger, _frame_of(ended), LOCAL, true, 2000)
+	var other := _frame_of(_with(ended, "infra:p1", {"terminal_id": "term-other"}))
+	var live: Dictionary[String, bool] = {LOCAL: true}
+	await _tap_tab(OfficeBottomPanel.Page.HISTORY)
+	hud.show_history(AgentHistory.of(ledger, other, live, 3000), "", ledger.opened_unix)
+	await _frames(2)
+	var key := _key_of("infra:p1")
+	var row := hud.history_list.row_for(key)
+	_check(row != null, "the pane that stopped waiting has a line")
+	if row == null:
+		return
+	_check(row.disabled, "another terminal in the pane: greyed")
+	_check(row.tooltip_text.contains(HistoryRow.NOT_HERE + HistoryRow.WHY_REPLACED), "and says why")
+	await _tap(row)
+	_eq(picked, [], "a click picks nothing")
+	var same := _frame_of(ended)
+	hud.show_history(AgentHistory.of(ledger, same, live, 3000), "", ledger.opened_unix)
+	await _frames(2)
+	_eq(hud.history_list.row_for(key), row, "the same row, updated in place")
+	_check(not row.disabled and row.tooltip_text.ends_with(NewsItem.TIP_PICK), "the same terminal can be picked")
+	await _tap(row)
+	_eq(picked, [key], "and a click says so")
+
+
+## A History line is about the pane's current agent run: another terminal in
+## the pane inherits nothing the run before it waited for, and its own waits
+## count from one again.
+## From tools/test_agent_list.gd `test_a_new_agent_run_in_the_pane_starts_its_history_over`, unchanged.
+func test_a_new_agent_run_starts_its_history_over() -> void:
+	var live: Dictionary[String, bool] = {LOCAL: true}
+	var ledger := StateLog.new()
+	_log(ledger, _frame_of(fixture), LOCAL, true, 1000)
+	var ended := _with(_with(fixture, "web:p2", {"agent_status": "idle"}), "infra:p1", {"agent_status": "idle"})
+	ended = _with(ended, "infra:p2", {"agent_status": "idle"})
+	var frame := _frame_of(ended)
+	_log(ledger, frame, LOCAL, true, 2000)
+	_eq(
+		_line_keys(AgentHistory.of(ledger, frame, live, 2000)),
+		PackedStringArray([_key_of("infra:p1"), _key_of("infra:p2"), _key_of("web:p2")]),
+		"a blocked and two done that ended: three lines"
+	)
+	var replaced := _with(ended, "web:p2", {"terminal_id": "term-web-p2-next"})
+	frame = _frame_of(replaced)
+	_log(ledger, frame, LOCAL, true, 3000)
+	_eq(
+		_line_keys(AgentHistory.of(ledger, frame, live, 3000)),
+		PackedStringArray([_key_of("infra:p1"), _key_of("infra:p2")]),
+		"the new terminal inherits nothing of the done before it"
+	)
+	_log(ledger, frame, LOCAL, false, 4000)
+	var away := _with(replaced, "infra:p1", {"terminal_id": "term-infra-p1-next"})
+	away = _with(away, "infra:p2", {"terminal_id": "term-infra-p2-next"})
+	frame = _frame_of(away)
+	_log(ledger, frame, LOCAL, true, 5000)
+	_eq(AgentHistory.of(ledger, frame, live, 5000).size(), 0, "nor ones that came up unannounced, blocked or done")
+	_log(ledger, _frame_of(_with(away, "infra:p1", {"agent_status": "blocked"})), LOCAL, true, 6000)
+	_log(ledger, frame, LOCAL, true, 7000)
+	var lines := AgentHistory.of(ledger, frame, live, 7000)
+	_eq(lines.size(), 1, "a wait of its own is a line again")
+	if lines.size() == 1:
+		_eq(lines[0].key, _key_of("infra:p1"), "infra:p1's")
+		_eq(lines[0].times, 1, "blocked once in this run")
+		_eq(lines[0].blocked_msec, 1000, "for its own second")
+		_check(lines[0].locatable, "and it is this terminal")
+
+
+## The History lines are built again only when something they are made of
+## changed: the log (its version), the frame's panes, or a machine going away.
+## The office's HISTORY page reads them through the same cache while it shows.
+## From tools/test_agent_list.gd `test_history_is_built_again_only_when_the_log_or_the_panes_change`,
+## with the page shown (S3 PANEL-a1, 2026-10-27).
+func test_history_is_built_again_only_when_the_log_or_the_panes_change() -> void:
+	var live: Dictionary[String, bool] = {LOCAL: true}
+	var ledger := StateLog.new()
+	_log(ledger, _frame_of(fixture), LOCAL, true, 1000)
+	var ended := _with(fixture, "infra:p1", {"agent_status": "idle"})
+	_log(ledger, _frame_of(ended), LOCAL, true, 2000)
+	var cache := AgentHistory.Cache.new()
+	var first := cache.lines(ledger, _frame_of(ended), live, 2000)
+	_eq([cache.builds, first.size()], [1, 1], "built once: infra:p1's line")
+	var again := cache.lines(ledger, _frame_of(ended), live, 3000)
+	_eq(cache.builds, 1, "a refresh with the same log and panes builds nothing")
+	_check(again == first, "and reads the same lines")
+	var working := _with(ended, "infra:p1", {"agent_status": "working"})
+	_log(ledger, _frame_of(working), LOCAL, true, 4000)
+	cache.lines(ledger, _frame_of(working), live, 4000)
+	_eq(cache.builds, 2, "a change in the log builds again")
+	var other := _frame_of(_with(working, "infra:p1", {"terminal_id": "term-other"}))
+	var moved := cache.lines(ledger, other, live, 4000)
+	_eq(cache.builds, 3, "a pane with another terminal builds again")
+	_check(not moved[0].locatable, "and the line knows it cannot be located")
+	var away: Dictionary[String, bool] = {LOCAL: false}
+	cache.lines(ledger, other, away, 4000)
+	_eq(cache.builds, 4, "so does a machine going away")
+	var office := await _live_office()
+	_feed(office, _with(fixture, "infra:p1", {"agent_status": "idle"}))
+	await _tap_tab_of(office, OfficeBottomPanel.Page.HISTORY)
+	var builds := office.history_cache.builds
+	_check(office.hud.history_list.shown_keys().has(_key_of("infra:p1")), "the page shows the line")
+	office.refresh()
+	office.refresh()
+	await _frames(2)
+	_eq(office.history_cache.builds, builds, "refreshes with nothing new build nothing, page shown")
+	_feed(office, _with(fixture, "infra:p1", {"agent_status": "working"}))
+	await _frames(1)
+	_eq(office.history_cache.builds, builds + 1, "a new state builds once")
+	_done(office)
+
+
+## The HISTORY and EVENTS pages have no rows until they first show, and say
+## page_shown once each time they come into sight; hidden again, refreshes
+## lay nothing out on them.
+## Replaces tools/test_agent_list.gd `test_the_events_page_renders_the_list_once_when_agents_is_back`
+## (S3 PANEL-a1, 2026-10-27: the drawer's EVENTS page moved into the panel).
+func test_the_history_and_events_pages_render_only_while_they_show() -> void:
+	var office := await _live_office()
+	var shown: Array[OfficeBottomPanel.Page] = []
+	office.hud.page_shown.connect(func(page: OfficeBottomPanel.Page) -> void: shown.append(page))
+	var one := _with(fixture, "api:p1", {"agent_status": "blocked"})
+	_feed(office, one)
+	_feed(office, _with(one, "api:p1", {"agent_status": "idle"}))
+	await _frames(2)
+	var hud_now := office.hud
+	_check(hud_now.event_list.shown_ids().is_empty(), "EVENTS hidden: no rows yet")
+	_check(hud_now.history_list.shown_keys().is_empty(), "HISTORY hidden: no rows yet")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	_eq(shown, [OfficeBottomPanel.Page.EVENTS], "EVENTS said once")
+	_eq(hud_now.event_list.shown_ids(), _event_ids(office), "a row per event, at once")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.HISTORY)
+	_eq(shown, [OfficeBottomPanel.Page.EVENTS, OfficeBottomPanel.Page.HISTORY], "HISTORY said once")
+	_eq(hud_now.history_list.shown_keys(), PackedStringArray([_key_of("api:p1")]), "its line, at once")
+	var events_before := hud_now.event_list.shown_ids()
+	_feed(office, _with(fixture, "api:p2", {"agent_status": "blocked"}))
+	await _frames(2)
+	_eq(hud_now.event_list.shown_ids(), events_before, "EVENTS hidden: a new event lays nothing out there")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	_eq(shown.size(), 3, "EVENTS said again as it comes back")
+	_eq(hud_now.event_list.shown_ids(), _event_ids(office), "with the new event")
+	_done(office)
+
+
+# --- the bar's band, picks and the right edge --------------------------------------
+
+
+## The top bar is 52 tall from 400 high and 32 below: the world starts 16 under
+## it (68 / 48), the OVERVIEW and the right column 8 under it (60 / 40), and
+## the portrait strip stands centred in the band.
+func test_the_bar_band_is_52_on_tall_screens_and_32_on_short_ones() -> void:
+	await _bare_hud()
+	for row: Array in [[Vector2i(800, 480), 52.0], [Vector2i(960, 480), 52.0], [Vector2i(480, 320), 32.0]]:
+		var screen: Vector2i = row[0]
+		var band: float = row[1]
+		root.size = screen
+		hud.fit(Vector2(screen))
+		await _frames(2)
+		_eq(hud.placed(hud.bar), Rect2(0, 0, screen.x, band), "%s: the bar" % screen)
+		_eq(hud.bar.get_global_rect().size.y, band, "%s: really that tall" % screen)
+		_eq(hud.world_rect().position.y, band + 16.0, "%s: the world under it" % screen)
+		_eq(hud.overview.offset_top, band + 8.0, "%s: the OVERVIEW under it" % screen)
+		_eq(hud.right_column.offset_top, band + 8.0, "%s: the right column under it" % screen)
+		var cards: Control = hud.bar.get_node("%Cards")
+		var middle := cards.get_global_rect().get_center().y
+		_check(absf(middle - band / 2.0) <= 0.5, "%s: the strip centred in the band: %.1f" % [screen, middle])
+
+
+## Every pick shows the AGENT page, but a click on a HISTORY or EVENTS line
+## keeps its page (browsing the log): a desk, a portrait card, `N` and Enter
+## bring the card back; an EVENTS row and a HISTORY line pick their pane and
+## stay where they are. Nothing is read or written: the office is read-only.
+func test_picks_show_the_agent_page_but_a_log_rows_pick_keeps_its_page() -> void:
+	var office := await _live_office()
+	var one := _with(fixture, "api:p1", {"agent_status": "blocked"})
+	_feed(office, one)
+	_feed(office, _with(one, "api:p1", {"agent_status": "idle"}))
+	await _frames(2)
+	var hud_now := office.hud
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	await _click_desk(office, _key_of("api:p2"))
+	await _frames(2)
+	_eq(hud_now.page(), OfficeBottomPanel.Page.AGENT, "a desk click shows the card")
+	_eq(office.navigator.active_key, _key_of("api:p2"), "of that desk")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.HISTORY)
+	var portrait := hud_now.bar.card_for(_key_of("web:p1"))
+	_check(portrait != null, "the blocked agent has a portrait card")
+	if portrait != null:
+		await _tap(portrait.get_node("%Face") as Control)
+		_eq(hud_now.page(), OfficeBottomPanel.Page.AGENT, "a portrait card's click shows the card")
+		_eq(office.navigator.active_key, _key_of("web:p1"), "of its pane")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	await _office_key(office, KEY_N)
+	await _frames(2)
+	_eq(hud_now.page(), OfficeBottomPanel.Page.AGENT, "`N` shows the card")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	# Enter is bound by its position (card_answer), as the window delivers it.
+	var enter := _key(KEY_ENTER)
+	enter.physical_keycode = KEY_ENTER
+	await _parsed(enter)
+	enter.pressed = false
+	await _parsed(enter)
+	await _frames(2)
+	_eq(hud_now.page(), OfficeBottomPanel.Page.AGENT, "Enter shows the card")
+	await _tap_tab_of(office, OfficeBottomPanel.Page.EVENTS)
+	var events := office.fleet.state_log().events()
+	var row: EventRow = null
+	for index in range(events.size() - 1, -1, -1):
+		if events[index].pane_key == _key_of("api:p1"):
+			row = hud_now.event_list.row_for(events[index].id)
+			break
+	_check(row != null and not row.disabled, "api:p1's newest event has a row that picks")
+	if row != null:
+		await _tap(row)
+		_eq(hud_now.page(), OfficeBottomPanel.Page.EVENTS, "an EVENTS row keeps its page")
+		_eq(office.navigator.active_key, _key_of("api:p1"), "and picks its pane")
+	await _click_desk(office, _key_of("api:p2"))
+	await _tap_tab_of(office, OfficeBottomPanel.Page.HISTORY)
+	var line := hud_now.history_list.row_for(_key_of("api:p1"))
+	_check(line != null and not line.disabled, "api:p1 stopped waiting: a line that picks")
+	if line != null:
+		await _tap(line)
+		_eq(hud_now.page(), OfficeBottomPanel.Page.HISTORY, "a HISTORY line keeps its page")
+		_eq(office.navigator.active_key, _key_of("api:p1"), "and picks its pane, checked again by the office")
+	_done(office)
+
+
+## The drawer has no closed tab any more: closed it takes no room, the world
+## runs to the screen's right edge and a floor's first plan is that wide. `A`
+## opens it (the world stops at it, the plan stays), its ▶ closes it.
+## Replaces tools/test_agent_list.gd `:731` and `:797` (S3 PANEL-a1, 2026-10-27).
+## S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151),
+## the world 35 taller: each room 35 taller.
+func test_the_drawer_has_no_closed_tab_and_the_world_runs_to_the_right_edge() -> void:
+	await _bare_hud()
+	_check(hud.get_node_or_null("%DrawerTab") == null, "no `%DrawerTab` in the HUD")
+	_check(not hud.drawer_open() and not hud.right_column.visible, "the drawer starts closed, taking nothing")
+	_eq(hud.world_rect(), Rect2(16, 68, 776, 276), "the world runs to the right edge")
+	_eq(hud.plan_width(), 776.0, "a first plan is made for it")
+	var rooms: Array[bool] = []
+	hud.room_changed.connect(func() -> void: rooms.append(true))
+	hud.toggle_agent_list()
+	await _frames(2)
+	_check(hud.drawer_open() and hud.right_column.is_visible_in_tree(), "`A` opens the drawer")
+	_eq(hud.world_rect(), Rect2(16, 68, 616, 276), "the world stops at it")
+	_eq(hud.plan_width(), 776.0, "a first plan is still made for the drawer closed")
+	_eq(rooms.size(), 1, "said once")
+	await _tap(hud.get_node("%Collapse") as Control)
+	_check(not hud.drawer_open() and not hud.right_column.visible, "its ▶ closes it")
+	_eq(hud.world_rect(), Rect2(16, 68, 776, 276), "and the world has the edge back")
+	_eq(rooms.size(), 2, "said once more")
+
+
+## The wheel over the EVENTS page scrolls its rows and goes no further: the
+## office under the panel does not pan.
+## From tools/test_agent_list.gd `:992`'s wheel clause, on the EVENTS page
+## (S3 PANEL-a1, 2026-10-27).
+func test_the_wheel_over_a_page_scrolls_it_and_goes_no_further() -> void:
+	await _bare_hud()
+	await _tap_tab(OfficeBottomPanel.Page.EVENTS)
+	var events: Array[StateLog.Event] = []
+	for index in 30:
+		var event := StateLog.Event.new()
+		event.id = index + 1
+		event.wall_unix = 1000.0 + index
+		event.machine = LOCAL
+		event.machine_label = "Local"
+		event.pane_key = _key_of("api:p1")
+		event.agent = "claude"
+		event.space = "api"
+		event.name = "refactor the fleet"
+		event.state = "working" if index % 2 == 0 else "idle"
+		event.previous_state = "idle" if index % 2 == 0 else "working"
+		events.append(event)
+	hud.show_events(events, func(_pane: String) -> bool: return true, "", 1000.0, false)
+	await _frames(3)
+	var scroll: ScrollContainer = hud.event_list.get_node("%Scroll")
+	_check(scroll.get_v_scroll_bar().max_value > scroll.size.y, "the rows are taller than the page")
+	var at := scroll.get_global_rect().get_center()
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	wheel.position = at
+	wheel.global_position = at
+	Input.parse_input_event(wheel)
+	Input.flush_buffered_events()
+	await process_frame
+	_check(scroll.scroll_vertical > 0, "the wheel scrolls them")
+	_eq(recorder.wheels, 0, "and goes no further")
+
+
+# --- helpers ----------------------------------------------------------------------
+
+
+## A HUD on a `size` screen, as the office lays one out; nothing opened.
+## The docked card's left column says the floors fixture's names whole at
+## 960x480, the launch block beside the preview as an operator sees it: every
+## pane's title and place are as wide as their words. S3 PANEL-a1 round 2
+## (2026-10-28, R2): on round 1 `refactor the fleet` read `refactor t···` and
+## `CLAUDE · api / main` `CLAUDE · api ···`.
+func test_the_docked_card_says_the_fixtures_names_whole_at_960() -> void:
+	await _bare_hud(Vector2i(960, 480))
+	var frame := _frame_of(fixture)
+	var block: LaunchBlock = hud.inspector.get_node("%Launch")
+	var seen := 0
+	for pane: PaneModel in frame.live_panes:
+		hud.inspector.show_pane(pane, "", false)
+		if pane.provider.is_empty():
+			block.show_start(_offers(3), "", "Local")
+		else:
+			block.show_split(pane.provider, pane.pane_id, "down", CommandRefusal.Reason.NONE, "")
+		block.show_manage(LaunchBlock.Manage.new())
+		await _frames(2)
+		_check(hud.inspector.docked() and block.is_visible_in_tree(), "%s: docked, the block shown" % pane.pane_id)
+		for unique: String in ["%CardName", "%Seat"]:
+			var label: Label = hud.inspector.get_node(unique)
+			var words := (
+				label
+				. get_theme_font("font")
+				. get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size("font_size"))
+				. x
+			)
+			_check(
+				label.is_visible_in_tree() and not label.text.is_empty() and words <= label.size.x,
+				"%s: %s `%s` whole: %s of it in %s" % [pane.pane_id, unique, label.text, words, label.size.x]
+			)
+		seen += 1
+	_eq(seen, 13, "every pane of the fixture")
+
+
+## The docked panel is 116 tall at 640x480, 700x480 and 760x480 (where NEXT
+## gives the card its room below `staff_docked_next_from` and comes back), at
+## 800x480 and at 960x480, and no state of the card puts a write control outside it: START
+## with three kinds and with eight (the title gives way), its confirm armed
+## with a branch note typed, no kind seen, NEW PANE with a branch note, Close
+## armed on an agent with a long scope line, and the manage rows alone. Every
+## shown button and the branch box stand inside the card's columns, and the
+## launch block needs no more height than the body has. S3 PANEL-a1 round 2
+## (2026-10-28, R1): round 1's panel was 151 tall.
+func test_every_docked_state_keeps_its_write_controls_in_the_116_panel() -> void:
+	var writes := [
+		"%Kind0",
+		"%Kind1",
+		"%Kind2",
+		"%Kind3",
+		"%Kind4",
+		"%Kind5",
+		"%Kind6",
+		"%Kind7",
+		"%SplitButton",
+		"%CloseButton",
+		"%SpaceButton",
+		"%BranchBox",
+		"%WorktreeButton",
+		"%FocusButton",
+		"%MonitorButton",
+		"%AnswerButton",
+		"%NextButton",
+		"%StepBack",
+		"%StepOn",
+		"%CardClose"
+	]
+	for size: Vector2i in [
+		Vector2i(640, 480), Vector2i(700, 480), Vector2i(760, 480), Vector2i(800, 480), Vector2i(960, 480)
+	]:
+		await _bare_hud(size)
+		_eq(hud.placed(hud.staff).size.y, 116.0, "%s: the docked panel 116 tall" % size)
+		var next_button: Control = hud.inspector.get_node("%NextButton")
+		_eq(next_button.is_visible_in_tree(), size.x >= 760, "%s: NEXT beside the card from 760" % size)
+		_eq(hud.world_rect().size.y, 276.0, "%s: the world 276 tall over it" % size)
+		var frame := _frame_of(fixture)
+		var card := hud.inspector
+		var block: LaunchBlock = card.get_node("%Launch")
+		var stack: Control = card.get_node("%Stack")
+		for state: String in ["start3", "start8", "confirm8", "none", "split", "close", "manage"]:
+			var pane := frame.pane(_key_of("api:p3" if state in ["start3", "start8", "confirm8", "none"] else "api:p1"))
+			card.show_pane(pane, "", false)
+			var manage := LaunchBlock.Manage.new()
+			manage.note = LaunchBlock.BRANCH_NOTE % "needs a name"
+			match state:
+				"start3":
+					block.show_start(_offers(3), "", "Local")
+				"start8":
+					block.show_start(_offers(8), "", "Local")
+				"confirm8":
+					block.show_start(_offers(8), "", "Local", "claude", "➜  api git:(main) ✗ ")
+				"none":
+					block.show_start(_offers(0), "", "Local")
+				"split":
+					block.show_split("claude", "api:p1", "down", CommandRefusal.Reason.NONE, "")
+				"close":
+					block.show_split("claude", "api:p1", "down", CommandRefusal.Reason.NONE, "")
+					manage.close_text = LaunchBlock.CLOSE_KILLS
+					manage.confirm_note = LaunchBlock.CLOSE_NOTE % 10
+					manage.confirm_line = (
+						(LaunchBlock.CLOSE_LINE_AGENT % ["claude", "api:p1"])
+						+ (LaunchBlock.CLOSE_LINE_MEZZANINE % ["w3", "feature-x-with-a-long-branch-name"])
+					)
+				"manage":
+					block.show_manage_only()
+			block.show_manage(manage)
+			await _frames(2)
+			var room := stack.get_global_rect()
+			var said := "%s %s" % [size, state]
+			var detail: Control = card.get_node("%Detail")
+			_check(
+				room.encloses(detail.get_global_rect()),
+				"%s: the card's columns fit its width: %s in %s" % [said, detail.get_global_rect(), room]
+			)
+			_check(
+				block.get_combined_minimum_size().y <= room.size.y,
+				"%s: the block needs %s of the body's %s" % [said, block.get_combined_minimum_size().y, room.size.y]
+			)
+			var shown := 0
+			for unique: String in writes:
+				var control: Control = card.get_node(unique)
+				if not control.is_visible_in_tree():
+					continue
+				shown += 1
+				var within := room if stack.is_ancestor_of(control) else hud.staff.get_global_rect()
+				_check(
+					within.encloses(control.get_global_rect()),
+					"%s: %s %s inside %s" % [said, unique, control.get_global_rect(), within]
+				)
+			# At least the block's own button, Close and the card's ×: the ladder above checks each that shows.
+			_check(shown >= 3, "%s: %d write controls shown" % [said, shown])
+		hud.free()
+
+
+func _offers(count: int) -> Array[LaunchBlock.Offer]:
+	var kinds := ["claude", "codex", "pi", "qodercli", "opencode", "copilot", "hermes", "gemini"]
+	var offers: Array[LaunchBlock.Offer] = []
+	for index in count:
+		var offer := LaunchBlock.Offer.new()
+		offer.kind = kinds[index]
+		offer.agent_name = "%s-1" % kinds[index]
+		offers.append(offer)
+	return offers
+
+
+func _bare_hud(size := Vector2i(800, 480)) -> void:
+	root.size = size
+	hud = HUD_SCENE.instantiate()
+	hud.dress(art, pen.font)
+	root.add_child(hud)
+	hud.fit(Vector2(size))
+	recorder = Recorder.new()
+	root.add_child(recorder)
+	await _frames(2)
+
+
+## A real click on the middle of `control`, then the frames it takes.
+func _tap(control: Control) -> void:
+	await _click_at(control.get_global_rect().get_center())
+	await _frames(2)
+
+
+## A real click on the bottom panel's tab for `page`.
+func _tap_tab(page: OfficeBottomPanel.Page) -> void:
+	var tabs := hud.staff.tabs
+	await _click_at(tabs.get_global_rect().position + tabs.get_tab_rect(page).get_center())
+	await _frames(2)
+
+
+func _tap_tab_of(office: OfficeDouble, page: OfficeBottomPanel.Page) -> void:
+	var tabs := office.hud.staff.tabs
+	await _click_at(tabs.get_global_rect().position + tabs.get_tab_rect(page).get_center())
+	await _frames(2)
+
+
+## Local's snapshot `raw`, and bee's `bee_raw` (`bee_stale`: dropped) beside it.
+func _frame_of(raw: Dictionary, bee_raw: Dictionary = {}, bee_stale := false) -> OfficeFrame:
+	var machines: Array[MachineView] = [MachineView.new(LOCAL, "Local", HerdrSnapshot.from_wire(raw), false)]
+	if not bee_raw.is_empty():
+		machines.append(MachineView.new("bee", "Bee", HerdrSnapshot.from_wire(bee_raw), bee_stale))
+	return OfficeProjection.frame(machines, art.state_names())
+
+
+func _key_of(pane_id: String) -> String:
+	return HerdrFleet.pane_key(LOCAL, pane_id)
+
+
+func _without(snapshot: Dictionary, pane_id: String) -> Dictionary:
+	var copy := snapshot.duplicate(true)
+	copy["panes"] = _list(copy, "panes").filter(func(pane: Dictionary) -> bool: return pane.get("pane_id") != pane_id)
+	return copy
+
+
+func _only(snapshot: Dictionary, pane_id: String) -> Dictionary:
+	var copy := snapshot.duplicate(true)
+	copy["panes"] = _list(copy, "panes").filter(func(pane: Dictionary) -> bool: return pane.get("pane_id") == pane_id)
+	return copy
+
+
+func _line_keys(lines: Array[AgentHistory.Line]) -> PackedStringArray:
+	var keys := PackedStringArray()
+	for line in lines:
+		keys.append(line.key)
+	return keys
+
+
+func _event_ids(office: OfficeDouble) -> PackedInt64Array:
+	var ids := PackedInt64Array()
+	var events := office.fleet.state_log().events()
+	for index in range(events.size() - 1, -1, -1):
+		ids.append(events[index].id)
+	return ids
+
+
+## Feed `ledger` what the fleet would hand it for machine `key` of `frame` at
+## `now_msec` (tools/test_agent_list.gd's helper).
+func _log(ledger: StateLog, frame: OfficeFrame, key: String, online: bool, now_msec: int) -> void:
+	var seen: Array[StateLog.Sighting] = []
+	for building in frame.buildings:
+		if building.key != key:
+			continue
+		for pane in building.all_panes:
+			var sighting := StateLog.Sighting.new()
+			sighting.pane_key = pane.key
+			sighting.identity = "" if pane.terminal_id.is_empty() else pane.identity_key()
+			sighting.status = pane.state
+			sighting.starting = pane.starting
+			sighting.agent = pane.provider
+			sighting.space = pane.workspace_label
+			sighting.tab = pane.tab_shown
+			sighting.name = pane.name
+			sighting.terminal_id = pane.terminal_id
+			sighting.since_unix = now_msec / 1000.0
+			seen.append(sighting)
+	ledger.observe(key, key.capitalize(), online, seen, now_msec, now_msec / 1000.0)

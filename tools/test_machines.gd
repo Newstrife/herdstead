@@ -1273,13 +1273,13 @@ func test_office_two_machines() -> void:
 	_eq(office.picked_key, bee_p1, "click picks the desk on the machine it sits on")
 	_eq(office.navigator.active_key, office.picked_key, "and selects it")
 	_eq(office.navigator.shown_key, bee, "picking a desk never changes the map")
-	# The staff panel is one line until opened: Enter opens it, and its
-	# details name the machine.
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer
+	# tab. Docked, the panel is open: Enter keeps it so, Escape folds nothing; its details name the machine.
 	await _card_key(KEY_ENTER)
-	await _until(func() -> bool: return not office.hud.card_compact(), "Enter opens the panel")
+	await _until(func() -> bool: return not office.hud.card_compact(), "Enter: the docked panel is open")
 	_check(_inspector_text(office).contains("@ bee"), "inspector names the machine")
 	await _card_key(KEY_ESCAPE)
-	await _until(office.hud.card_compact, "Escape folds it back to its line")
+	await _until(func() -> bool: return not office.hud.card_compact(), "Escape folds nothing: still docked")
 	# Pan the floor as far left as the office allows, so the panels sit over as
 	# much of it as they ever will: a click there is the panel's, and so is one
 	# over the inspector. Neither reaches the office at all. (That a desk really
@@ -1326,10 +1326,10 @@ func test_office_two_machines() -> void:
 	await _click_visible_pane(office, local_p1)
 	_eq(office.picked_key, local_p1, "the same pane id on Local is its own desk")
 	await _card_key(KEY_ENTER)
-	await _until(func() -> bool: return not office.hud.card_compact(), "Enter opens Local's panel")
+	await _until(func() -> bool: return not office.hud.card_compact(), "Enter: Local's docked panel is open")
 	_check(_inspector_text(office).contains("@ Local"), "inspector names Local")
 	await _card_key(KEY_ESCAPE)
-	await _until(office.hud.card_compact, "Escape folds it again")
+	await _until(func() -> bool: return not office.hud.card_compact(), "Escape folds nothing again")
 	await _zone_pick(office, bee_alpha)
 	await _click_visible_pane(office, bee_p1)
 	_eq(office.picked_key, bee_p1, "bee is selected before its status and liveness change")

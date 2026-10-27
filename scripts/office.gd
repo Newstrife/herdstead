@@ -234,7 +234,8 @@ func _ready() -> void:
 	_paper.color = art.color(ArtContract.DEEP)
 	_paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_paper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# The paper starts where the bar ends; the bar's own height is the scene's.
+	# The paper starts where the bar ends; the bar's own height is the HUD's
+	# (_fit_band()), and depends on the window.
 	_paper.offset_top = hud.placed(hud.bar).size.y
 	backdrop.add_child(_paper)
 	light_mode = _chosen_light(args)
@@ -260,22 +261,25 @@ func _ready() -> void:
 	hud.fold_pressed.connect(_on_fold)
 	hud.panes_pressed.connect(_on_panes)
 	hud.history_locate_requested.connect(_locate_history)
+	# A HISTORY line picks its pane (checked again here) and keeps its page.
+	hud.history_picked.connect(_locate_history.bind(true))
 	hud.attention_snooze_requested.connect(_snooze_attention)
 	hud.attention_hidden_changed.connect(_hide_attention)
 	hud.agent_picked.connect(_pick_from_list)
 	hud.inspector.card_closed.connect(_on_card_closed)
-	# NEWS and EVENTS pick the pane an event is about, as a row of the list does.
+	# NEWS and EVENTS pick the pane an event is about, as a row of the list
+	# does; an EVENTS row keeps its page, browsing the log.
 	hud.news_picked.connect(_pick_from_list)
-	hud.event_picked.connect(_pick_from_list)
+	hud.event_picked.connect(_pick_from_log)
 	# Hovering those, a list row or an edge arrow points at what it names; only points.
 	hud.pane_pointed.connect(_point_at_pane)
 	hud.zone_pointed.connect(_point_at_zone)
-	# The EVENTS page is laid out only while it shows: the moment it does, too.
-	hud.events_shown.connect(_show_events)
+	# The HISTORY and EVENTS pages are laid out only while they show: the moment they do, too.
+	hud.page_shown.connect(_on_page_shown)
 	# The list's double-click, Enter or Open, and the card's "Monitor".
 	hud.monitor_requested.connect(_open_monitor)
 	hud.agent_list_changed.connect(_remember_list)
-	# NEXT on the staff panel is `N`; its line's `‹ ›` walk the same queue.
+	# NEXT on the bottom panel is `N`; its `‹ ›` walk the same queue.
 	hud.next_requested.connect(_jump_to_next_human)
 	hud.step_requested.connect(_step_queue)
 	# The overview: a row picks its pane; `X  Esc` closes it; a sort or a chip redraws it.
@@ -355,18 +359,17 @@ func _ready() -> void:
 	# `--list=tree` opens the agent list in its tree view (a capture's second shot).
 	if args.text("list") == "tree":
 		hud.agent_list.set_view(AgentListModel.View.TREE)
-	# `--list=history` folds every flat group but History (a capture's shot).
-	elif args.text("list") == "history":
-		for key: String in AgentListModel.FLAT_GROUPS:
-			hud.agent_list.set_collapsed(key, key != AgentListModel.FLAT_HISTORY)
 	# `--drawer=open` starts with the agent list's drawer open, which every run
 	# otherwise starts closed (a capture's shot).
 	if args.text("drawer") == "open":
 		hud.open_drawer()
-	# `--drawer=events` starts with the drawer open on its EVENTS page (a capture's shot).
-	elif args.text("drawer") == "events":
-		hud.open_drawer()
-		hud.select_drawer_tab(OfficeHud.DrawerTab.EVENTS)
+	# `--panel=history` / `--panel=events` start on the bottom panel's HISTORY
+	# or EVENTS page, which every run otherwise starts on AGENT (a capture's
+	# shot): after the first refresh, so the page opens on a laid-out HUD.
+	if args.text("panel") == "history":
+		hud.show_page(OfficeBottomPanel.Page.HISTORY)
+	elif args.text("panel") == "events":
+		hud.show_page(OfficeBottomPanel.Page.EVENTS)
 	# `--overview=open` starts with the overview open (a capture's shot).
 	if args.text("overview") == "open":
 		_open_overview()
@@ -568,6 +571,7 @@ func _process(delta: float) -> void:
 	if _inbox_left <= 0.0:
 		_inbox_left = 1.0
 		_show_attention()
+		_show_history()
 		_marks.tick(frame, navigator.shown_key)
 	_questions_left -= delta
 	if _questions_left <= 0.0:
@@ -590,9 +594,13 @@ func _act_on(event: InputEvent) -> bool:
 		return true
 	if hud.monitor_open():
 		return true
-	# The staff panel is one line that reads nothing until it is opened: Enter
-	# on any pane shown opens it (read-only and followed panes too), and the
-	# card then takes that Enter if it is a picked agent's.
+	# Enter on a pane shown is about its card: the AGENT page comes back first.
+	var enter := event.is_action_pressed(&"card_answer", false, true)
+	if enter and hud.page() != OfficeBottomPanel.Page.AGENT and frame.pane(navigator.active_key) != null:
+		hud.show_card_page()
+	# On a short screen the bottom panel is two rows that read nothing until it
+	# is opened: Enter on any pane shown opens it (read-only and followed panes
+	# too), and the card then takes that Enter if it is a picked agent's.
 	if hud.card_compact() and event.is_action_pressed(&"card_answer", false, true):
 		if frame.pane(navigator.active_key) != null:
 			hud.expand_card()
@@ -693,8 +701,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_desk_picked(key: String, at: Vector2) -> void:
 	if hud.monitor_open() or not camera.still_click(at):
 		return
-	# A pick, even of the same desk, ends the card's answer mode.
+	# A pick, even of the same desk, ends the card's answer mode, and shows its card.
 	hud.inspector.leave_answer()
+	hud.show_card_page()
 	# The terminal at that desk now is the one picked: a later one reusing its id is not.
 	var pane := frame.pane(key)
 	navigator.pick_desk(key, "" if pane == null else pane.identity_key())
@@ -780,13 +789,15 @@ func _jump_to_next_human() -> void:
 	if hud.monitor_open() or not navigator.next_human(frame):
 		return
 	camera.cancel_press()
+	# NEXT needs the card: the AGENT page shows.
+	hud.show_card_page()
 	# The card's new binding leaves answer mode itself, and keeps a button still
 	# held down so that its release says "target changed" (OfficePaneInspector._bind()).
 	_refresh()
 	_open_card_for(frame.pane(navigator.picked_key))
 
 
-## `‹` (-1) or `›` (+1) on the staff panel's line: the one before or after the
+## `‹` (-1) or `›` (+1) under NEXT on the bottom panel: the one before or after the
 ## pick in NEXT's queue, picked, its map shown and its desk revealed. Only a
 ## selection: no answer mode (the new binding leaves it), and an open panel
 ## folds because the card is aimed at another pane. Not while the monitor is open.
@@ -916,6 +927,7 @@ func _refresh() -> void:
 	_show_staff()
 	_show_news()
 	_show_events()
+	_show_history()
 	_show_monitor()
 	attention.update(frame.live_panes, stale, fleet.size() - live)
 	alerts.take(frame)
@@ -953,7 +965,7 @@ func _flush_refresh() -> void:
 	_refresh()
 
 
-## A HUD panel moved (drawer, staff panel): the world's room changed without the window doing so.
+## A HUD panel moved (drawer, bottom panel): the world's room changed without the window doing so.
 ## Inside a refresh it only drops the camera's room: the one move a refresh can
 ## cause is the window's own fit in camera.free_rect(), which the refresh reads
 ## right after, so a second refresh nested in it would redo the same work on a
@@ -1277,7 +1289,18 @@ func _show_bar(live: int) -> void:
 	var status := bar_status(fleet.read_only(), live, fleet.size())
 	var theme := "%s · %s  [T]" % [art.display_name.to_upper(), "NIGHT" if DayLight.is_night(night) else "DAY"]
 	hud.fit(_screen())
+	_fit_band()
 	hud.show_bar(theme, status, live < fleet.size())
+
+
+## The bar's height depends on the window (OfficeHud.fit()): the paper starts
+## under it, and the window's own buttons are centred on it.
+func _fit_band() -> void:
+	var band := hud.placed(hud.bar).size.y
+	if _paper == null or _paper.offset_top == band:
+		return
+	_paper.offset_top = band
+	hud.bar.set_title_gap(OfficeWindow.title_gap(get_window(), band))
 
 
 ## The bar's status line for `live` machines answering out of `total`: which
@@ -1320,7 +1343,7 @@ func _machine_rows() -> Array[OfficeTotals.MachineRow]:
 	return rows
 
 
-## The staff panel: the selected pane, judged by its own machine (another
+## The bottom panel's card: the selected pane, judged by its own machine (another
 ## machine dropping does not make this pane stale), and NEXT. The panel keeps
 ## its nodes and its portrait's animation; only the text and the pose change.
 ## Its writes are offered only for a pane the viewer picked, never for one it
@@ -1348,7 +1371,7 @@ func _show_staff() -> void:
 	attention.watch_next(next_machine, "" if next == null else next.pane_id)
 
 
-## The NEWS strip: the log's latest events, newest first, each clickable while
+## The NEWS line: the log's latest events, newest first, each clickable while
 ## its pane is still in this frame. A handful of lines, rebuilt every refresh.
 func _show_news() -> void:
 	var events := fleet.state_log().events()
@@ -1358,15 +1381,34 @@ func _show_news() -> void:
 	hud.show_news(items)
 
 
-## The drawer's EVENTS page, only while it is the page shown: a hidden list is
-## not laid out, and has no rows until it is first shown.
+## The bottom panel's EVENTS page, only while it is the page shown: a hidden
+## list is not laid out, and has no rows until it is first shown.
 func _show_events() -> void:
-	if hud.drawer_tab() != OfficeHud.DrawerTab.EVENTS or not hud.drawer_open():
+	if hud.page() != OfficeBottomPanel.Page.EVENTS:
 		return
 	var ledger := fleet.state_log()
 	var shown := frame
 	var pickable := func(key: String) -> bool: return shown.pane(key) != null
 	hud.show_events(ledger.events(), pickable, navigator.active_key, ledger.opened_unix, frame.several_machines())
+
+
+## The bottom panel's HISTORY page, only while it is the page shown, from the
+## same cached lines as the agent list's History group.
+func _show_history() -> void:
+	if hud.page() != OfficeBottomPanel.Page.HISTORY:
+		return
+	var lines := history_cache.lines(fleet.state_log(), frame, _live_machines(), Time.get_ticks_msec())
+	hud.show_history(lines, navigator.active_key, fleet.state_log().opened_unix)
+
+
+## A page of the bottom panel came into sight: lay it out now.
+func _on_page_shown(which: OfficeBottomPanel.Page) -> void:
+	if fleet == null:
+		return
+	if which == OfficeBottomPanel.Page.EVENTS:
+		_show_events()
+	elif which == OfficeBottomPanel.Page.HISTORY:
+		_show_history()
 
 
 # --- the overview ----------------------------------------------------------------
@@ -1377,7 +1419,7 @@ func _show_events() -> void:
 ## out again, no map is planned for it, and the people keep walking under it.
 ## Hidden meanwhile: the world, the edge arrows and the world tooltip; the
 ## chips' reader stops at once (it reads nothing the overview covers). Not
-## while the terminal monitor is open; answer mode on the staff panel stays.
+## while the terminal monitor is open; answer mode on the bottom panel stays.
 func _open_overview() -> void:
 	if hud.monitor_open() or hud.overview_open():
 		return
@@ -1448,7 +1490,7 @@ func _show_overview() -> void:
 ## world hides (the people keep walking under it), and so do the edge arrows and
 ## the world tooltip; the chips' reader stops (it reads nothing the view
 ## covers) and the lens cannot come on (_may_lens()). The top bar, the drawer,
-## the staff panel and NEWS stay where they are and keep working. Not under the
+## the bottom panel (NEWS in it) stay where they are and keep working. Not under the
 ## terminal monitor.
 func _open_strategic() -> void:
 	if hud.monitor_open() or hud.strategic_open():
@@ -1578,9 +1620,10 @@ func _live_machines() -> Dictionary[String, bool]:
 	return result
 
 
-## A History line's View: pane `key`, if it is still the terminal the StateLog
-## saw needing a human.
-func _locate_history(key: String) -> void:
+## A History line's View (the agent list's menu), or a click on a line of the
+## HISTORY page (`keep_page`: that page stays): pane `key`, if it is still the
+## terminal the StateLog saw needing a human.
+func _locate_history(key: String, keep_page := false) -> void:
 	var pane := frame.pane(key)
 	if pane == null or fleet.is_stale(pane.machine()):
 		return
@@ -1589,7 +1632,7 @@ func _locate_history(key: String) -> void:
 	# a run whose History is not the line that was clicked.
 	for line in AgentHistory.of(fleet.state_log(), frame, _live_machines(), Time.get_ticks_msec()):
 		if line.key == key and line.locatable:
-			_pick_pane(pane)
+			_pick_pane(pane, keep_page)
 			return
 	_refresh()
 
@@ -1601,12 +1644,22 @@ func _pick_from_list(key: String) -> void:
 		_pick_pane(pane)
 
 
+## A row of the EVENTS page: the same pick, and the page stays (browsing the log).
+func _pick_from_log(key: String) -> void:
+	var pane := frame.pane(key)
+	if pane != null:
+		_pick_pane(pane, true)
+
+
 ## The one way a list or an attention record picks a pane: select that
 ## terminal, show its map and reveal its desk once drawn, like `N`. A pick,
-## as on a desk, ends the card's answer mode first.
-func _pick_pane(pane: PaneModel) -> void:
+## as on a desk, ends the card's answer mode first, and shows the AGENT page
+## unless `keep_page` (a click on a HISTORY or EVENTS line keeps its page).
+func _pick_pane(pane: PaneModel, keep_page := false) -> void:
 	camera.cancel_press()
 	hud.inspector.leave_answer()
+	if not keep_page:
+		hud.show_card_page()
 	navigator.locate(frame, pane)
 	_refresh()
 

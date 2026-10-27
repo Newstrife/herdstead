@@ -692,13 +692,16 @@ func test_read_only_next_says_no_verb_and_only_picks() -> void:
 	await _press(button)
 	await _frames(3)
 	_eq(office.picked_key, named, "a click picks whom it named")
-	_check(office.hud.card_compact(), "and the panel stays one line")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 800x480
+	# docks the panel; it
+	# stays as it is, nothing opened.
+	_check(office.hud.inspector.docked() and not office.hud.card_expanded(), "and the panel stays as it was")
 	_check(not card.answering(), "no answer mode")
 	var again := office.navigator.peek_next(office.frame)
 	await _office_key(office, KEY_N)
 	await _frames(3)
 	_eq(office.picked_key, again, "N picks the next")
-	_check(office.hud.card_compact() and not card.answering(), "and opens nothing either")
+	_check(not office.hud.card_expanded() and not card.answering(), "and opens nothing either")
 	_check(office.fleet.read_log().is_empty(), "nothing was read")
 	_check(office.fleet.write_log().is_empty(), "nothing was written")
 	_done(office)
