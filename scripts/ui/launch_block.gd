@@ -60,6 +60,13 @@ const CLOSE_KILL_DETAILS: Dictionary[String, String] = {
 ## Rows the confirm's line may take for a close (it wraps: what goes with the
 ## pane is the point); a start's row never wraps, like the terminal's.
 const CLOSE_LINE_ROWS := 3
+## The same across the docked panel, where the block has 82 units of height:
+## two rows of its wider column (its tooltip holds the whole line).
+const CLOSE_LINE_ROWS_DOCKED := 2
+## Docked, the title stands beside up to this many kinds (two rows of them
+## beside it, measured); more kinds take the whole row and the title goes:
+## the note under them and each kind's tooltip say what a press does.
+const KINDS_BESIDE_TITLE := 4
 const CLOSE_LINE_SHELL := "Closes %s (shell)."
 const CLOSE_LINE_AGENT := "Closes %s's pane %s."
 const CLOSE_LINE_TAB := " and its tab %s (last pane of the tab)."
@@ -98,6 +105,13 @@ class Offer:
 	var reason := CommandRefusal.Reason.NONE
 
 
+## Whether the card stands docked (the panel's own form; set_docked()).
+var _docked := false
+## Whether the shown START AGENT block has a confirm armed (show_start()):
+## docked, the manage rows' note gives that row to the confirm's terminal row.
+var _start_armed := false
+
+
 ## Every kind button, in the scene's order: KINDS_MAX of them.
 func kind_buttons() -> Array[Button]:
 	var found: Array[Button] = []
@@ -127,6 +141,12 @@ func branch_box() -> LineEdit:
 	return %BranchBox
 
 
+## The card's form: docked, a close confirm's line takes fewer rows of a
+## wider block (CLOSE_LINE_ROWS_DOCKED), from the next show_manage() on.
+func set_docked(on: bool) -> void:
+	_docked = on
+
+
 ## No block.
 func close() -> void:
 	visible = false
@@ -143,6 +163,8 @@ func show_manage_only() -> void:
 	split_button().disabled = true
 	var title: Label = %LaunchTitle
 	title.text = MANAGE_TITLE
+	title.visible = true
+	_start_armed = false
 	title.tooltip_text = ""
 	var note: Label = %LaunchNote
 	note.visible = false
@@ -181,7 +203,7 @@ func show_manage(manage: Manage) -> void:
 	if trees_button.disabled:
 		trees_button.tooltip_text += "\nOff: " + CommandRefusal.detail(manage.worktree_reason)
 	var note: Label = %ManageNote
-	note.visible = not armed and not manage.note.is_empty()
+	note.visible = not armed and not (_docked and _start_armed) and not manage.note.is_empty()
 	note.text = manage.note
 	note.tooltip_text = manage.note_tip
 	if not armed:
@@ -196,7 +218,7 @@ func show_manage(manage: Manage) -> void:
 	# Wrapped, so it measures its rows (a clipped label's minimum is one unit).
 	line.clip_text = false
 	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	line.max_lines_visible = CLOSE_LINE_ROWS
+	line.max_lines_visible = CLOSE_LINE_ROWS_DOCKED if _docked else CLOSE_LINE_ROWS
 	line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	line.text = manage.confirm_line
 	line.tooltip_text = manage.confirm_line + "\nWhat closing this pane takes with it, as the snapshot reads now."
@@ -284,6 +306,8 @@ func show_start(offers: Array[Offer], on: String, machine: String, confirm_kind 
 			button.tooltip_text += "\nOff: " + CommandRefusal.detail(offer.reason)
 	var title: Label = %LaunchTitle
 	title.text = TITLE
+	title.visible = not _docked or offers.size() <= KINDS_BESIDE_TITLE
+	_start_armed = not confirm_kind.is_empty()
 	title.tooltip_text = ""
 	var note: Label = %LaunchNote
 	var screen: Control = %LaunchScreen
@@ -330,6 +354,8 @@ func show_split(provider: String, pane_id: String, side: String, reason: Command
 	launch_note.visible = true
 	var title: Label = %LaunchTitle
 	title.text = SPLIT_TITLE % provider.to_upper()
+	title.visible = true
+	_start_armed = false
 	title.tooltip_text = "New pane beside %s (%s%s)" % [provider.to_upper(), pane_id, on]
 	var button := split_button()
 	button.visible = true

@@ -77,7 +77,7 @@ effects. It is never called "mark read" or "open in terminal". `tools/fake_herdr
 
 2. **Only a present user gesture writes.** Refreshes, timers, snapshot changes, status events and the event
    stream never produce a write, and nothing sent is ever derived from remote text: there is no auto-approval.
-   Every card write comes from a mouse click on the staff panel (aimed at the press, sent at the release) or,
+   Every card write comes from a mouse click on the bottom panel's card (aimed at the press, sent at the release) or,
    for answer keys, a key press in answer mode (section 2). One gesture is one write: **New pane** and **Start
    agent** are two gestures with two tickets, never a chained write.
    The one exception is a read: when a start this run sent reaches its deadline (`LaunchWatch.TIMEOUT_MSEC`,
@@ -246,15 +246,18 @@ handler) and asserts the exact request sequence and the outcome.
 
 ## 2. Answer mode
 
-The agent card (the staff panel's `inspector`) is the one place a pane is answered from outside the monitor.
+The agent card (the bottom panel's AGENT page, `inspector`) is the one place a pane is answered from outside the monitor.
 
 **The preview.** The card reads its pane only while the card is visible and opened (the one-line panel shows no
-preview and counts as covered), not covered by the terminal monitor, the window is not minimized, and the machine is online with a current snapshot. It reads when it opens
+preview and counts as covered), not covered by the terminal monitor, the window is not minimized, and the machine is
+online with a current snapshot. **On a screen at least 400 units high the docked panel is always opened**: it reads
+whatever pane it shows, picked or followed, while its AGENT page shows; the HISTORY and EVENTS pages cover it (it
+reads nothing behind them). It reads when it opens
 and when the state changes, one read at a time, the next starting 1 s after the last one ended for a blocked pane
 and 3 s for any other. It stops on hiding, covering, minimizing, a drop or another binding; a response that comes
-late or belongs to an old binding is dropped. A blocked pane shows `detection` (200 lines asked, the last 12
-shown); any other shows the last 12 rows of `recent_unwrapped`. The preview is 12 fixed monospace rows, long rows
-clipped, never wrapped. Its caption says the source, the age and whether it was cut (`detection · 3s ago · cut`);
+late or belongs to an old binding is dropped. A blocked pane shows `detection` (200 lines asked); any other
+`recent_unwrapped` (12 asked). The preview shows the last 6 rows docked and the last 12 opened on a short screen and
+in answer mode, fixed monospace rows, long rows clipped, never wrapped. Its caption says the source, the age and whether it was cut (`detection · 3s ago · cut`);
 it says why it cannot read (`No preview: offline`) or that a read failed (`Read failed: …`). With `--read-only`
 or with no fleet, it says so and no action is offered.
 
@@ -270,7 +273,7 @@ the seat's chip opens it. That Enter is consumed and sends nothing: **Enter on t
 pressing it twice cannot confirm a dialog's default. `Esc` is always local: it leaves answer mode and leaves the
 panel open; it is never sent to the terminal. A remote Esc is only the named **Send Esc** button. Picking another
 station, rebinding the card, opening the terminal monitor, or giving the keyboard to the agent list (`A`) leaves
-answer mode and releases the keyboard focus. OVERVIEW does not: the staff panel answers as usual while it is open.
+answer mode and releases the keyboard focus. OVERVIEW does not: the bottom panel answers as usual while it is open.
 Every answer that reached herdr (accepted, rejected or unknown) ends answer mode; one refused before any write
 leaves it open and says why.
 
@@ -303,9 +306,9 @@ last read began, and that is not reset by leaving blocked or switching maps. It 
 it never counts as a look and never turns writes back on.
 
 **Clicks that only navigate.** A click on a machine chip in the top bar (show that machine's map), on a portrait card's
-place (pan to its zone) and on an edge arrow (pan to its desk, selecting nothing) are navigation, like the clicks in NEWS, EVENTS and
-OVERVIEW that only select a pane: none of them is a write gesture, and none sends a write. (A click that selects a
-pane while the card is expanded still schedules the card's preview read of it, a read, as a list click does.)
+place (pan to its zone) and on an edge arrow (pan to its desk, selecting nothing) are navigation, like the clicks in NEWS, EVENTS,
+HISTORY and OVERVIEW that only select a pane: none of them is a write gesture, and none sends a write. (A click that selects a
+pane while the card is opened, as the docked panel always is, still schedules the card's preview read of it, a read, as a list click does.)
 
 ## 3. Raw mode
 
@@ -395,7 +398,7 @@ only its title and a line saying so.
 
 ## 4. Start agent and New pane
 
-Both are mouse clicks on the staff panel's `%Launch` block (`LaunchBlock`, `scripts/ui/launch_block.gd`), aimed at
+Both are mouse clicks on the card's `%Launch` block (`LaunchBlock`, `scripts/ui/launch_block.gd`), aimed at
 the press and sent at the release. No key ever starts an agent or splits a pane.
 
 ### Start agent

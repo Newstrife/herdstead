@@ -7,7 +7,7 @@ open-plan office. Each herdr machine is one office map, each workspace a zone of
 coding agent the person sitting in it. Blocked agents raise their hands, finished ones leave a stack of paper on the desk,
 idle ones sit with a mug of coffee. You can see who needs you at a glance, and answer them from the office.
 
-![A blocked agent in the staff panel: its question on screen, Answer one key away](docs/preview.png)
+![A blocked agent in the bottom panel: its question on screen, Answer one key away](docs/preview.png)
 
 ## Requirements
 
@@ -47,7 +47,7 @@ connects to herdr.
 - **Staff panel** at the bottom with a live terminal preview, **NEXT** (`N`: the next agent that needs you), and
   **Switch herdr here**.
 - **Answer mode**: answer a blocked agent with `1`–`9` / `y` / `n` / Enter / Esc, or send an idle one a line.
-- **Start agent**, **New pane**, **Close**, **New space** and **Worktree** from the staff panel, by mouse click only.
+- **Start agent**, **New pane**, **Close**, **New space** and **Worktree** from the bottom panel, by mouse click only.
 - **Terminal monitor** (`M`): a full-screen pixel view of a pane's screen with live keyboard pass-through.
 - **OVERVIEW** (`O`): one row per pane with timelines. **Lens** (hold `L`): how long everyone has been in their state.
   **Strategic view** (`S`): a diagram of the whole map.
@@ -65,7 +65,7 @@ Herdstead is an **operator by default**, and every write goes through one bounda
 
 - The read path sends only `ping`, `session.snapshot` and `events.subscribe`.
 - Every other request is sent only by `scripts/herdr_commands.gd` (`HerdrCommands`), from a fixed allowlist of methods,
-  and only in response to a gesture you make: a click on the staff panel, a key in answer mode, a key in the terminal
+  and only in response to a gesture you make: a click on the bottom panel, a key in answer mode, a key in the terminal
   monitor. Refreshes, timers, state changes and the event stream never write. Writes are single-flight, are checked
   again against the screen before they go out, and are never retried; a lost reply is shown as an unknown result.
 - **`--read-only` never constructs the boundary.** The office then sends only the three read requests, shows no write

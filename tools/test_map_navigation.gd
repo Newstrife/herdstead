@@ -309,10 +309,16 @@ func test_a_blocked_start_has_a_blocked_card_and_an_arrow() -> void:
 ## five (772, 24, four); at the 480x320 minimum 420, 13, two (340, 10, two).
 ## The drawer's tab keeps its place.
 func test_the_world_starts_at_the_left_inset_and_a_first_plan_takes_the_rails_width() -> void:
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# world runs to the right
+	# edge (24, 29 and 14 cells: the same four, five and two lanes), under a 52-unit bar on a tall
+	# screen and above the docked panel.
+	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the two docked
+	# rooms 241 -> 276 high; the 480x320 one (not docked) is unchanged.
 	for step: Array in [
-		[Vector2(800, 480), Rect2(16, 48, 740, 308), 23, 4],
-		[Vector2(960, 480), Rect2(16, 48, 900, 308), 28, 5],
-		[Vector2(480, 320), Rect2(16, 48, 420, 200), 13, 2],
+		[Vector2(800, 480), Rect2(16, 68, 776, 276), 23, 4],
+		[Vector2(960, 480), Rect2(16, 68, 936, 276), 28, 5],
+		[Vector2(480, 320), Rect2(16, 48, 456, 202), 13, 2],
 	]:
 		var screen: Vector2 = step[0]
 		var office := await _live_office(fixture, screen)
@@ -321,7 +327,7 @@ func test_the_world_starts_at_the_left_inset_and_a_first_plan_takes_the_rails_wi
 		_eq(
 			room.position.x,
 			office.hud.placed(office.hud.staff).position.x,
-			"%s: its left edge is the staff panel's" % screen
+			"%s: its left edge is the bottom panel's" % screen
 		)
 		_eq(office.hud.plan_width(), room.size.x, "%s: the drawer closed, the plan is as wide as the room" % screen)
 		var plan := office.layout_plan()
@@ -727,6 +733,61 @@ func test_hovering_a_zone_sign_names_its_repo_and_checkout() -> void:
 		_check(office.hud.world_tip_shown(), key + ": just inside the panel's right end, the tooltip")
 		await _pointer_to(Vector2(end + 3.0, middle))
 		_check(not office.hud.world_tip_shown(), key + ": just past it, none")
+	_done(office)
+
+
+## A zone whose panes are all shells has no portrait card (the bar shows
+## agents) and no blocked desk (no edge arrow): the mouse reaches it through
+## the OVERVIEW, which rows every pane, shells too. A real click on `13 panes`,
+## then on the shell's row: the shell is picked, its zone is the current one,
+## and its desk is on screen once the OVERVIEW closes. Nothing is read or
+## written (BAR-b's Q3b, ruled D-SHELLZONE by S3 PANEL-a1, 2026-10-27).
+func test_a_zone_of_shells_is_reached_through_the_overview() -> void:
+	var raw: Dictionary = fixture.duplicate(true)
+	_list(raw, "workspaces").append(
+		{"workspace_id": "lab", "number": 6, "label": "lab", "pane_count": 2, "tab_count": 1}
+	)
+	_list(raw, "tabs").append({"tab_id": "lab:t1", "workspace_id": "lab", "number": 1, "label": "main"})
+	for index in 2:
+		var pane_id := "lab:p%d" % (index + 1)
+		_list(raw, "panes").append(
+			{
+				"pane_id": pane_id,
+				"terminal_id": "term-" + pane_id,
+				"workspace_id": "lab",
+				"tab_id": "lab:t1",
+				"cwd": "/home/tester/lab",
+				"agent_status": "idle"
+			}
+		)
+	var office := await _live_office(raw)
+	await _frames(2)
+	var shell := _pane("lab:p2")
+	_check(office.frame.pane(shell) != null and office.frame.pane(shell).provider.is_empty(), "lab:p2 is a shell")
+	_check(office.hud.bar.card_for(shell) == null, "with no portrait card")
+	_check(not office.navigator.current_zone(office.frame) == _zone("lab"), "lab is not the current zone")
+	var panes: Button = office.hud.bar.get_node("%Panes")
+	await _click_at(panes.get_global_rect().get_center())
+	await _frames(2)
+	_check(office.hud.overview_open(), "`13 panes` opens the OVERVIEW")
+	var line := office.hud.overview.line_for(shell)
+	_check(line != null, "which rows the shell")
+	if line == null:
+		_done(office)
+		return
+	var scroll: ScrollContainer = office.hud.overview.get_node("%Scroll")
+	scroll.ensure_control_visible(line)
+	await _frames(2)
+	await _click_at(line.get_global_rect().get_center())
+	await _frames(3)
+	_eq(office.picked_key, shell, "a click on its row picks the shell")
+	_eq(office.navigator.current_zone(office.frame), _zone("lab"), "its zone is the current one")
+	await _office_key(office, KEY_O)
+	await _frames(3)
+	_check(not office.hud.overview_open(), "O closes the OVERVIEW")
+	_check(_desk_in_view(office, shell), "and the shell's desk is on screen")
+	_check(office.fleet.read_log().is_empty(), "nothing was read")
+	_check(office.fleet.write_log().is_empty(), "nothing was written")
 	_done(office)
 
 

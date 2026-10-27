@@ -545,76 +545,137 @@ func test_no_pane_no_fleet_and_read_only_offer_no_write() -> void:
 # --- the panel's forms ------------------------------------------------------------
 
 
-## At full height the pane's details show under the heading, NEXT reads down
-## with its wait, and the PANE list has its room.
+## Opened from its line (a short screen) the pane's details show, NEXT reads
+## down with its wait, the PANE list has its room and the preview its 12 rows.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+## the heading (`AGENT`) went into the panel's tab, so the stack says no title.
 func test_the_full_panel_shows_the_details_under_the_heading() -> void:
 	var facts := _facts()
 	var stack := CardPicture.stack_of(facts)
-	_eq([stack.carded, stack.detail, stack.line, stack.title, stack.empty], [false, true, false, true, false], "")
-	_eq([stack.full, stack.next_wait], [true, true], "NEXT reads down, with its wait")
+	_eq([stack.detail, stack.line, stack.empty], [true, false, false], "")
+	_eq([stack.full, stack.next_wait, stack.next_row], [true, true, false], "NEXT reads down, with its wait")
 	_eq([stack.monitor_word, stack.open_word], ["Monitor", "Open"], "the line's words, for when it folds")
 	_check(CardPicture.more_of(facts), "the PANE list shows")
-	var answer := CardPicture.answer_of(facts)
-	_eq([answer.title, answer.title_text, answer.title_tip], [true, "AGENT", ""], "the heading")
+	_eq(CardPicture.rows_of(facts), CardPicture.PREVIEW_ROWS, "and the whole preview")
+	_check(CardPicture.actions_of(facts).fold, "and `▾ Esc` folds it back to its line")
 
 
 ## Folded to its line: the compact row and nothing of the details; on a
-## narrow screen the long words go and NEXT's wait with them.
+## narrow screen the long words go and NEXT's wait with them, and NEXT's
+## words in a row with them.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: no title to
+## say.
 func test_the_line_keeps_the_row_and_drops_its_long_words_when_narrow() -> void:
 	var facts := _facts()
 	facts.compact = true
 	var stack := CardPicture.stack_of(facts)
-	_eq(
-		[stack.carded, stack.detail, stack.line, stack.title, stack.full], [false, false, true, true, false], "the line"
-	)
+	_eq([stack.detail, stack.line, stack.full, stack.next_row], [false, true, false, true], "the line")
 	_eq([stack.monitor_word, stack.open_word, stack.next_wait], ["Monitor", "Open", true], "wide: the words")
 	facts.wide = false
 	stack = CardPicture.stack_of(facts)
 	_eq([stack.monitor_word, stack.open_word, stack.next_wait], ["", "", false], "narrow: icons, and no wait")
+	_check(not stack.next_row, "and whom alone")
 	facts.compact = false
 	stack = CardPicture.stack_of(facts)
 	_eq([stack.monitor_word, stack.next_wait], ["", true], "at full height NEXT's wait always has room")
 
 
-## The card form: the compact panel on a tall screen. The header shows over
-## the line's buttons, with no heading and no PANE list.
-func test_the_card_form_shows_the_header_over_the_lines_buttons() -> void:
+## The docked form (a tall screen, always open): the details as when opened,
+## NEXT's words in a row over `‹ ›`, a preview of DOCKED_ROWS rows, and
+## nothing to fold. The card form it replaces is gone.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab.
+func test_the_docked_form_shows_the_details_and_folds_nowhere() -> void:
 	var facts := _facts()
-	facts.compact = true
-	facts.card = true
+	facts.docked = true
 	var stack := CardPicture.stack_of(facts)
-	_eq([stack.carded, stack.detail, stack.line, stack.title, stack.full], [true, true, true, false, false], "")
-	_check(not CardPicture.more_of(facts), "no PANE list in the card")
-	_check(not CardPicture.answer_of(facts).title, "and no heading: the header says who")
-	facts.compact = false
-	_check(not CardPicture.stack_of(facts).carded, "a card only while compact")
-	_check(CardPicture.answer_of(facts).title, "the heading is back at full height")
+	_eq([stack.detail, stack.line, stack.empty, stack.full], [true, false, false, true], "the details")
+	_eq([stack.next_row, stack.next_wait], [true, true], "NEXT says it all in a row")
+	_check(CardPicture.more_of(facts), "the PANE list has its room")
+	_eq(CardPicture.rows_of(facts), CardPicture.DOCKED_ROWS, "six rows of preview")
+	var actions := CardPicture.actions_of(facts)
+	_eq([actions.fold, actions.monitor, actions.top], [false, true, true], "Monitor, and no `▾ Esc`")
 
 
-## A closed card (the viewer's `×`) shows nothing of itself at any form: no
-## details, no line, no empty state — only the panel's NEXT stays. A card
-## that is not closed is never said closed.
-func test_a_closed_card_shows_nothing_of_itself() -> void:
-	for form: String in ["full", "line", "card"]:
+## A closed card (the viewer's `×`) is the empty state in the same room, on
+## every form: no details, no line, the closed words in `%Empty` and no `NO
+## PANE` over them; NEXT stays (it is not in the stack). A card that is not
+## closed is never said closed.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the panel
+## keeps its height
+## (D-EMPTY), so a closed card says how to open one again instead of hiding.
+func test_a_closed_card_says_how_to_open_one_again() -> void:
+	for form: String in ["opened", "line", "docked"]:
 		var facts := _facts(_agent("working"))
-		facts.compact = form != "full"
-		facts.card = form == "card"
+		facts.compact = form == "line"
+		facts.docked = form == "docked"
 		_eq(CardPicture.stack_of(facts).line_close, form == "line", "a close on the line only (%s)" % form)
 		facts.closed = true
 		var stack := CardPicture.stack_of(facts)
 		_eq(
-			[stack.detail, stack.line, stack.empty, stack.closed, stack.line_close],
-			[false, false, false, true, false],
-			"nothing of the card while closed (%s)" % form
+			[stack.detail, stack.line, stack.empty, stack.closed, stack.line_close, stack.no_pane],
+			[false, false, true, true, false, false],
+			"the empty state while closed (%s)" % form
 		)
+		_eq(stack.message, CardPicture.CLOSED_MESSAGE, "saying how to open one (%s)" % form)
+	_eq(CardPicture.CLOSED_MESSAGE, "This card is closed: pick a desk or a card, or press N.", "the words")
 	var none := _facts(null)
 	none.closed = true
-	_check(not CardPicture.stack_of(none).empty, "no empty state while closed, with no pane")
+	_eq(CardPicture.stack_of(none).message, CardPicture.CLOSED_MESSAGE, "closed with no pane says the same")
 	_check(not CardPicture.stack_of(_facts()).closed, "a card nobody closed is not closed")
 
 
-## Answer mode turns the card: its controls open, the chip closes it, the
-## heading names who is answered, and the switch, the fold and the PANE list go.
+## Closed or with no pane, the stack is the empty state and never the
+## details or the line, whatever the form; `NO PANE` heads only a pane-less
+## panel at full height.
+func test_a_closed_card_is_the_empty_state_and_never_the_details() -> void:
+	# pane, closed, compact, docked -> empty, detail, line, no_pane
+	var table := [
+		[true, false, false, false, false, true, false, false],
+		[true, false, true, false, false, false, true, false],
+		[true, false, false, true, false, true, false, false],
+		[true, true, false, false, true, false, false, false],
+		[true, true, true, false, true, false, false, false],
+		[true, true, false, true, true, false, false, false],
+		[false, false, false, false, true, false, false, true],
+		[false, false, true, false, true, false, false, false],
+		[false, false, false, true, true, false, false, true],
+		[false, true, false, true, true, false, false, false],
+	]
+	for row: Array in table:
+		var with_pane: bool = row[0]
+		var facts := _facts(_agent() if with_pane else null)
+		facts.closed = row[1]
+		facts.compact = row[2]
+		facts.docked = row[3]
+		var stack := CardPicture.stack_of(facts)
+		_eq([stack.empty, stack.detail, stack.line, stack.no_pane], row.slice(4), str(row.slice(0, 4)))
+
+
+## Only a short screen's panel offers `▾ Esc`: opened from its line, out of
+## answer mode. Docked there is nothing to fold, and answer mode's Escape only
+## leaves answer mode.
+func test_only_a_short_screen_offers_a_fold() -> void:
+	# docked, answering, pane -> fold
+	var table := [
+		[false, false, true, true],
+		[true, false, true, false],
+		[false, true, true, false],
+		[true, true, true, false],
+		[false, false, false, false],
+	]
+	for row: Array in table:
+		var with_pane: bool = row[2]
+		var facts := _facts(_agent() if with_pane else null)
+		facts.docked = row[0]
+		facts.answering = row[1]
+		_eq(CardPicture.actions_of(facts).fold, row[3], str(row.slice(0, 3)))
+
+
+## Answer mode turns the card: its controls open, the chip closes it, and the
+## switch, the fold and the PANE list go.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the heading
+## that named whom
+## is answered is gone with `%Title`; the header under it says who.
 func test_answer_mode_opens_its_controls_and_names_who_is_answered() -> void:
 	var facts := _facts()
 	var answer := CardPicture.answer_of(facts)
@@ -637,45 +698,33 @@ func test_answer_mode_opens_its_controls_and_names_who_is_answered() -> void:
 		[true, "Close", false, true, "Esc: leave answer mode. Nothing is sent."],
 		"in it: the chip closes it, whatever may be pressed"
 	)
-	_eq(
-		[answer.title, answer.title_text, answer.title_tip],
-		[false, "fix the login · BLOCKED", "Answering: fix the login · BLOCKED"],
-		"who is answered, by the pane's name"
-	)
-	facts.machine = "bee"
-	answer = CardPicture.answer_of(facts)
-	_eq(
-		[answer.title_text, answer.title_tip],
-		["fix the login · BLOCKED · bee", "Answering: fix the login · BLOCKED · bee"],
-		"and on which machine"
-	)
-	_check(not CardPicture.stack_of(facts).title, "the stack hides the heading too")
+	_eq(CardPicture.header_of(facts).name, "fix the login", "the header names who is answered")
 	_check(not CardPicture.more_of(facts), "and the PANE list gives its room")
 	_eq(answer.best_effort, "Checks the screen first; it can still change", "the line under the reply box")
 
 
-## The PANE list gives the launch block its room only on a narrow card.
+## The PANE list gives the launch block its room only on a narrow card, and
+## answer mode's controls theirs always.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the card
+## form is gone, so
+## the compact and card columns are too.
 func test_the_pane_list_gives_way_to_the_launch_block_on_a_narrow_card() -> void:
 	var table := [
-		# launch shown, narrow, answering, compact, card -> the list shows
-		[false, false, false, false, false, true],
-		[true, false, false, false, false, true],
-		[false, true, false, false, false, true],
-		[true, true, false, false, false, false],
-		[false, false, true, false, false, false],
-		[false, false, false, true, true, false],
-		[false, false, false, true, false, true],
-		[false, false, false, false, true, true],
+		# launch shown, narrow, answering -> the list shows
+		[false, false, false, true],
+		[true, false, false, true],
+		[false, true, false, true],
+		[true, true, false, false],
+		[false, false, true, false],
+		[true, false, true, false],
 	]
 	for row: Array in table:
 		var facts := _facts()
 		facts.launch_shown = row[0]
 		facts.narrow = row[1]
 		facts.answering = row[2]
-		facts.compact = row[3]
-		facts.card = row[4]
-		_eq(CardPicture.more_of(facts), row[5], str(row.slice(0, 5)))
-		_eq(CardPicture.of(facts).more, row[5], "the whole picture says the same")
+		_eq(CardPicture.more_of(facts), row[3], str(row.slice(0, 3)))
+		_eq(CardPicture.of(facts).more, row[3], "the whole picture says the same")
 
 
 # --- answer mode's keys and line ---------------------------------------------------
@@ -914,6 +963,48 @@ func test_the_preview_is_the_last_twelve_rows_padded_at_the_top() -> void:
 	)
 
 
+## Docked (a tall screen) the preview is the last DOCKED_ROWS rows, padded at
+## the top the same way; answer mode, docked or not, shows all PREVIEW_ROWS,
+## and so does the panel opened from its line. The caption's tooltip counts
+## the rows shown.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab; the user's
+## answer to Q-U1
+## (6 rows docked, 12 opened or answering).
+func test_the_docked_preview_is_six_rows_and_answer_mode_twelve() -> void:
+	# docked, answering, compact -> rows
+	var table := [
+		[true, false, false, 6],
+		[true, true, false, 12],
+		[false, false, false, 12],
+		[false, true, false, 12],
+		[false, false, true, 12],
+	]
+	var rows := PackedStringArray()
+	for index in 30:
+		rows.append("row %d" % index)
+	for row: Array in table:
+		var facts := _facts()
+		facts.docked = row[0]
+		facts.answering = row[1]
+		facts.compact = row[2]
+		var count: int = row[3]
+		_eq(CardPicture.rows_of(facts), count, str(row.slice(0, 3)))
+		facts.text = "\n".join(rows) + "\n"
+		_eq(CardPicture.preview_of(facts).rows, "\n".join(rows.slice(30 - count)), "the last %d of thirty" % count)
+		facts.text = "a\n"
+		_eq(CardPicture.preview_of(facts).rows, "\n".repeat(count - 1) + "a", "padded to %d at the top" % count)
+	var docked := _facts()
+	docked.docked = true
+	docked.source = CommandContext.SOURCE_RECENT
+	docked.text = "\n".join(rows) + "\n"
+	var caption := CardPicture.preview_of(docked)
+	_eq(
+		[caption.caption, caption.caption_tip],
+		["recent · 3s ago", "The last 6 lines of herdr's %s source, read 3s ago." % CommandContext.SOURCE_RECENT],
+		"the caption counts the rows shown"
+	)
+
+
 # --- NEXT --------------------------------------------------------------------------
 
 
@@ -969,6 +1060,74 @@ func test_next_on_the_line_says_whom_alone_when_narrow() -> void:
 	_eq([pill.title, pill.line, pill.tip], [true, "Answer fix the login @ bee", NEXT_TIP], "full height is never short")
 
 
+## Docked, NEXT says `NEXT:`, the verb and whom, and the wait, in a row (a
+## wide line's words, whatever the width), and its tooltip adds the whole
+## sentence and the space, as on a line. Opened on a short screen it reads
+## down and its tooltip is the scene's own.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab.
+func test_the_docked_next_says_it_all_in_a_row_and_its_tip_the_space() -> void:
+	var facts := _facts()
+	facts.docked = true
+	facts.next = NextModel.of(_agent("blocked"), "bee", true)
+	var pill := CardPicture.next_of(facts)
+	_eq(
+		[pill.somebody, pill.title, pill.line, pill.muted, pill.tip],
+		[true, true, "Answer fix the login @ bee", false, NEXT_TIP + "\nNext: Answer fix the login @ bee · web"],
+		"docked: the whole sentence, and again in the tooltip with the space"
+	)
+	var stack := CardPicture.stack_of(facts)
+	_eq([stack.next_row, stack.next_wait, stack.full], [true, true, true], "in a row, with its wait, over `‹ ›`")
+	facts.wide = false
+	pill = CardPicture.next_of(facts)
+	_eq([pill.title, pill.line], [true, "Answer fix the login @ bee"], "docked is never short")
+	facts.docked = false
+	facts.wide = true
+	_eq(CardPicture.next_of(facts).tip, NEXT_TIP, "opened from its line: the scene's tooltip")
+	_check(not CardPicture.stack_of(facts).next_row, "and down")
+
+
+## The docked panel out of answer mode is the docked form: NEXT a pill beside
+## `‹ ›`, the verbs under it and the outcome on one line; answering it has
+## up to ANSWER_OUTCOME_LINES (the modal's column has the height), opened or on
+## the line two. `%TopRow` holds the answer chip too, so the
+## chip alone keeps it. S3 PANEL-a1 round 2 (2026-10-28, R1): the docked panel
+## 116 tall, B2's one verbs column.
+func test_the_docked_form_puts_the_outcome_on_one_line_under_next() -> void:
+	# docked, answering, compact -> docked_form, outcome_lines
+	var table := [
+		[true, false, false, true, 1],
+		[true, true, false, false, CardPicture.ANSWER_OUTCOME_LINES],
+		[false, false, false, false, 2],
+		[false, false, true, false, 2],
+	]
+	for row: Array in table:
+		var facts := _facts()
+		facts.docked = row[0]
+		facts.answering = row[1]
+		facts.compact = row[2]
+		var stack := CardPicture.stack_of(facts)
+		_eq([stack.docked_form, stack.outcome_lines], [row[3], row[4]], str(row.slice(0, 3)))
+	var chip := _facts()
+	chip.docked = true
+	chip.connected = false
+	chip.answer_possible = true
+	var actions := CardPicture.actions_of(chip)
+	_eq([actions.monitor, actions.fold, actions.top], [false, false, true], "the answer chip alone keeps `%TopRow`")
+	var refused := _facts()
+	refused.outcome = CardWords.not_sent(CommandRefusal.Reason.MACHINE_GONE)
+	refused.outcome_detail = CardWords.not_sent_detail(CommandRefusal.Reason.MACHINE_GONE)
+	var opened := CardPicture.actions_of(refused)
+	refused.docked = true
+	var docked := CardPicture.actions_of(refused)
+	# Its one line may cut the headline; the tooltip's detail says the same reason in full.
+	_eq(
+		[docked.footer, docked.footer_tip],
+		[opened.footer, opened.footer_tip],
+		"docked, the same outcome, its detail in the tooltip"
+	)
+	_check(not docked.footer.is_empty() and docked.footer_tip.begins_with("Nothing was sent: "), docked.footer_tip)
+
+
 ## NEXT calls whom it names by the pane's name (DisplayName), never by the
 ## provider word: two claudes are two names. The space is in the tooltip
 ## only; a start herdr is still launching is called what the office calls
@@ -998,15 +1157,16 @@ func test_next_calls_whom_by_the_pane_name() -> void:
 
 ## Nobody next: `All clear`, muted, in every form, and the button is off.
 func test_nobody_next_is_all_clear_in_every_form() -> void:
-	for form: Array in [[false, true], [true, true], [true, false]]:
+	for form: Array in [[false, true, false], [true, true, false], [true, false, false], [false, true, true]]:
 		var facts := _facts()
 		facts.compact = form[0]
 		facts.wide = form[1]
+		facts.docked = form[2]
 		var pill := CardPicture.next_of(facts)
 		_eq(
 			[pill.somebody, pill.title, pill.line, pill.muted, pill.tip],
 			[false, true, "All clear", true, NEXT_TIP],
-			"compact %s, wide %s" % form
+			"compact %s, wide %s, docked %s" % form
 		)
 
 
@@ -1082,8 +1242,11 @@ func test_the_card_is_called_by_the_pane_name() -> void:
 	facts.answering = true
 	pane.state = "blocked"
 	facts.state_caption = "BLOCKED"
-	var answer := CardPicture.answer_of(facts)
-	_eq(answer.title_text, "修复登录重定向 · BLOCKED", "answer mode names whom it answers")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: answer
+	# mode's heading went with
+	# `%Title`; the header it keeps names whom it answers.
+	header = CardPicture.header_of(facts)
+	_eq([header.name, header.caption], ["修复登录重定向", "BLOCKED"], "answer mode's header names whom it answers")
 	var shell := CardPicture.header_of(_facts(_agent("idle", "", "notes")))
 	_eq([shell.name, shell.seat], ["notes", "SHELL · web / main"], "a shell: its name, and SHELL")
 

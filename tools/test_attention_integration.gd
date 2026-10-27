@@ -544,14 +544,15 @@ func _visible_row(office: OfficeScene, key: String) -> AgentListRow:
 	return row
 
 
-## A live office with the agent list's drawer opened by a real click on its tab:
-## every run starts with it closed, and this suite is about the list.
+## A live office with the agent list's drawer open: every run starts with it
+## closed, and this suite is about the list. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band
+## on tall screens, no drawer tab:
+## the drawer has no closed tab to click; opening it is setup (`A` is its own case).
 func _listed_office(snapshot: Dictionary = fixture) -> OfficeDouble:
 	var office := await _live_office(snapshot)
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _tap(tab)
+	office.hud.open_drawer()
 	await _frames(2)
-	_check(office.hud.drawer_open(), "the drawer's tab opens it")
+	_check(office.hud.drawer_open(), "the drawer is open")
 	return office
 
 

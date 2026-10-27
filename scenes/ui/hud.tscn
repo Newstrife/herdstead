@@ -1,38 +1,39 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/bar.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/ui/inspector.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/ui/bottom_panel.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/ui/agent_list.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/ui/terminal_monitor.tscn" id="6_monitor"]
 [ext_resource type="Script" path="res://scripts/ui/hd_panel.gd" id="7_panel"]
 [ext_resource type="PackedScene" path="res://scenes/ui/edge_arrows.tscn" id="8_arrows"]
-[ext_resource type="PackedScene" path="res://scenes/ui/news.tscn" id="10_news"]
 [ext_resource type="PackedScene" path="res://scenes/ui/overview.tscn" id="11_overview"]
-[ext_resource type="PackedScene" path="res://scenes/ui/event_list.tscn" id="12_events"]
 [ext_resource type="PackedScene" path="res://scenes/ui/strategic.tscn" id="13_strategic"]
 
 [node name="Hud" type="CanvasLayer"]
 script = ExtResource("1")
 tip_gap = Vector2(12, 16)
 drawer_open_left = -160.0
-drawer_closed_left = -36.0
-staff_full_top = -144.0
-staff_compact_top = -44.0
-staff_card_top = -96.0
+staff_bottom = -4.0
+staff_docked_top = -120.0
+staff_opened_top = -153.0
+staff_compact_top = -54.0
 staff_inset = 16.0
 staff_modal_width = 640.0
 staff_modal_height = 272.0
 staff_modal_gap = 8.0
 staff_tall_from = 400.0
 staff_next_from = 640.0
+staff_docked_next_from = 760.0
 next_width = 128.0
 next_wide_width = 244.0
+next_docked_height = 24.0
 world_left = 16.0
-edge_arrows_compact_from = 440.0
+edge_arrows_compact_from = 460.0
 bar_titles_from = 640.0
-news_top = -24.0
-news_gap = 4.0
+bar_tall_height = 52.0
+bar_short_height = 32.0
+panel_top_gap = 8.0
 overview_full_from = 640.0
 
 [node name="Screen" type="Control" parent="."]
@@ -44,10 +45,11 @@ mouse_filter = 2
 
 [node name="RightColumn" type="Control" parent="Screen"]
 unique_name_in_owner = true
+visible = false
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -36.0
+offset_left = -160.0
 offset_top = 40.0
 offset_right = -16.0
 offset_bottom = -16.0
@@ -80,9 +82,8 @@ focus_mode = 0
 theme_type_variation = &"DrawerTabs"
 current_tab = 0
 clip_tabs = false
-tab_count = 2
+tab_count = 1
 tab_0/title = "AGENTS"
-tab_1/title = "EVENTS"
 
 [node name="Collapse" type="Button" parent="Screen/RightColumn/ListHolder/DrawerHeading"]
 unique_name_in_owner = true
@@ -107,49 +108,6 @@ offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="EventList" parent="Screen/RightColumn/ListHolder/Pages" instance=ExtResource("12_events")]
-unique_name_in_owner = true
-visible = false
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_right = 0.0
-offset_bottom = 0.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="DrawerTab" type="Button" parent="Screen/RightColumn"]
-unique_name_in_owner = true
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -20.0
-grow_horizontal = 0
-grow_vertical = 2
-tooltip_text = "Open the agent list [A]"
-focus_mode = 0
-theme_type_variation = &"DrawerTab"
-text = "◀
-A
-G
-E
-N
-T
-S
-·
-0"
-
-[node name="News" parent="Screen" instance=ExtResource("10_news")]
-unique_name_in_owner = true
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -24.0
-offset_right = -16.0
-offset_bottom = -4.0
-grow_horizontal = 2
-grow_vertical = 0
-
 [node name="EdgeArrows" parent="Screen" instance=ExtResource("8_arrows")]
 unique_name_in_owner = true
 visible = false
@@ -163,9 +121,9 @@ visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = 40.0
+offset_top = 60.0
 offset_right = -16.0
-offset_bottom = -172.0
+offset_bottom = -171.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
@@ -187,9 +145,9 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = -44.0
+offset_top = -155.0
 offset_right = -16.0
-offset_bottom = -16.0
+offset_bottom = -4.0
 grow_horizontal = 2
 grow_vertical = 0
 

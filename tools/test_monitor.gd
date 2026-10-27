@@ -475,8 +475,10 @@ func test_a_reconnect_with_another_terminal_stops_input() -> void:
 	await _wait(0.6)
 	_eq(_all_inputs(), 0, "nothing reached the new terminal")
 	monitor.close_monitor()
-	# The pane gone after a reconnect. The staff panel is its one line: Monitor is on it.
-	var button: Button = office.hud.inspector.get_node("%CompactMonitor")
+	# The pane gone after a reconnect. The panel's Monitor is on it (S3 PANEL-a1 (2026-10-27): the docked bottom
+	# panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the docked panel's own at 800x480, the line's below 400 high).
+	var button: Button = office.hud.inspector.get_node(_monitor_button(office))
 	await _click_control(button)
 	await _until(func() -> bool: return monitor.mode() == TerminalMonitor.Mode.LIVE, "live on the new terminal")
 	_ctl("control-b", "vanish")
@@ -545,7 +547,7 @@ func test_a_huge_grid_is_clamped() -> void:
 func test_one_read_at_a_time_across_reopen_and_follow() -> void:
 	var office := await _live()
 	var monitor := office.hud.monitor
-	var button: Button = office.hud.inspector.get_node("%CompactMonitor")
+	var button: Button = office.hud.inspector.get_node(_monitor_button(office))
 	_ctl("control-b", "next", {"action": "hold", "method": "pane.read"})
 	await _until(func() -> bool: return _number(_ctl("control-b", "stats"), "held_replies") == 1, "a read is held")
 	monitor.close_monitor()
@@ -777,9 +779,10 @@ func test_a_double_click_in_the_list_opens_the_monitor() -> void:
 	var office := await _office_with()
 	var key := HerdrFleet.pane_key(BEE, PANE)
 	var list := office.hud.agent_list
-	# Every run starts with the drawer closed: a real click on its tab opens it.
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _click_control(tab)
+	# Every run starts with the drawer closed. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band
+	# on tall screens, no drawer tab:
+	# no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _until(office.hud.drawer_open, "the drawer is open")
 	await _until(func() -> bool: return list.row_for(key) != null, "the list has the pane")
 	var entry := list.entry_for(key)
@@ -844,7 +847,9 @@ func test_the_monitor_chip_fits_the_opened_panel_and_the_monitor_covers_the_colu
 	_check(monitor.get_global_rect().encloses(screen), "and the whole screen")
 	await _press_key(KEY_BRACKETRIGHT, 0, KEY_MASK_CTRL)
 	_check(not monitor.visible, "closed")
-	_check(office.hud.right_column.is_visible_in_tree(), "the column is back")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the closed drawer is no tab; it
+	# stays closed and hidden, and the bottom panel is back.
+	_check(not office.hud.drawer_open() and office.hud.staff.is_visible_in_tree(), "the panels are back as they were")
 	_check(card.is_visible_in_tree(), "and the panel")
 	await _frames(3)
 	_check(chip.is_visible_in_tree(), "and the chip with it")
@@ -1005,9 +1010,10 @@ func test_a_hostile_title_draws_in_the_card_list_and_section() -> void:
 	_eq(office.picked_key, HerdrFleet.pane_key(BEE, PANE), "picked: the card shows it")
 	_check(await _longest_frame(1.0) < FRAME_BUDGET_MSEC, "the card")
 	var list := office.hud.agent_list
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _click_control(tab)
-	await _until(office.hud.drawer_open, "the drawer's tab opens the list")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
+	await _until(office.hud.drawer_open, "the drawer opens the list")
 	# History reads the StateLog: the pane has a line once it stops waiting.
 	_ctl("control-b", "status", {"pane_id": PANE, "agent_status": "idle"})
 	await _until(func() -> bool: return list.group_for(AgentListModel.FLAT_HISTORY) != null, "a History line")
@@ -1131,11 +1137,20 @@ func _live(screen := "$ \r\n") -> OfficeDouble:
 	return await _open_live()
 
 
+## The card's Monitor button: the docked panel's own on a tall screen, the
+## line's on a short one (S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no
+## drawer tab).
+func _monitor_button(office: OfficeDouble) -> String:
+	return "%MonitorButton" if office.hud.inspector.docked() else "%CompactMonitor"
+
+
 func _open_live() -> OfficeDouble:
 	var office := await _office_with()
-	# The staff panel's one line keeps Monitor: no need to open the panel.
+	# The panel's line keeps Monitor: no need to open the panel. S3 PANEL-a1 (2026-10-27): the docked bottom panel,
+	# the 52-unit bar band on tall screens, no drawer tab:
+	# docked (800x480), it is the docked panel's own Monitor.
 	await _pick_bee(office, PANE, false)
-	var button: Button = office.hud.inspector.get_node("%CompactMonitor")
+	var button: Button = office.hud.inspector.get_node(_monitor_button(office))
 	await _until(button.is_visible_in_tree, "the card offers the monitor")
 	await _click_control(button)
 	await _until(office.hud.monitor_open, "the monitor is open")

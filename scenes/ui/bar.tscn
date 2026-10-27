@@ -67,9 +67,11 @@ mouse_filter = 2
 
 [node name="MachineRow" type="HBoxContainer" parent="Content/Row/Machines"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 1
-anchors_preset = 9
-anchor_bottom = 1.0
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
 grow_vertical = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
@@ -84,8 +86,9 @@ mouse_filter = 2
 [node name="Cards" type="HBoxContainer" parent="Content/Row/Strip"]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 9
-anchor_bottom = 1.0
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
 grow_vertical = 2
 mouse_filter = 2
 theme_override_constants/separation = 2

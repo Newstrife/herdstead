@@ -12,7 +12,7 @@ extends RefCounted
 ## `header` (who sits there, in what state and where, and the PANE list),
 ## `preview` (the terminal's rows and the caption over them), `actions` (the
 ## switch, Monitor, `▾ Esc` and the footer sentence), `answer` (answer mode's
-## chip, title, keys and "Send line"), `next` (the NEXT pill) — and `more`,
+## chip, keys and "Send line"), `next` (the NEXT pill) — and `more`,
 ## whether the PANE list has its room. The card writes the block an event can
 ## have moved; of() is all of them.
 ##
@@ -28,7 +28,14 @@ extends RefCounted
 ## fact; the time in state and NEXT's wait are OfficeAttention's to tick.
 
 const PREVIEW_ROWS := OfficePaneInspector.PREVIEW_ROWS
-const HEADING := OfficePaneInspector.HEADING
+## Rows the docked panel's preview shows (rows_of()): half of PREVIEW_ROWS, so
+## a tall screen keeps more of its world under the docked panel.
+const DOCKED_ROWS := 6
+## The outcome's lines in answer mode, where it stands under the verbs in the
+## modal's right-hand column (96 units wide at 480x320: a refusal takes three).
+const ANSWER_OUTCOME_LINES := 8
+## What the AGENT page says once the viewer closed the card (its `×`).
+const CLOSED_MESSAGE := "This card is closed: pick a desk or a card, or press N."
 
 
 ## Everything the picture is worked out from. Values only: what the office
@@ -41,7 +48,7 @@ class Facts:
 	var machine := ""
 	var dimmed := false
 	var pick := OfficePaneInspector.Pick.FOLLOWING
-	## The viewer closed the card (its `×`): nothing of it shows, and only
+	## The viewer closed the card (its `×`): the empty state says so, and
 	## NEXT stays, until they pick a pane again.
 	var closed := false
 	## What the pack calls the pane's state, and the badge it wears for it
@@ -51,9 +58,10 @@ class Facts:
 	## A fleet is connected, and it may not write (`--read-only`).
 	var connected := false
 	var read_only := false
-	## The panel's form, as the HUD set it, and answer mode.
+	## The panel's form, as the HUD set it, and answer mode. `docked` is the
+	## tall screen's panel along the bottom, always open (OfficeHud._fit_staff()).
 	var compact := false
-	var card := false
+	var docked := false
 	var wide := true
 	var answering := false
 	## The launch block shows (its own to decide), and the card is narrower
@@ -106,27 +114,33 @@ class Line:
 	var tip := ""
 
 
-## Which parts of the panel show: the details at full height, the compact
-## line, the card form of it (`carded`), or the empty state.
+## Which parts of the panel show: the details (docked, or opened from the
+## line), the compact line, or the empty state.
 class Stack:
-	## The compact panel is a card: the header over the line's buttons.
-	var carded := false
-	## `%Detail`, `%CompactRow`, `%Title`, `%Empty`.
+	## `%Detail`, `%CompactRow`, `%Empty`, and the empty state's `NO PANE`.
 	var detail := false
 	var line := false
-	var title := false
 	var empty := false
-	## The one-line form needs its own close; the card uses its header's.
+	var no_pane := false
+	## The one-line form needs its own close; the details use their header's.
 	var line_close := false
-	## The viewer closed the card: `%CardFrame` hides (its own frame with it,
-	## and the panel's own frame is off) and only NEXT shows, still at the
-	## panel's right end.
+	## The viewer closed the card: the empty state says how to open one again,
+	## and NEXT stays at the panel's right end.
 	var closed := false
-	## The panel is at full height: NEXT reads down and wraps, and the empty
-	## state says why.
+	## The panel is at full height (docked, or opened): NEXT stands over `‹ ›`.
 	var full := true
+	## NEXT says `NEXT:`, whom and the wait in a row (docked out of answer mode,
+	## or a wide line); otherwise down and wrapped (opened, answering) or whom alone.
+	var next_row := false
 	## NEXT's wait has room.
 	var next_wait := true
+	## The docked panel out of answer mode: NEXT a pill beside `‹ ›` with the
+	## verbs under it, the launch block across, the outcome on one line.
+	var docked_form := false
+	## Lines the outcome under the verbs may take: one docked,
+	## ANSWER_OUTCOME_LINES in answer mode (the modal's column has the height),
+	## two opened.
+	var outcome_lines := 2
 	## The line's long words, empty where the screen has no room for them.
 	var monitor_word := ""
 	var open_word := ""
@@ -183,7 +197,7 @@ class Header:
 
 ## The terminal's rows and the caption over them.
 class Preview:
-	## PREVIEW_ROWS rows, joined: the last of the text, padded at the top.
+	## rows_of() rows, joined: the last of the text, padded at the top.
 	var rows := ""
 	var caption := ""
 	var caption_tip := ""
@@ -202,12 +216,13 @@ class Actions:
 	var focus_tip := ""
 	var monitor := false
 	var fold := false
+	## `%TopRow` shows: Monitor, the answer chip or the fold.
 	var top := false
 	var footer := ""
 	var footer_tip := ""
 
 
-## Answer mode: the heading's chip, the title, the keys and "Send line".
+## Answer mode: the heading's chip, the keys and "Send line".
 class Answer:
 	## The chip shows; it opens answer mode (with the Enter hint) or closes it.
 	var chip := false
@@ -216,9 +231,6 @@ class Answer:
 	var chip_tip := ""
 	## Answer mode is open: its controls show and the card's boxes turn.
 	var open := false
-	var title := false
-	var title_text := ""
-	var title_tip := ""
 	var keys_off := true
 	var line_off := true
 	var line_tip := ""
@@ -269,28 +281,35 @@ static func of(facts: Facts) -> CardPicture:
 # --- the stack ----------------------------------------------------------------
 
 
+## The panel keeps its height when there is nothing to show: no pane, or a
+## card the viewer closed, is the empty state in the same room, and NEXT stays.
 static func stack_of(facts: Facts) -> Stack:
 	var made := Stack.new()
-	made.carded = facts.compact and facts.card
 	made.closed = facts.closed
-	made.detail = facts.pane != null and not facts.closed and (not facts.compact or made.carded)
+	made.detail = facts.pane != null and not facts.closed and not facts.compact
 	made.line = facts.pane != null and not facts.closed and facts.compact
-	made.line_close = made.line and not made.carded
-	made.title = not made.carded and not facts.answering
-	made.empty = facts.pane == null and not facts.closed
+	made.line_close = made.line
+	made.empty = facts.pane == null or facts.closed
 	made.full = not facts.compact
+	made.no_pane = made.empty and made.full and not facts.closed
+	# Answer mode's modal is the opened form's layout, NEXT down in its column.
+	made.next_row = (facts.docked and not facts.answering) or (facts.compact and facts.wide)
 	made.next_wait = not facts.compact or facts.wide
+	made.docked_form = facts.docked and not facts.answering and made.full
+	made.outcome_lines = 1 if made.docked_form else (ANSWER_OUTCOME_LINES if facts.answering else 2)
 	made.monitor_word = "Monitor" if facts.wide else ""
 	made.open_word = "Open" if facts.wide else ""
-	made.message = "Waiting for herdr." if facts.dimmed else "This session has no panes."
+	if facts.closed:
+		made.message = CLOSED_MESSAGE
+	else:
+		made.message = "Waiting for herdr." if facts.dimmed else "This session has no panes."
 	return made
 
 
 ## Whether the PANE list shows: it gives the launch block its room on a narrow
-## card, answer mode's controls theirs always, and the card form has none.
+## card, and answer mode's controls theirs always.
 static func more_of(facts: Facts) -> bool:
-	var carded := facts.compact and facts.card
-	return not facts.answering and not carded and not (facts.launch_shown and facts.narrow)
+	return not facts.answering and not (facts.launch_shown and facts.narrow)
 
 
 # --- the header -----------------------------------------------------------------
@@ -365,6 +384,14 @@ static func header_of(facts: Facts) -> Header:
 # --- the preview ----------------------------------------------------------------
 
 
+## How many rows the preview shows: DOCKED_ROWS on the docked panel, the
+## whole PREVIEW_ROWS where it was opened from its line, and in answer mode,
+## which wants the whole question in sight. The read asks for PREVIEW_ROWS
+## either way (OfficePaneInspector._start_read()).
+static func rows_of(facts: Facts) -> int:
+	return DOCKED_ROWS if facts.docked and not facts.answering else PREVIEW_ROWS
+
+
 ## How old the text read at `read_at_msec` is at `now_msec`, in whole seconds.
 static func age_seconds(read_at_msec: int, now_msec: int) -> int:
 	return int((now_msec - read_at_msec) / 1000.0)
@@ -374,7 +401,7 @@ static func preview_of(facts: Facts) -> Preview:
 	var made := Preview.new()
 	var shown := facts.preview == OfficePaneInspector.PreviewState.SHOWN
 	var rows := CardWords.rows_of(facts.text if shown else "")
-	made.rows = _rows_text(rows)
+	made.rows = _rows_text(rows, rows_of(facts))
 	match facts.preview:
 		OfficePaneInspector.PreviewState.LOADING:
 			made.caption = "Reading…"
@@ -390,13 +417,13 @@ static func preview_of(facts: Facts) -> Preview:
 	return made
 
 
-## The last PREVIEW_ROWS of `rows`, tabs expanded, padded at the top so the
-## block is always that many rows tall. Long rows are clipped by the label.
-static func _rows_text(rows: PackedStringArray) -> String:
-	if rows.size() > PREVIEW_ROWS:
-		rows = rows.slice(rows.size() - PREVIEW_ROWS)
+## The last `count` of `rows`, tabs expanded, padded at the top so the block
+## is always that many rows tall. Long rows are clipped by the label.
+static func _rows_text(rows: PackedStringArray, count: int) -> String:
+	if rows.size() > count:
+		rows = rows.slice(rows.size() - count)
 	var shown := PackedStringArray()
-	for index in PREVIEW_ROWS - rows.size():
+	for index in count - rows.size():
 		shown.append("")
 	for row in rows:
 		shown.append(CardWords.expand_tabs(row.left(CardWords.ROW_CHARS)))
@@ -409,7 +436,8 @@ static func _rows_text(rows: PackedStringArray) -> String:
 static func _caption_shown(made: Preview, facts: Facts, rows_total: int) -> void:
 	var seconds := age_seconds(facts.read_at_msec, facts.now_msec)
 	made.seconds = seconds
-	var shown := mini(rows_total, PREVIEW_ROWS)
+	var count := rows_of(facts)
+	var shown := mini(rows_total, count)
 	var clipped := (
 		" %d of them wider than the card and clipped: look at herdr for the rest." % facts.rows_clipped
 		if facts.rows_clipped > 0
@@ -433,7 +461,7 @@ static func _caption_shown(made: Preview, facts: Facts, rows_total: int) -> void
 	)
 	made.caption_tip = (
 		"The last %d lines of herdr's %s source, read %s ago.%s%s"
-		% [PREVIEW_ROWS, facts.source, CardWords.age(seconds), clipped, cut]
+		% [count, facts.source, CardWords.age(seconds), clipped, cut]
 	)
 
 
@@ -452,9 +480,10 @@ static func actions_of(facts: Facts) -> Actions:
 	# The terminal monitor: offered for any pane shown with a fleet; read-only
 	# opens it view-only. The same on the one-line row.
 	made.monitor = facts.pane != null and facts.connected
-	# Escape in answer mode only leaves it: `▾ Esc` folds only out of it.
-	made.fold = facts.pane != null and not facts.answering
-	made.top = made.monitor or made.fold
+	# Escape in answer mode only leaves it: `▾ Esc` folds only out of it, and
+	# only where the panel can fold (a short screen: the docked one never does).
+	made.fold = facts.pane != null and not facts.answering and not facts.docked
+	made.top = made.monitor or made.fold or facts.answering or facts.answer_possible
 	var where := "herdr" if facts.machine.is_empty() else "herdr on " + facts.machine
 	made.focus_text = "Switch herdr here" if facts.machine.is_empty() else "Switch herdr on " + facts.machine
 	made.focus_tip = (
@@ -583,14 +612,6 @@ static func answer_of(facts: Facts) -> Answer:
 		else "Enter: answer this agent. Opens the answer keys and the reply box; nothing is sent until you press one."
 	)
 	made.open = facts.answering
-	# The header under it already says who and in what state; so does a card's.
-	made.title = not facts.answering and not (facts.compact and facts.card)
-	made.title_text = HEADING
-	if facts.answering and facts.pane != null:
-		made.title_text = "%s · %s" % [facts.pane.name, facts.state_caption]
-		if not facts.machine.is_empty():
-			made.title_text += " · " + facts.machine
-		made.title_tip = "Answering: " + made.title_text
 	made.on = "" if facts.machine.is_empty() else " on " + facts.machine
 	var keys := facts.keys_refusal
 	made.keys_off = keys != CommandRefusal.Reason.NONE
@@ -627,11 +648,12 @@ static func key_words(key_name: String, on: String) -> String:
 # --- NEXT -------------------------------------------------------------------------
 
 
-## NEXT's words. At full height `NEXT:` over what a press does and to whom
-## (`Answer needs approval`, `Read refactor the fleet`; ` @ bee` with several
-## machines) and the wait; on a wide line the same three in a row. A narrow
-## line has room for the name only, and no `NEXT:` before it; on either line
-## the button's tooltip says the whole sentence and the space. An office that
+## NEXT's words. Opened on a short screen, `NEXT:` over what a press does and
+## to whom (`Answer needs approval`, `Read refactor the fleet`; ` @ bee` with
+## several machines) and the wait; docked and on a wide line the same three in
+## a row. A narrow line has room for the name only, and no `NEXT:` before it;
+## docked and on either line the button's tooltip says the whole sentence and
+## the space. An office that
 ## cannot write has no verb, and says whom and herdr's state instead (`needs
 ## approval · blocked`). `NEXT: All clear` fits every form.
 static func next_of(facts: Facts) -> Next:
@@ -651,9 +673,9 @@ static func next_of(facts: Facts) -> Next:
 	if not whom.machine.is_empty():
 		whole += " @ " + whom.machine
 	pill.line = who if short else whole
-	# The one line clips what does not fit (a long name, ` @ machine`): its
-	# tooltip says the whole sentence and the space, at either width.
-	if facts.compact:
+	# A row clips what does not fit (a long name, ` @ machine`): its tooltip
+	# says the whole sentence and the space, at either width.
+	if facts.compact or (facts.docked and not facts.answering):
 		pill.tip = tip + "\nNext: " + whole + " · " + whom.space
 	pill.muted = false
 	return pill

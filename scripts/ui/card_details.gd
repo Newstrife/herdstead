@@ -20,10 +20,8 @@ const TITLE_LINES := 5
 ## re-dresses it and nothing else does.
 var _portrait_look := ""
 var _actor: PixelPerson
-## Whether the shown state has a note (a dropped machine's, or UNREAD's), and
-## whether the header has a row for it (set_noted()).
+## Whether the shown state has a note (a dropped machine's, or UNREAD's).
 var _has_note := false
-var _noted := true
 
 
 func _ready() -> void:
@@ -49,15 +47,6 @@ func portrait() -> PixelPerson:
 ## No pane: no person and no badge.
 func clear() -> void:
 	_show_portrait(null, null)
-
-
-## Whether the header has a row for the state's note. The card form has none
-## (OfficePaneInspector.set_card()): it is as tall as the portrait, and the
-## note would push the name out of its frame; the opened panel says it.
-func set_noted(on: bool) -> void:
-	_noted = on
-	var footnote: Label = %Footnote
-	footnote.visible = _has_note and _noted
 
 
 ## Write `header` (CardPicture.header_of(): who sits there, in what state and
@@ -103,7 +92,7 @@ func show_header(header: CardPicture.Header, art: ArtPack) -> void:
 	title.text = header.title
 	title.tooltip_text = header.title
 	_has_note = header.has_note
-	footnote.visible = _has_note and _noted
+	footnote.visible = _has_note
 	footnote.text = header.note
 	_show_portrait(art, header)
 

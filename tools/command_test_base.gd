@@ -318,14 +318,15 @@ func _pick_local(office: OfficeDouble, pane_id: String, open := true) -> void:
 		await _open_panel(office)
 
 
-## Pick pane `key` with a real click on its row in the agent list, opening the
-## drawer by its tab first; with `open`, then open the staff panel with Enter.
+## Pick pane `key` with a real click on its row in the agent list, the drawer
+## opened first (setup: S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no
+## drawer tab,
+## no closed tab to click); with `open`, then open the staff panel with Enter.
 ## The way to another agent while answer mode's panel stands over the world's
 ## middle, where a desk under it takes no click; it picks as a desk click does.
 func _pick_in_list(office: OfficeDouble, key: String, open := true) -> void:
 	if not office.hud.drawer_open():
-		var tab: Control = office.hud.get_node("%DrawerTab")
-		await _click_control(tab)
+		office.hud.open_drawer()
 		await _frames(2)
 	var row := office.hud.agent_list.row_for(key)
 	_check(row != null and row.is_visible_in_tree(), "the agent list shows a row for " + key)
@@ -734,19 +735,14 @@ func _godot(engine: PackedStringArray, user: PackedStringArray, output: Array) -
 
 
 ## Every HUD panel shown stays on screen and off every other one; in answer
-## mode the staff panel is a modal over the others, so it only stays on screen.
+## mode the bottom panel is a modal over the others, so it only stays on screen.
+## NEWS stands inside the bottom panel's top row: it is that panel's.
 func _panels_apart(office: OfficeDouble, what: String) -> void:
 	var hud := office.hud
 	var screen: Control = hud.get_node("Screen")
 	var room := Rect2(Vector2.ZERO, screen.size).grow(0.5)
 	var shown: Array[Control] = []
-	for panel: Control in [
-		hud.bar,
-		hud.get_node("%ListHolder"),
-		hud.get_node("%DrawerTab"),
-		hud.staff,
-		hud.news,
-	]:
+	for panel: Control in [hud.bar, hud.get_node("%ListHolder"), hud.staff]:
 		if panel.is_visible_in_tree():
 			shown.append(panel)
 	# The edge arrows stand over the world: each is a panel of its own here.
@@ -754,7 +750,10 @@ func _panels_apart(office: OfficeDouble, what: String) -> void:
 		for arrow in hud.edge_arrows.shown():
 			shown.append(arrow)
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone, so one panel fewer.
-	_check(shown.size() >= 3, "%s: the bar, the list and the staff panel are shown" % what)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# closed drawer is no tab and NEWS is
+	# the bottom panel's, so the bar and the bottom panel are the two always shown.
+	_check(shown.size() >= 2, "%s: the bar and the bottom panel are shown" % what)
 	for i in shown.size():
 		var rect := shown[i].get_global_rect()
 		_check(room.encloses(rect), "%s: %s stays on screen: %s" % [what, shown[i].name, rect])

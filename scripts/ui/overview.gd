@@ -5,7 +5,7 @@ extends HdPanel
 ## opened, over the world and both side columns. The PANES counter or `O`
 ## opens it; `X  Esc`, Esc or `O` again closes it. A column head sorts by that
 ## column (again: the other way), a chip keeps one of herdr's states, and a
-## row picks its pane, as a click on its desk does; the staff panel below
+## row picks its pane, as a click on its desk does; the bottom panel below
 ## stays, and answers as it always does.
 ##
 ## It draws an OverviewModel and nothing else: rows are pooled by pane key

@@ -5,7 +5,7 @@
 
 [node name="EventList" type="PanelContainer"]
 offset_right = 144.0
-offset_bottom = 268.0
+offset_bottom = 116.0
 theme_type_variation = &"HdPanel"
 script = ExtResource("1")
 row_scene = ExtResource("2")
@@ -14,9 +14,9 @@ row_scene = ExtResource("2")
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 5
+theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 0
-theme_override_constants/margin_bottom = 5
+theme_override_constants/margin_bottom = 2
 
 [node name="Body" type="VBoxContainer" parent="Frame"]
 layout_mode = 2
@@ -29,6 +29,14 @@ layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"LabelSlate"
 text_overrun_behavior = 3
+
+[node name="Empty" type="Label" parent="Frame/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"LabelSlate"
+text = "No events yet."
 
 [node name="Scroll" type="ScrollContainer" parent="Frame/Body"]
 unique_name_in_owner = true
@@ -50,11 +58,3 @@ layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 0
-
-[node name="Empty" type="Label" parent="Frame/Body"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"LabelSlate"
-text = "No events yet."

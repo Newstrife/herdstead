@@ -160,14 +160,22 @@ func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 	_check(not office.world.visible, "the world is out of sight")
 	_check(not hud.edge_arrows.visible, "so are the edge arrows")
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the drawer is the one column left.
-	_check(hud.right_column.visible, "the drawer stays, covered")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: closed,
+	# it is no tab and takes nothing.
+	_check(not hud.right_column.visible, "the drawer stays closed")
 	_eq(hud.world_rect(), room, "the world's room is what it was")
 	_eq(office.layout_attempt_count(), attempts, "no floor is planned for it")
 	_eq(moves[0], 0, "and no room changed")
 	var placed := hud.placed(hud.overview)
-	_eq([placed.position.x, placed.position.y, placed.end.x], [16.0, 40.0, 784.0], "under the bar, 16 in")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 8 under
+	# the 52-unit bar.
+	_eq([placed.position.x, placed.position.y, placed.end.x], [16.0, 60.0, 784.0], "under the bar, 16 in")
 	_eq(placed.end.y, hud.placed(hud.right_column).end.y, "down to the column's bottom edge")
-	_check(hud.overview.get_global_rect().encloses(Rect2(room.position, room.size)), "covering the world")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# world runs to 8 from the
+	# screen's edge now; the overview keeps the panels' 16 and the hidden world leaves those 8 empty.
+	var covered := Rect2(room.position, room.size - Vector2(8, 0))
+	_check(hud.overview.get_global_rect().encloses(covered), "covering the world but its last 8, which it hides")
 	await _frames(2)
 	_check(_part(hud.overview, "%Summary").visible, "800 wide: the summary shows")
 	_heading_apart(hud.overview, "800x480")
@@ -202,9 +210,11 @@ func test_o_toggles_and_esc_closes_only_the_overview() -> void:
 
 
 ## Answer mode stays usable under the overview, and Escape peels one layer at
-## a time: the first leaves answer mode (sending nothing), the second folds the
-## opened staff panel to its line, the third closes the overview. Escape
-## never reaches pane.send_keys.
+## a time: the first leaves answer mode (sending nothing), the second closes
+## the overview (the docked panel has nothing to fold). Escape never reaches
+## pane.send_keys. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer
+## tab: at 800x480 the
+## panel is docked; the fold it peeled is a short screen's (tools/test_bottom_panel.gd).
 func test_esc_leaves_answer_mode_first_and_never_sends() -> void:
 	var office := await _blocked_bee()
 	var card := _card(office)
@@ -217,10 +227,8 @@ func test_esc_leaves_answer_mode_first_and_never_sends() -> void:
 	_check(office.hud.overview_open(), "and leaves the overview open")
 	_check(not office.hud.card_compact(), "and the panel open")
 	await _tap(KEY_ESCAPE)
-	_check(office.hud.card_compact(), "the second folds the panel to its line")
-	_check(office.hud.overview_open(), "and leaves the overview open")
-	await _tap(KEY_ESCAPE)
-	_check(not office.hud.overview_open(), "the third closes the overview")
+	_check(not office.hud.overview_open(), "the second closes the overview: docked, nothing folds")
+	_check(not office.hud.card_compact(), "and the panel stays docked")
 	await _wait(0.5)
 	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "neither Escape sent anything")
 	_eq(_all_inputs(), 0, "not a key")
@@ -460,7 +468,7 @@ func test_arrows_scroll_the_table_not_the_world() -> void:
 
 ## The smallest screen takes the compact column set: BLOCKED and TIMES go,
 ## heads and rows alike, the table fits the overview's width with no sideways
-## scroll, and the overview stands above the compact staff panel.
+## scroll, and the overview stands above the folded bottom panel.
 func test_the_smallest_screen_uses_the_compact_columns() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with(false, true, true, Vector2(480, 320))
@@ -477,7 +485,9 @@ func test_the_smallest_screen_uses_the_compact_columns() -> void:
 	_check(columns.size.x <= 448.0, "the columns fit: %s" % columns.size.x)
 	var scroll: ScrollContainer = overview.get_node("%Scroll")
 	_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "no sideways scroll")
-	_eq(office.hud.placed(overview), Rect2(16, 40, 448, 208), "above the compact staff panel")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: above
+	# the two-row panel.
+	_eq(office.hud.placed(overview), Rect2(16, 40, 448, 210), "above the folded bottom panel")
 	_check(overview.get_global_rect().end.x <= 464.0, "inside the screen's gutter")
 	# The heading: no room for the summary beside the chips, so it goes (its
 	# words are the title's tooltip) and nothing passes under anything.

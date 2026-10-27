@@ -544,16 +544,16 @@ func _click_visible_pane(office: OfficeDouble, key: String) -> void:
 
 ## Whether a viewer could click `at`: inside the world's visible room and not
 ## under an edge arrow, which stands over the world along its edge and takes
-## a click there, or under the drawer (open over the desks a plan made for it
-## closed puts to its right, or its closed tab) or the NEWS strip (counted so
-## one moved over the world cannot swallow a test's click unseen), or under
-## the staff panel, which stands over the world's middle in answer mode.
+## a click there, or under the open drawer (over the desks a plan made for it
+## closed puts to its right), or under the bottom panel (NEWS stands in it),
+## which stands over the world's middle in answer mode.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: no closed
+## tab, no NEWS strip.
 func _clickable(office: OfficeDouble, visible: Rect2, at: Vector2) -> bool:
 	if not visible.has_point(at):
 		return false
-	var tab: Control = office.hud.get_node("%DrawerTab")
 	var holder: Control = office.hud.get_node("%ListHolder")
-	var covers: Array[Control] = [tab, holder, office.hud.news, office.hud.staff]
+	var covers: Array[Control] = [holder, office.hud.staff]
 	covers.append_array(office.hud.edge_arrows.shown())
 	for cover in covers:
 		if cover.is_visible_in_tree() and cover.get_global_rect().has_point(at):

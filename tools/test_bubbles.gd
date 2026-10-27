@@ -593,7 +593,10 @@ func test_a_click_on_a_blocked_seat_only_picks() -> void:
 	await _click_world(office, station.pane_key, body)
 	_eq(office.picked_key, station.pane_key, "the click picks the pane")
 	var card := _card(office)
-	_check(office.hud.card_compact(), "and opens nothing: the panel stays one line")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked,
+	# the panel is open and
+	# reads the pane it shows; the click opens nothing more.
+	_check(not card.answering() and not office.hud.card_expanded(), "and opens nothing: no answer mode")
 	# Enter opens the panel, and only that: the question is read and shown.
 	await _open_panel(office)
 	await _until(func() -> bool: return card.preview_text() == QUESTION, "the question is shown")
@@ -691,9 +694,22 @@ func test_a_blocked_card_click_only_picks_and_reads_nothing() -> void:
 	)
 	await _wait(1.5)
 	_check(not card.answering(), "no answer mode")
-	_check(office.hud.card_compact(), "the card stays its line")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked,
+	# the card is open and
+	# reads the pane it shows (D-READ); the chip reader asks the same 200 detection lines
+	# (measured: QuestionReader.LINES), so the only new requests to bee are reads of the picked pane.
+	_check(not office.hud.card_expanded(), "the card opens nothing")
 	_eq(_sequence("control-a"), before_a, "Local is asked nothing")
-	_eq(_sequence("control-b"), before_b, "nor is bee")
+	var after_b := _sequence("control-b")
+	_eq(after_b.slice(0, before_b.size()), before_b, "bee: what came before the click is the same")
+	var added := Array(after_b.slice(before_b.size()))
+	_check(
+		not added.is_empty() and added.all(func(entry: String) -> bool: return entry == "pane.read detection 200"),
+		"bee is asked only to read: %s" % [added]
+	)
+	var reads := _read_panes("control-b")
+	_eq(reads.slice(reads.size() - added.size()), added.map(func(_entry: String) -> String: return "alpha:p3"), "of it")
+	_eq(_writes_seen("control-b"), PackedStringArray(), "and no write")
 	_eq(_all_inputs(), 0, "nothing was sent")
 
 
@@ -744,7 +760,7 @@ func test_cards_folds_and_their_hovers_send_nothing() -> void:
 
 ## On the 480x320 compact line NEXT has no room for `NEXT:`, the verb and the
 ## machine: it names whom N picks, provider and space, whole, and its tooltip
-## says the rest. On the 800x480 line (it stays one line there) it says
+## says the rest. On the 640x320 line (it stays one line there) it says
 ## `NEXT:` and the whole sentence in a row. With nobody next the compact line
 ## says `NEXT: All clear`, whole.
 func test_the_compact_next_shows_whole_words() -> void:
@@ -782,11 +798,14 @@ func test_the_compact_next_shows_whole_words() -> void:
 	_check(button.tooltip_text.begins_with(own), "the button's own sentence first: " + button.tooltip_text)
 	var whole := "\nNext: %s · %s" % [said, pane.workspace_label]
 	_check(button.tooltip_text.ends_with(whole), "the tooltip says the rest, the space too: " + button.tooltip_text)
-	office.test_screen = Vector2(800, 480)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 800x480
+	# docks the panel; the wide
+	# line is a wide short screen's, 640x320.
+	office.test_screen = Vector2(640, 320)
 	office.refresh()
-	await _until(func() -> bool: return title.is_visible_in_tree(), "800x480: the wide line")
+	await _until(func() -> bool: return title.is_visible_in_tree(), "640x320: the wide line")
 	await _frames(2)
-	_check(card.compact(), "800x480: still the one line")
+	_check(card.compact(), "640x320: still the one line")
 	_check(title.is_visible_in_tree(), "`NEXT:` before it again")
 	_eq(line.text, said, "the whole sentence")
 	_check(
@@ -857,7 +876,9 @@ func test_next_on_a_done_agent_opens_its_card_without_answer_mode() -> void:
 	var quiet := _changed(_raw(), "bravo:p1", {"agent_status": "working"})
 	_ctl("control-a", "set_snapshot", {"snapshot": quiet})
 	_ctl("control-b", "set_snapshot", {"snapshot": _changed(quiet, "alpha:p3", {"agent_status": "done"})})
-	var office := await _office_with()
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# on a wide short screen's line (640x320), where a panel opens (docked it is always open).
+	var office := await _office_with(false, true, true, Vector2(640, 320))
 	await _frames(3)
 	var card := _card(office)
 	var key := HerdrFleet.pane_key(BEE, "alpha:p3")
@@ -968,7 +989,10 @@ func test_the_step_buttons_walk_the_queue_both_ways_and_send_nothing() -> void:
 	_fakes()
 	_ctl("control-a", "set_snapshot", {"snapshot": _changed(_raw(), "alpha:p3", {"agent_status": "done"})})
 	_ctl("control-b", "set_snapshot", {"snapshot": _changed(_raw(), "alpha:p3", {"agent_status": "blocked"})})
-	var office := await _office_with()
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: on the
+	# 480x320 line, where a
+	# panel folds and opens (docked, `‹ ›` stand under NEXT and nothing folds).
+	var office := await _office_with(false, true, true, Vector2(480, 320))
 	await _frames(3)
 	var card := _card(office)
 	var back: Button = card.get_node("%StepBack")

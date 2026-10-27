@@ -1,6 +1,6 @@
 class_name OfficeNews
 extends PanelContainer
-## The NEWS strip along the screen's bottom: the latest events of the fleet's
+## The NEWS line in the bottom panel's top row: the latest events of the fleet's
 ## StateLog (NewsItem, the office's), newest on the left. A click on one picks
 ## its pane, as a row of the agent list does; one whose pane is gone, and a
 ## machine's, cannot be clicked, and say why when hovered.

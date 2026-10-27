@@ -459,21 +459,27 @@ func test_the_offices_pick_of_the_new_pane_is_not_the_viewers() -> void:
 	_ctl("control-a", "next", {"action": "delay", "method": "session.snapshot", "seconds": 2.0})
 	await _click_control(split)
 	await _until(func() -> bool: return card.outcome_text() == "New pane alpha:p5", "herdr made alpha:p5")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked,
+	# Escape folds nothing; it is
+	# still no moving on.
 	await _tap(KEY_ESCAPE)
-	await _until(office.hud.card_compact, "Escape folds the panel while alpha:p5 is on its way")
+	await _frames(2)
+	_check(not office.hud.card_compact(), "Escape while alpha:p5 is on its way: the docked panel stays")
 	var p5 := HerdrFleet.pane_key(HerdrFleet.LOCAL, "alpha:p5")
-	await _until(func() -> bool: return office.picked_key == p5, "folding is not moving on: alpha:p5 is picked")
+	await _until(func() -> bool: return office.picked_key == p5, "Escape is not moving on: alpha:p5 is picked")
 	await _frames(3)
-	_check(office.hud.card_compact(), "and the folded panel stays folded")
+	_check(not office.hud.card_compact(), "and the docked panel stays docked")
 	_eq(_count("control-a", "pane.split"), 2, "one split per click")
 	_eq(_count("control-a", "agent.start"), 0, "and nothing started")
 
 
 ## The block fits and says all of itself: at 480x320, opened on a working
 ## agent (Enter opens the card up; a working agent takes no answer), and at
-## 800x480, the title NEW PANE BESIDE CLAUDE whole in at most two lines, the
+## 960x480, the title NEW PANE BESIDE CLAUDE whole in at most two lines, the
 ## button's label whole, the note in two lines, all inside the block beside
-## the preview. At 800x480 PANE's details stay beside it.
+## the preview. At 1280x720 PANE's details stay beside it too. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the
+## 52-unit bar band on tall screens, no drawer tab:
+## docked; 800x480's card is under details_beside_launch_from (900), where the block takes PANE's place.
 func test_the_new_pane_block_fits_and_shows_its_whole_title() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with(false, true, true, Vector2(480, 320))
@@ -490,15 +496,25 @@ func test_the_new_pane_block_fits_and_shows_its_whole_title() -> void:
 	_block_whole(card, "480x320")
 	await _tap(KEY_ESCAPE)
 	await _until(office.hud.card_compact, "Esc folds it")
-	office.test_screen = Vector2(800, 480)
+	office.test_screen = Vector2(960, 480)
 	office.refresh()
 	await _frames(2)
-	_check(office.hud.card_compact(), "800x480: still one line")
+	_check(office.hud.inspector.docked(), "960x480: docked")
 	await _open_panel(office)
-	await _until(launch.is_visible_in_tree, "800x480: the block")
+	await _until(launch.is_visible_in_tree, "960x480: the block")
 	await _frames(3)
-	_block_whole(card, "800x480")
-	_check(_control(office, "More").is_visible_in_tree(), "800x480: PANE's details beside it")
+	_block_whole(card, "960x480")
+	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller; PANE's details
+	# give way to the block below 1000 units of card (details_beside_launch_from), so "wide" is 1280x720 now.
+	office.test_screen = Vector2(1280, 720)
+	office.refresh()
+	await _frames(2)
+	_check(office.hud.inspector.docked(), "1280x720: docked")
+	await _open_panel(office)
+	await _until(launch.is_visible_in_tree, "1280x720: the block")
+	await _frames(3)
+	_block_whole(card, "1280x720")
+	_check(_control(office, "More").is_visible_in_tree(), "1280x720: PANE's details beside it")
 	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "nothing written")
 
 

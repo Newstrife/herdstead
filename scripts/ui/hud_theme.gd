@@ -119,7 +119,7 @@ const BUTTON_STATES := ["normal", "hover", "pressed", "focus", "disabled"]
 const MONO_FACES := ["Menlo", "SF Mono", "Monaco", "DejaVu Sans Mono", "monospace"]
 ## Pixels per preview row's glyphs, and the pitch from one row to the next:
 ## twelve rows of it, and the card around them, fit a 640x320 screen (3x).
-## The staff panel's key-hint icons (ArtContract.UI_KEY_ENTER / UI_EXPAND), in units.
+## The bottom panel's key-hint icons (ArtContract.UI_KEY_ENTER / UI_EXPAND), in units.
 const KEY_HINT_ICON := 10
 const PREVIEW_SIZE := 7
 const PREVIEW_LINE_SPACING := -1
@@ -344,12 +344,13 @@ static func _overview(theme: Theme, art: ArtPack, font: Font) -> void:
 	theme.set_constant("margin_right", "OverviewRowsGap", OVERVIEW_BAR_GAP)
 
 
-## The NEWS strip along the bottom (scenes/ui/news.tscn): a flat `deep` band,
-## like the top bar's ground, whose items are words on it with no box of their
-## own (the pointer lightens them; one that cannot be clicked is muted); and
-## the drawer's AGENTS / EVENTS tabs (TabBar), the page shown `slate` like the
-## Flat / Tree switch's pressed half, the other `deep`. While the agent list
-## holds the keyboard, its tab's word is in the blocked colour.
+## The NEWS line in the bottom panel's top row (scenes/ui/news.tscn): a flat
+## `deep` band, like the top bar's ground, whose items are words on it with no
+## box of their own (the pointer lightens them; one that cannot be clicked is
+## muted); the drawer's AGENTS tab and the bottom panel's AGENT / HISTORY /
+## EVENTS tabs (TabBar, `PanelTabs`), the page shown `slate` like the Flat /
+## Tree switch's pressed half, the other `deep`. While the agent list holds
+## the keyboard, its tab's word is in the blocked colour.
 static func _news(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("NewsBar", "PanelContainer")
 	var band := _flat(art.color(ArtContract.DEEP))
@@ -367,7 +368,7 @@ static func _news(theme: Theme, art: ArtPack) -> void:
 	theme.set_color("font_pressed_color", "NewsItem", art.color(ArtContract.CREAM))
 	theme.set_color("font_disabled_color", "NewsItem", art.color(ArtContract.MUTED))
 	theme.set_constant("outline_size", "NewsItem", 0)
-	for name: String in ["DrawerTabs", "DrawerTabsHeld"]:
+	for name: String in ["DrawerTabs", "DrawerTabsHeld", "PanelTabs"]:
 		theme.set_type_variation(name, "TabBar")
 		var fills: Dictionary[String, StringName] = {
 			"tab_selected": ArtContract.SLATE,
@@ -394,6 +395,7 @@ static func _news(theme: Theme, art: ArtPack) -> void:
 		theme.set_font_size("font_size", name, 10)
 	theme.set_color("font_selected_color", "DrawerTabs", art.color(ArtContract.PAPER))
 	theme.set_color("font_selected_color", "DrawerTabsHeld", art.color(ArtContract.BLOCKED))
+	theme.set_color("font_selected_color", "PanelTabs", art.color(ArtContract.PAPER))
 
 
 ## The agent card (scenes/ui/inspector.tscn): its terminal preview on a `deep`
@@ -435,15 +437,12 @@ static func _card(theme: Theme, art: ArtPack, font: Font) -> void:
 	_staff(theme, art)
 
 
-## The staff panel's NEXT button and the closed drawer's tab, dark buttons.
-## NEXT's words are labels of their own, which keep their colours: a hover
-## thickens its edge instead of changing the fill under them. Off (nobody
-## next), it keeps its `deep` fill with a `slate` edge: in the card form it
-## floats over the world, and a hollow pill showed the floor through it.
-## The tab's letters stand one per line.
+## The bottom panel's NEXT button, a dark button. NEXT's words are labels of
+## their own, which keep their colours: a hover thickens its edge instead of
+## changing the fill under them. Off (nobody next), it keeps its `deep` fill
+## with a `slate` edge, never a hollow pill.
 static func _staff(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("NextAction", "Button")
-	theme.set_type_variation("DrawerTab", "Button")
 	for state: String in BUTTON_STATES:
 		var next := _dark_button(art, state, true)
 		if state == "disabled":
@@ -451,11 +450,6 @@ static func _staff(theme: Theme, art: ArtPack) -> void:
 		next.set_corner_radius_all(6)
 		next.anti_aliasing = false
 		theme.set_stylebox(state, "NextAction", next)
-		var tab := _dark_button(art, state)
-		tab.border_color = art.color(ArtContract.SLATE)
-		tab.content_margin_top = 4
-		theme.set_stylebox(state, "DrawerTab", tab)
-	_dark_button_text(theme, art, "DrawerTab")
 	# NEXT's play mark: a round `working` button with a `deep` ring, the ink ▶ on it.
 	theme.set_type_variation("NextPlay", "PanelContainer")
 	var play := _flat(art.color(ArtContract.WORKING))
@@ -465,8 +459,6 @@ static func _staff(theme: Theme, art: ArtPack) -> void:
 	play.border_color = art.color(ArtContract.DEEP)
 	play.content_margin_left = 1
 	theme.set_stylebox("panel", "NextPlay", play)
-	# Nine lines of one letter each stand in a column as short as 120 units.
-	theme.set_constant("line_spacing", "DrawerTab", -3)
 
 
 ## The card's answer mode: key buttons as small as a key label allows, dark

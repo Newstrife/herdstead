@@ -467,8 +467,9 @@ func test_no_lens_under_the_overview_the_monitor_or_a_text_field() -> void:
 	await _press(close)
 	await _frames(2)
 	_check(not office.hud.monitor_open(), "its close button closes the monitor")
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(2)
 	var filter: LineEdit = office.hud.agent_list.get_node("%Filter")
 	await _press(filter)
@@ -629,8 +630,9 @@ func test_hovering_a_news_item_points_at_its_desk_without_selecting() -> void:
 func test_hovering_a_row_for_another_machine_outlines_its_card() -> void:
 	var office := await _two_machine_office()
 	var key := HerdrFleet.pane_key(BEE, "hive:p1")
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(3)
 	var row := office.hud.agent_list.row_for(key)
 	_check(row != null and row.is_visible_in_tree(), "hive:p1 has a row in the open list")
@@ -676,7 +678,7 @@ func test_events_rows_and_signposts_point_too() -> void:
 		_eq(_outlined(office), [], "leaving restores them")
 	var key := _pk("api:p4")
 	_feed(office, _with(fixture, "api:p4", {"agent_status": "done"}))
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var events := office.fleet.state_log().events()
 	var row := office.hud.event_list.row_for(events[events.size() - 1].id)
 	_check(row != null and row.pane_key == key, "the newest EVENTS row is about api:p4")
@@ -744,8 +746,8 @@ func test_a_pointed_pane_that_goes_drops_the_mark() -> void:
 	_done(office)
 
 
-## A HUD's staff panel that says it is in answer mode: OfficeHud.fit() then
-## floats it over the world, as the office's does.
+## A HUD's card that says it is in answer mode: OfficeHud.fit() then floats the
+## bottom panel over the world, as the office's does.
 class AnsweringInspector:
 	extends OfficePaneInspector
 
@@ -768,8 +770,11 @@ func test_an_arrow_under_the_answer_panel_is_not_pointed_at() -> void:
 		await _hover(Vector2(4, 4))
 		var art := ArtPack.from_manifest(MANIFESTS[0])
 		var hud: OfficeHud = HUD_SCENE.instantiate()
+		# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+		# card is the
+		# bottom panel's AGENT page; the panel is what floats.
 		var staff: Control = hud.get_node("%Staff")
-		staff.set_script(AnsweringInspector)
+		staff.get_node("%Card").set_script(AnsweringInspector)
 		root.add_child(hud)
 		hud.dress(art, OfficeDraw.new(art).font)
 		hud.fit(screen)
@@ -855,8 +860,9 @@ func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
 	# off screen below, beside infra:p1, for the two arrows.
 	_feed(office, _with(fixture, "data:p1", {"agent_status": "blocked"}))
 	await _frames(2)
-	var strip: Control = office.hud.get_node("%DrawerTab")
-	await _press(strip)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(3)
 	var key := HerdrFleet.pane_key(BEE, "hive:p1")
 	var row := office.hud.agent_list.row_for(key)
@@ -1280,14 +1286,11 @@ func _press(control: Control) -> void:
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
 
 
-## A real click on the drawer's tab for `tab`, the drawer opened first.
-func _press_tab(office: OfficeDouble, tab: OfficeHud.DrawerTab) -> void:
-	if not office.hud.drawer_open():
-		var strip: Control = office.hud.get_node("%DrawerTab")
-		await _press(strip)
-		await _frames(2)
-	var tabs := office.hud.drawer_tabs
-	var rect := tabs.get_tab_rect(tab)
+## A real click on the bottom panel's tab for `page` (S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit
+## bar band on tall screens, no drawer tab).
+func _press_tab(office: OfficeDouble, page: OfficeBottomPanel.Page) -> void:
+	var tabs := office.hud.staff.tabs
+	var rect := tabs.get_tab_rect(page)
 	var at := tabs.get_global_rect().position + rect.get_center()
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))

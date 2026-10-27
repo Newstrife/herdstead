@@ -3,11 +3,12 @@ extends CanvasLayer
 ## The office's screen-space furniture: the top bar (its machine chips and
 ## portrait strip are how the mouse moves between machines and zones), the
 ## arrows on the world's edges toward blocked desks off screen, the agent list
-## in a drawer on the right, and the staff panel along the bottom
-## (the agent card, `inspector`, with NEXT at its right end) over the NEWS
-## strip, the strategic view over the world rect and the OVERVIEW over the
+## in a drawer on the right (opened by `A`), and the bottom panel
+## (OfficeBottomPanel, `staff`: the AGENT page is the agent card, `inspector`,
+## with NEXT at its right end; then HISTORY and EVENTS, with NEWS in its top
+## row), the strategic view over the world rect and the OVERVIEW over the
 ## world when they are open; laid out by the scene and styled by one Theme.
-## In answer mode the staff panel stands in the middle of the screen over a
+## In answer mode the bottom panel stands in the middle of the screen over a
 ## dimmed office, as a modal (_fit_staff()).
 ##
 ## The office hands it models and asks it back for the room it left over; it
@@ -29,19 +30,23 @@ signal agent_picked(key: String)
 ## in the agent list (double-click, Enter, Open) or the card's "Monitor".
 ## The office decides and opens it.
 signal monitor_requested(pane_key: String)
+## A History line of the agent list asked to be located (its menu's View).
 signal history_locate_requested(key: String)
+## A line of the bottom panel's HISTORY page was clicked: pick pane `key`, if
+## it is still the terminal the log saw (the office checks again).
+signal history_picked(key: String)
 signal attention_snooze_requested(id: String, seconds: int)
 signal attention_hidden_changed(id: String, hidden: bool)
 ## The list's view or a fold changed; the office may remember it.
 signal agent_list_changed
 ## The terminal monitor closed.
 signal monitor_closed
-## NEXT on the staff panel was pressed: the office does what `N` does.
+## NEXT on the bottom panel was pressed: the office does what `N` does.
 signal next_requested
-## `‹` (-1) or `›` (+1) on the staff panel's line was pressed: the office picks
+## `‹` (-1) or `›` (+1) under NEXT on the bottom panel was pressed: the office picks
 ## the one before or after the pick in NEXT's queue, and only picks.
 signal step_requested(direction: int)
-## A split from the staff panel of pane `target_key` made pane `pane_id` (see
+## A split from the bottom panel of pane `target_key` made pane `pane_id` (see
 ## OfficePaneInspector.pane_split): the office picks it once it shows.
 signal pane_split(target_key: String, pane_id: String, terminal_id: String, generation: int)
 ## The card made a new space or worktree from pane `from_key` (OfficePaneInspector.space_created):
@@ -59,21 +64,20 @@ signal fold_pressed(group: PortraitBarModel.Group)
 signal panes_pressed
 ## The top bar's chime switch was clicked: `on` is what it asks for (OfficeBar.chime_toggled).
 signal chime_toggled(on: bool)
-## An entry of the NEWS strip was clicked: pick pane `key`, as the list does.
+## An entry of the NEWS row was clicked: pick pane `key`, as the list does.
 signal news_picked(key: String)
-## A row of the EVENTS page was clicked: pick pane `key`, as the list does.
+## A row of the EVENTS page was clicked: pick pane `key`, keeping that page.
 signal event_picked(key: String)
-## The mouse came onto a NEWS item, a row of the agent list or of EVENTS, or a
-## portrait card, about pane `key`, or left it (`""`): the office points at
-## that desk, and only points.
+## The mouse came onto a NEWS item, a row of the agent list, of HISTORY or of
+## EVENTS, or a portrait card, about pane `key`, or left it (`""`): the office
+## points at that desk, and only points.
 signal pane_pointed(key: String)
 ## The same for an edge arrow and its zone `key`: the office outlines that
 ## zone's blocked cards in the top bar.
 signal zone_pointed(key: String)
-## The EVENTS page has just come into sight by its tab: the office lays it
-## out now rather than on its next refresh. (The drawer opening on it moves
-## the world's room, which refreshes the office anyway.)
-signal events_shown
+## The bottom panel's HISTORY or EVENTS page has just come into sight: the
+## office lays it out now rather than on its next refresh.
+signal page_shown(page: OfficeBottomPanel.Page)
 
 ## The overview closed (its `X  Esc`, Esc or `O`): the office shows the world again.
 signal overview_closed
@@ -88,9 +92,6 @@ signal strategic_closed
 ## closed first).
 signal strategic_picked(key: String)
 
-## The drawer's two pages, in the order of their tabs.
-enum DrawerTab { AGENTS, EVENTS }
-
 ## The overview's chip each portrait fold stands for (filter_of()): the one
 ## place a group of the top bar and a chip of the overview are matched.
 const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
@@ -101,26 +102,27 @@ const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
 }
 
 ## What the world keeps clear of the panels: to the side of the right column,
-## and above the staff panel and below the bar. The rest of the geometry is the
+## and above the bottom panel and below the bar. The rest of the geometry is the
 ## scene's.
 @export var world_gap := Vector2(8, 16)
-## The world's left edge from the screen's: the staff panel's and the NEWS
-## strip's inset, so the three line up. Set in the scene.
+## The world's left edge from the screen's: the bottom panel's inset, so the
+## two line up. Set in the scene.
 @export var world_left := 0.0
 ## Where the world tooltip (over a blocked agent's chip, over a zone's sign) stands from the pointer. Set in the scene.
 @export var tip_gap := Vector2.ZERO
-## The right-hand drawer's left edge, open and closed, from the screen's right
-## (see _fit_drawer()). Set in the scene.
+## The right-hand drawer's left edge, open, from the screen's right (see
+## _fit_drawer()); closed, it takes no room at all. Set in the scene.
 @export var drawer_open_left := 0.0
-@export var drawer_closed_left := 0.0
-## The bottom staff panel's top edge, full height and one line, from the
+## The bottom panel's bottom edge, and its top edge docked (a screen at least
+## `staff_tall_from` high: always open, its preview CardPicture.DOCKED_ROWS
+## rows), opened from its line on a shorter screen (the whole preview), and
+## folded to its two rows there (the top row over the card's line), from the
 ## screen's bottom (see _fit_staff()). Set in the scene.
-@export var staff_full_top := 0.0
+@export var staff_bottom := 0.0
+@export var staff_docked_top := 0.0
+@export var staff_opened_top := 0.0
 @export var staff_compact_top := 0.0
-## Its top edge on a screen at least `staff_tall_from` high, where the compact
-## panel is a card (OfficePaneInspector.set_card()). Set in the scene.
-@export var staff_card_top := 0.0
-## The staff panel's inset from the screen's sides along the bottom, and its
+## The bottom panel's inset from the screen's sides along the bottom, and its
 ## widest and tallest in answer mode, where it stands in the middle under the
 ## bar, at least `staff_modal_gap` clear of the bar and of the screen's bottom
 ## (see _fit_staff()). Set in the scene.
@@ -128,32 +130,41 @@ const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
 @export var staff_modal_width := 0.0
 @export var staff_modal_height := 0.0
 @export var staff_modal_gap := 0.0
-## The logical screen height from which the NEWS strip stays under the staff
-## panel opened to full height; below it, the opened panel takes the strip's
-## room (see _fit_news()). Set in the scene.
+## The logical screen height from which the bottom panel is docked, always
+## open, and the bar is `bar_tall_height` tall; below it the panel folds to
+## its two rows and the bar is `bar_short_height` (see _fit_staff(), fit()).
+## Set in the scene.
 @export var staff_tall_from := 0.0
 ## The logical screen width from which NEXT stays beside the panel at full
 ## height, and the one-line row says its long words (`Monitor`, `Open`,
 ## NEXT's whole line); below it, the full panel needs NEXT's room for its
 ## preview and the row says its short ones. Set in the scene.
 @export var staff_next_from := 0.0
-## NEXT's width, and its width on the one-line row from `staff_next_from`,
-## where it says `NEXT:`, whom and the wait in a row (see _fit_staff()). Set in the scene.
+## The same for the docked panel: below this screen width the card's columns
+## (its left column, the preview and the 240-wide launch block) need NEXT's
+## room, and the right-hand column keeps only the verbs.
+@export var staff_docked_next_from := 0.0
+## NEXT's width, and its width from `staff_next_from` where it says `NEXT:`,
+## whom and the wait in a row (the docked panel, the one-line row); and its
+## height docked, where it is a pill over `‹ ›` (see _fit_staff()). Set in the scene.
 @export var next_width := 0.0
 @export var next_wide_width := 0.0
+@export var next_docked_height := 0.0
 ## The world width below which the edge arrows leave their zone's number to the
 ## tooltip (see _fit_edge_arrows()). Set in the scene.
 @export var edge_arrows_compact_from := 0.0
 ## The logical screen width from which the bar shows `13 panes` and the chime switch. Set in the scene.
 @export var bar_titles_from := 0.0
-## The NEWS strip's top edge from the screen's bottom, and the gap the staff
-## panel keeps above it (see _fit_staff()). Set in the scene.
-@export var news_top := 0.0
-@export var news_gap := 0.0
+## The top bar's height on a screen at least `staff_tall_from` high, and below
+## it (see fit()). Set in the scene.
+@export var bar_tall_height := 0.0
+@export var bar_short_height := 0.0
+## What the OVERVIEW and the right column keep clear under the bar. Set in the scene.
+@export var panel_top_gap := 0.0
 ## The logical screen width from which the overview shows every column. Set in the scene.
 @export var overview_full_from := 0.0
-## Whether this HUD has a NEWS strip at all: the showroom has none (preview.gd),
-## the office always does. Where it shows is _fit_news()'s.
+## Whether this HUD has a NEWS line at all: the showroom has none (preview.gd),
+## the office always does. It stands in the bottom panel's top row (_fit_staff()).
 var news_wanted := true
 
 ## The parts, resolved on first use: the office reaches the HUD before any of
@@ -164,11 +175,11 @@ var bar: OfficeBar:
 			_bar = $Screen/Bar
 		return _bar
 
-## The agent card, which is the staff panel along the bottom (card = the staff panel).
+## The agent card: the bottom panel's AGENT page.
 var inspector: OfficePaneInspector:
 	get:
 		if _inspector == null:
-			_inspector = %Staff
+			_inspector = staff.card
 		return _inspector
 
 var agent_list: AgentList:
@@ -177,15 +188,15 @@ var agent_list: AgentList:
 			_agent_list = $Screen/RightColumn/ListHolder/Pages/AgentList
 		return _agent_list
 
-## The right-hand drawer: the agent list when open, a tab when closed; where it
-## stands is what the world keeps clear of.
+## The right-hand drawer: the agent list while open, nothing while closed;
+## where it stands is what the world keeps clear of.
 var right_column: Control:
 	get:
 		return $Screen/RightColumn
 
-## The bottom staff panel (the same node as `inspector`): it takes room from the
-## world's bottom while it is visible.
-var staff: Control:
+## The bottom panel (its AGENT page is `inspector`): it takes room from the
+## world's bottom while it is visible, and it is the node answer mode floats.
+var staff: OfficeBottomPanel:
 	get:
 		return %Staff
 
@@ -194,11 +205,10 @@ var edge_arrows: OfficeEdgeArrows:
 	get:
 		return %EdgeArrows
 
-## The NEWS strip along the screen's bottom: it takes room from the world's
-## bottom while it is visible (the showroom hides it).
+## The NEWS line in the bottom panel's top row (the showroom hides it).
 var news: OfficeNews:
 	get:
-		return %News
+		return staff.news
 
 ## The OVERVIEW, over the world and both side columns while it is open. It
 ## covers them and takes no room: nothing is laid out again for it.
@@ -212,15 +222,20 @@ var strategic: OfficeStrategic:
 	get:
 		return %Strategic
 
-## The drawer's AGENTS / EVENTS tabs.
+## The drawer's tab row (AGENTS only).
 var drawer_tabs: TabBar:
 	get:
 		return %DrawerTabs
 
-## The drawer's EVENTS page.
+## The bottom panel's EVENTS page.
 var event_list: EventList:
 	get:
-		return %EventList
+		return staff.events
+
+## The bottom panel's HISTORY page.
+var history_list: HistoryList:
+	get:
+		return staff.history
 
 ## The terminal monitor, over everything else when it is open.
 var monitor: TerminalMonitor:
@@ -234,12 +249,12 @@ var _screen := Vector2(800, 480)
 var _bar: OfficeBar
 var _inspector: OfficePaneInspector
 var _agent_list: AgentList
-## The staff panel is down to its compact line; see _fit_staff().
+## The bottom panel is down to its two rows; see _fit_staff().
 var _compact := false
-## The drawer shows the agent list (open) or only its tab; see _fit_drawer().
+## The drawer shows the agent list (open) or nothing; see _fit_drawer().
 ## Every run starts with it closed, whatever an earlier run left.
 var _drawer_open := false
-## The staff panel was opened up from its line (expand_card(), or answer mode).
+## The bottom panel was opened up from its line (expand_card(), or answer mode).
 var _expanded := false
 ## Whether the edge arrows were last handed any (show_edge_arrows()): an
 ## overlay closing shows the same arrows again without a refresh.
@@ -255,7 +270,8 @@ var _floating := false
 var _slot_top := 0.0
 var _slot_bottom := 0.0
 var _monitor: TerminalMonitor
-## Agents that need a human now (AttentionStore.current()), for whatever shows the number.
+## Agents that need a human now (AttentionStore.current()): only counted since
+## the drawer lost its closed tab; its records go with the list.
 var _attention_count := 0
 
 
@@ -281,12 +297,15 @@ func _ready() -> void:
 	agent_list.layout_changed.connect(func() -> void: agent_list_changed.emit())
 	agent_list.keyboard_changed.connect(_fit_room)
 	agent_list.keyboard_changed.connect(_show_keyboard_cue)
-	var tab: Button = %DrawerTab
-	tab.pressed.connect(open_drawer)
 	var collapse: Button = %Collapse
 	collapse.pressed.connect(close_drawer)
-	drawer_tabs.tab_changed.connect(func(index: int) -> void: select_drawer_tab(index as DrawerTab))
 	event_list.picked.connect(func(key: String) -> void: event_picked.emit(key))
+	history_list.picked.connect(func(key: String) -> void: history_picked.emit(key))
+	history_list.pointed.connect(func(key: String) -> void: pane_pointed.emit(key))
+	# A page shown is laid out first (on a short screen HISTORY and EVENTS open
+	# the panel), then the office hears of a page that came into sight.
+	staff.page_changed.connect(func(_which: OfficeBottomPanel.Page) -> void: _fit_room())
+	staff.page_shown.connect(func(which: OfficeBottomPanel.Page) -> void: page_shown.emit(which))
 	inspector.monitor_requested.connect(func(key: String) -> void: monitor_requested.emit(key))
 	inspector.next_requested.connect(func() -> void: next_requested.emit())
 	inspector.step_requested.connect(func(direction: int) -> void: step_requested.emit(direction))
@@ -316,11 +335,9 @@ func dress(art: ArtPack, font: Font) -> void:
 	screen.theme = HudTheme.build(art, font)
 	bar.dress(art)
 	edge_arrows.dress(art)
-	inspector.dress(art)
+	staff.dress(art)
 	agent_list.dress(art)
 	monitor.dress(art)
-	news.dress(art)
-	event_list.dress(art)
 	overview.dress(art)
 	strategic.dress(art)
 	var tip: HdPanel = %WorldTip
@@ -366,17 +383,16 @@ func screen_theme() -> Theme:
 
 
 ## How many agents need a human now: current attention, snoozed and hidden
-## records left out. The drawer's tab says it (attention_count()).
+## records left out (attention_count()).
 func show_attention(current_items: Array[AttentionItem]) -> void:
 	_attention_count = current_items.size()
-	_label_tab()
 
 
 func attention_count() -> int:
 	return _attention_count
 
 
-## The NEWS strip's entries, newest first (NewsItem, the office's); see OfficeNews.
+## The NEWS line's entries, newest first (NewsItem, the office's); see OfficeNews.
 func show_news(items: Array[NewsItem]) -> void:
 	news.show_news(items)
 
@@ -389,27 +405,29 @@ func show_events(
 	event_list.show_events(events, pickable, selected, opened_unix, several)
 
 
-## Show the drawer's page `tab`. The drawer stays as it is (open or closed),
-## and nothing is remembered: every run starts on AGENTS. Leaving AGENTS lets
-## the keyboard go, as closing the drawer does; EVENTS coming into sight says
-## events_shown. Its tab's click comes through here too.
-func select_drawer_tab(tab: DrawerTab) -> void:
-	if drawer_tabs.current_tab != tab:
-		# Says tab_changed, which comes back here with the page already current.
-		drawer_tabs.current_tab = tab
-		return
-	if tab != DrawerTab.AGENTS and agent_list.has_keyboard():
-		agent_list.release_keyboard()
-	var appears := tab == DrawerTab.EVENTS and not event_list.visible
-	agent_list.visible = tab == DrawerTab.AGENTS
-	event_list.visible = tab == DrawerTab.EVENTS
-	if appears and _drawer_open:
-		events_shown.emit()
+## The HISTORY page's lines (AgentHistory, newest first), `selected` highlighted,
+## the log opened at `opened_unix`. See HistoryList.
+func show_history(lines: Array[AgentHistory.Line], selected: String, opened_unix: float) -> void:
+	history_list.show_history(lines, selected, opened_unix)
 
 
-## The drawer's page shown (see select_drawer_tab()).
-func drawer_tab() -> DrawerTab:
-	return drawer_tabs.current_tab as DrawerTab
+## Show the bottom panel's page `which` (its tab's click comes through the
+## panel too). Every run starts on AGENT and nothing is remembered. On a tall
+## screen the panel is docked whatever its page, so the world never moves; on
+## a short one HISTORY and EVENTS open it and AGENT folds it back to its line,
+## as before (_fit_staff() reads the page; the panel's page_changed lays it out).
+func show_page(which: OfficeBottomPanel.Page) -> void:
+	staff.show_page(which)
+
+
+## The bottom panel's page shown.
+func page() -> OfficeBottomPanel.Page:
+	return staff.page()
+
+
+## The AGENT page: the card. A pick, `N`, a chip click and Enter show it.
+func show_card_page() -> void:
+	show_page(OfficeBottomPanel.Page.AGENT)
 
 
 ## The AGENTS tab's word in the blocked colour while the list holds the
@@ -427,13 +445,12 @@ func show_agents(
 	agent_list.show_agents(frame, active, history, selected, now_msec)
 
 
-## `A` (and nothing else: the drawer's tab only opens the drawer): the drawer
-## opens on its AGENTS page and the list takes the keyboard in its flat view,
-## or lets it go when it has it. Taking it ends the card's answer mode, so no
-## key the list lets through can answer an agent behind the viewer's back.
+## `A` (and nothing else: the drawer has no closed tab): the drawer opens and
+## the list takes the keyboard in its flat view, or lets it go when it has it.
+## Taking it ends the card's answer mode, so no key the list lets through can
+## answer an agent behind the viewer's back. The bottom panel's page stays.
 func toggle_agent_list() -> void:
 	open_drawer()
-	select_drawer_tab(DrawerTab.AGENTS)
 	if agent_list.has_keyboard():
 		agent_list.release_keyboard()
 		return
@@ -443,8 +460,8 @@ func toggle_agent_list() -> void:
 
 
 ## The agent list shows only the panes in `presences`; the same again shows
-## every pane. Applying a filter opens the drawer on its AGENTS page, or the
-## filtered list is out of sight; clearing one leaves the drawer as it is.
+## every pane. Applying a filter opens the drawer, or the filtered list is out
+## of sight; clearing one leaves the drawer as it is.
 ## Nothing is picked and the keyboard stays where it is. The top bar no longer
 ## asks for it (a fold opens the OVERVIEW instead); the list keeps it until
 ## the drawer retires.
@@ -453,7 +470,6 @@ func toggle_list_filter(presences: Array[AgentListModel.Presence]) -> void:
 		agent_list.set_presence_filter([])
 		return
 	open_drawer()
-	select_drawer_tab(DrawerTab.AGENTS)
 	agent_list.set_presence_filter(presences)
 
 
@@ -470,7 +486,7 @@ func overview_open() -> bool:
 
 ## Open the overview over the world and both side columns (they stay where
 ## they are: nothing is laid out again). The list lets the keyboard go; the
-## staff panel below stays as it is, answer mode included. `13 panes` reads
+## bottom panel below stays as it is, answer mode included. `13 panes` reads
 ## pressed, and so does the fold of the state the overview's chip keeps.
 func open_overview() -> void:
 	if agent_list.has_keyboard():
@@ -525,7 +541,7 @@ func strategic_open() -> bool:
 
 ## Open the strategic view over the world rect (the office shows it a model
 ## right after). The world tooltip and the edge arrows go; the list keeps the
-## keyboard it has, and the staff panel stays as it is. The top bar's theme
+## keyboard it has, and the bottom panel stays as it is. The top bar's theme
 ## line says `STRATEGIC · S`.
 func open_strategic() -> void:
 	hide_world_tip()
@@ -584,8 +600,8 @@ func open_drawer() -> void:
 	agent_list_changed.emit()
 
 
-## Close the drawer to its strip (the ▶ beside the drawer's tabs). The list
-## lets the keyboard go first: a list out of sight holds no keys.
+## Close the drawer (the ▶ beside the drawer's tab): it takes no room then.
+## The list lets the keyboard go first: a list out of sight holds no keys.
 func close_drawer() -> void:
 	if not _drawer_open:
 		return
@@ -608,19 +624,21 @@ func drawer_open() -> bool:
 	return _drawer_open
 
 
-## Whether the staff panel is down to its one line (see _fit_staff()). The
+## Whether the bottom panel is down to its two rows (see _fit_staff()). The
 ## card is told this covers it: its preview is out of sight, so it reads nothing.
 func card_compact() -> bool:
 	return _compact
 
 
-## Whether the panel was opened up from its line and is not answering (Escape
-## folds it then; in answer mode Escape only leaves answer mode).
+## Whether the panel was opened up from its line on a short screen and is not
+## answering (Escape folds it then; in answer mode Escape only leaves answer
+## mode). On a tall screen there is nothing to fold, and an Escape that folded
+## nothing must reach the OVERVIEW and the strategic view.
 func card_expanded() -> bool:
-	return _expanded and not inspector.answering()
+	return _expanded and not inspector.answering() and _screen.y < staff_tall_from
 
 
-## Open the staff panel up from its line to full height: Enter on a shown pane,
+## Open the bottom panel up from its line to full height: Enter on a shown pane,
 ## the line's `Open`, or answer mode. It folds again on Escape out of answer
 ## mode, the panel's `▾ Esc`, the card aimed at another pane, or compact_card();
 ## answer mode ending by itself leaves it open, so what a sent key did stays in
@@ -659,19 +677,17 @@ func _process(_delta: float) -> void:
 	_fit_room()
 
 
-## Every entry that can move a panel (fit(), the card opening or folding, the
-## list taking the keyboard, answer mode, the drawer) comes through here, so the
-## office hears room_changed whenever the world's room moved without the window.
-## Each panel's own fit is called from here: the drawer first, then the NEWS
-## strip and the staff panel above it, then the right column, which stops
-## above the staff panel while it is shown (above the strip while only that
-## is, at the screen's bottom gap while neither is), the overview on that same
-## bottom edge, and the edge arrows last
+## Every entry that can move a panel (fit(), the card opening or folding, a
+## page shown, the list taking the keyboard, answer mode, the drawer) comes
+## through here, so the office hears room_changed whenever the world's room
+## moved without the window. Each panel's own fit is called from here: the
+## drawer first, then the bottom panel, then the right column, which stops
+## above the bottom panel while it is shown (at the screen's bottom gap while
+## it is not), the overview on that same bottom edge, and the edge arrows last
 ## (they stand over world_rect(), which reads all of those). Every edge is one of
 ## the scene's values. The order is final: no panel adds a step of its own.
 func _fit_room() -> void:
 	var moved := _fit_drawer()
-	moved = _fit_news() or moved
 	moved = _fit_staff() or moved
 	var bottom := _column_bottom()
 	if right_column.offset_bottom != bottom:
@@ -687,62 +703,37 @@ func _fit_room() -> void:
 func _column_bottom() -> float:
 	if staff.visible:
 		return _staff_top() - world_gap.y
-	if news.visible:
-		return news_top - world_gap.y
 	return -world_gap.y
 
 
-## The NEWS strip shows, except (besides the showroom, `news_wanted`) while
-## the staff panel is opened to full height on a screen short of
-## `staff_tall_from` (answer mode, or the panel opened, at 480x320): there its
-## 12 units are the world's and the drawer tab's, so answer mode keeps a 112
-## high world and the closed drawer's tab (112 high) fits its column.
-## Folded back to its line, the panel has the strip under it again.
-## True when an edge moved; it moves none (the staff panel above it does, in
-## _fit_staff()).
-func _fit_news() -> bool:
-	var short := _screen.y < staff_tall_from
-	var opened := inspector.answering() or _expanded
-	news.visible = news_wanted and not (short and opened)
-	return false
-
-
 ## The drawer open is the agent list, `drawer_open_left` from the screen's
-## right; closed, it is a tab `drawer_closed_left` from it, which says how many
-## agents need a human. True when its edge moved.
+## right; closed, the right column is hidden and takes no room. True when its
+## edge moved.
 func _fit_drawer() -> bool:
 	var holder: Control = %ListHolder
-	var tab: Button = %DrawerTab
 	holder.visible = _drawer_open
-	tab.visible = not _drawer_open
-	_label_tab()
-	var left := drawer_open_left if _drawer_open else drawer_closed_left
-	if right_column.offset_left == left:
-		return false
-	right_column.offset_left = left
-	return true
+	var moved := right_column.visible != _drawer_open
+	right_column.visible = _drawer_open
+	if right_column.offset_left != drawer_open_left:
+		right_column.offset_left = drawer_open_left
+		moved = true
+	return moved
 
 
-## The drawer's tab says how many agents need a human (attention_count()), a
-## line below its letters. That line holds a dot: a Button drops a blank line
-## (or one of spaces), and the count would read as a letter under the S.
-func _label_tab() -> void:
-	var tab: Button = %DrawerTab
-	var said := "◀\nA\nG\nE\nN\nT\nS\n·\n%d" % _attention_count
-	if tab.text != said:
-		tab.text = said
-
-
-## The staff panel is one line (`staff_compact_top`: who, state and seat, the
-## wait, `‹ ›`, Monitor, Open, and NEXT) at every size until it is opened: Enter
-## on a shown pane, the line's `Open` and answer mode open it to full height
-## (`staff_full_top`), Escape out of answer mode and its `▾ Esc` fold it (see
-## expand_card()). At full height on a screen narrower than `staff_next_from`,
-## the preview takes NEXT's room; from that width the line says its long
-## words, and NEXT there is `next_wide_width` wide. While the NEWS strip shows,
-## the panel stands `news_gap` above it, lifted whole by as much as the strip
-## takes. Only which value applies, and `visible`, change here. True when an
-## edge of its slot moved.
+## The bottom panel along the bottom (`staff_bottom`), its top edge one of
+## three. On a screen at least `staff_tall_from` high it is docked
+## (`staff_docked_top`) whatever its page: always open, the card's preview
+## CardPicture.DOCKED_ROWS rows, nothing to fold. Below that it is two rows
+## (`staff_compact_top`: the top row over the card's line: who, state and
+## seat, the wait, Monitor, Open, and NEXT with `‹ ›`) until it is opened:
+## Enter on a shown pane, the line's `Open`, answer mode, and the HISTORY or
+## EVENTS page open it to `staff_opened_top` (the whole preview); Escape out
+## of answer mode, its `▾ Esc` and the AGENT tab fold it (see expand_card()).
+## At full height on a screen narrower than `staff_next_from` (docked:
+## `staff_docked_next_from`), the preview takes NEXT's room; from that width
+## NEXT says its words in a row where it can (docked, or the line) and is
+## `next_wide_width` wide. Only which value
+## applies, and `visible`, change here. True when an edge of its slot moved.
 ##
 ## In answer mode the panel, at most `staff_modal_width` wide and
 ## `staff_modal_height` tall (less on a screen without the room,
@@ -755,24 +746,28 @@ func _label_tab() -> void:
 ## always has (a new binding), and the next agent can be answered from there.
 func _fit_staff() -> bool:
 	var answering := inspector.answering()
-	var full := answering or _expanded
-	# A tall enough screen shows the compact panel as a card.
-	var card := not full and _screen.y >= staff_tall_from
-	inspector.set_card(card)
+	var docked := _screen.y >= staff_tall_from
+	var page_open := staff.page() != OfficeBottomPanel.Page.AGENT
+	var full := answering or _expanded or docked or page_open
 	var width := _screen.x - 2.0 * staff_inset
 	if answering:
 		width = minf(width, staff_modal_width)
 	var wide := width + 2.0 * staff_inset >= staff_next_from
 	_compact = not full
+	inspector.set_docked(docked)
 	inspector.set_compact(_compact)
 	inspector.set_wide(wide)
-	inspector.set_next_shown(not full or wide)
-	inspector.set_next_width(next_wide_width if _compact and wide else next_width)
-	var floor_y := -world_gap.y
-	if news.visible:
-		floor_y = news_top - news_gap
-	var lift := floor_y + world_gap.y
-	var top := (staff_full_top if full else staff_card_top if card else staff_compact_top) + lift
+	var room_for_next := wide and (not docked or answering or _screen.x >= staff_docked_next_from)
+	inspector.set_next_shown(not full or room_for_next)
+	var in_a_row := _compact or (docked and not answering)
+	inspector.set_next_width(next_wide_width if in_a_row and wide else next_width)
+	inspector.set_next_height(next_docked_height if docked and not answering else 0.0)
+	staff.set_top_row(not answering)
+	staff.set_news_shown(news_wanted)
+	var floor_y := staff_bottom
+	var top := staff_compact_top
+	if full:
+		top = staff_docked_top if docked else staff_opened_top
 	var before := Vector2(_staff_top(), _slot_bottom if _floating else staff.offset_bottom)
 	var dim: Control = %ModalDim
 	dim.visible = answering
@@ -794,21 +789,24 @@ func _fit_staff() -> bool:
 	return before != Vector2(top, floor_y)
 
 
-## The top of the staff panel's slot along the bottom, from the screen's
+## The top of the bottom panel's slot along the bottom, from the screen's
 ## bottom: where the panel stands, or would stand while it floats.
 func _staff_top() -> float:
 	return _slot_top if _floating else staff.offset_top
 
 
 ## The overview stops where the right column does, so it covers it and the
-## world beside it exactly. It is not in world_rect(): it covers, it takes
-## no room. True when its edge moved (only the window moves it).
+## world beside it exactly, and starts `panel_top_gap` under the bar. It is
+## not in world_rect(): it covers, it takes no room. True when an edge moved
+## (only the window moves it).
 func _fit_overview() -> bool:
 	overview.set_compact(_screen.x < overview_full_from)
 	var bottom := _column_bottom()
-	if overview.offset_bottom == bottom:
+	var top := placed(bar).end.y + panel_top_gap
+	if overview.offset_bottom == bottom and overview.offset_top == top:
 		return false
 	overview.offset_bottom = bottom
+	overview.offset_top = top
 	return true
 
 
@@ -880,20 +878,29 @@ func _on_monitor_closed() -> void:
 	monitor_closed.emit()
 
 
-## Lay the panels out for a `screen`-sized viewport.
+## Lay the panels out for a `screen`-sized viewport: the bar's height first
+## (`bar_tall_height` on a screen at least `staff_tall_from` high,
+## `bar_short_height` below), then every panel under it.
 func fit(screen: Vector2) -> void:
 	_screen = screen
 	var control: Control = $Screen
 	if control.size != screen:
 		control.size = screen
 	bar.set_titled(screen.x >= bar_titles_from)
+	var band := bar_tall_height if screen.y >= staff_tall_from else bar_short_height
+	if bar.offset_bottom != band:
+		bar.offset_bottom = band
+	var top := band + panel_top_gap
+	if right_column.offset_top != top:
+		right_column.offset_top = top
 	_fit_room()
 
 
 ## The screen area left over for the office, from where the panels stand: from
-## `world_left` (the staff panel's inset) to the right column. Each slot takes
-## room only while it is visible: the showroom hides the right column and the
-## NEWS strip (preview.gd). The edge arrows never take any: they stand over the world.
+## `world_left` (the bottom panel's inset) to the right column. Each slot takes
+## room only while it is visible: the showroom hides the right column
+## (preview.gd), and the drawer closed takes none. The edge arrows never take
+## any: they stand over the world.
 func world_rect() -> Rect2:
 	var right := placed(right_column)
 	var origin := Vector2(world_left, placed(bar).end.y + world_gap.y)
@@ -902,23 +909,17 @@ func world_rect() -> Rect2:
 		corner.x = right.position.x - world_gap.x
 	if staff.visible:
 		corner.y = _screen.y + _staff_top() - world_gap.y
-	elif news.visible:
-		corner.y = placed(news).position.y - world_gap.y
 	return Rect2(origin, (corner - origin).maxf(0.0))
 
 
 ## The width a floor is planned for the first time it is shown: the world's
-## width with the drawer closed to its tab, whatever the viewer has opened, so
-## a floor's plan does not depend on the drawer. The drawer open covers the
-## plan's right-hand desks; the camera pans to them (world_rect() still stops at
-## the open drawer). (The staff panel's height moves only the world's bottom.)
+## width with the drawer closed, whatever the viewer has opened, so a floor's
+## plan does not depend on the drawer. The drawer open covers the plan's
+## right-hand desks; the camera pans to them (world_rect() still stops at the
+## open drawer). (The bottom panel's height moves only the world's bottom.)
 ## Worked out from the scene's values; no node moves.
 func plan_width() -> float:
-	var room := world_rect()
-	if not right_column.visible:
-		return room.size.x
-	var right := right_column.anchor_left * _screen.x + drawer_closed_left
-	return maxf(right - world_gap.x - room.position.x, 0.0)
+	return maxf(_screen.x - world_gap.x - world_left, 0.0)
 
 
 ## Where a panel lands on the screen fit() was given, from the anchors and

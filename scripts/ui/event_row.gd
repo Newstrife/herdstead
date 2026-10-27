@@ -1,11 +1,11 @@
 class_name EventRow
 extends Button
-## One event of the EVENTS page: its wall-clock time, the icon of the state it
-## went to (a machine's connected or offline mark) and who, then on a line of
-## its own what happened, in the NEWS strip's words (NewsItem.subject() /
-## what()). That second line is the row's whole width, and the state a change
-## went to (`→ working`) is a label of its own that never shrinks: in a narrow
-## drawer the ended part (`working 1h 05m+`) is cut short, never the new state.
+## One event of the bottom panel's EVENTS page, on one line: its wall-clock
+## time, the icon of the state it went to (a machine's connected or offline
+## mark), who, and what happened, in the NEWS row's words (NewsItem.subject() /
+## what()). The state a change went to (`→ working`) is a label of its own that
+## never shrinks: in a narrow panel the ended part (`working 1h 05m+`) and the
+## name are cut short, never the new state.
 ## A click picks the event's pane; a row whose pane is gone, or a machine's,
 ## cannot be clicked. Kept for as long as its event is in the log, updated in place.
 

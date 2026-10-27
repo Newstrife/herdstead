@@ -912,8 +912,9 @@ func test_what_cannot_be_told_apart_is_never_sent() -> void:
 # --- the preview ---------------------------------------------------------------
 
 
-## The card shows herdr's nested read in a fixed block of 12 rows, tail at the
-## bottom; a blocked pane is read from `detection`, the rest from `recent_unwrapped`.
+## The card shows herdr's nested read in a fixed block of rows (6 docked, 12
+## opened or answering), tail at the bottom; a blocked pane is read from
+## `detection`, the rest from `recent_unwrapped`.
 func test_the_preview_shows_the_tail_and_switches_source_when_blocked() -> void:
 	_fakes()
 	_ctl(
@@ -929,7 +930,9 @@ func test_the_preview_shows_the_tail_and_switches_source_when_blocked() -> void:
 	_eq(card.preview_state(), OfficePaneInspector.PreviewState.SHOWN, "shown")
 	_check(card.preview_caption().begins_with("recent · "), "the caption names the source: " + card.preview_caption())
 	var label: Label = card.get_node("%Preview")
-	_eq(label.text.split("\n").size(), OfficePaneInspector.PREVIEW_ROWS, "always a block of 12 rows")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked
+	# at 800x480, six rows.
+	_eq(label.text.split("\n").size(), CardPicture.DOCKED_ROWS, "always a block of rows, six docked")
 	_check(label.text.ends_with("\nline one\nline two"), "the tail at the bottom")
 	var last: Dictionary = _asked("control-b", "pane.read").back()
 	_eq([last.get("pane_id"), last.get("source")], ["alpha:p3", "recent_unwrapped"], "asked for the recent output")
@@ -1068,11 +1071,16 @@ func test_reads_stop_when_hidden_minimized_offline_or_not_current() -> void:
 	_eq(card.preview_reason(), CommandRefusal.Reason.SNAPSHOT_NOT_CURRENT, "the card says why")
 
 
-## At every size (800x480 and the 480x320 minimum) the picked agent's card
-## is the staff panel's one line, whose preview cannot be seen: nothing is read
-## while it is, reading starts once Enter opens the card up, and stops again
-## once Escape folds it back. All through real keys.
-func test_reads_stop_while_the_card_is_a_compact_header() -> void:
+## The card reads only while its preview can be seen. Docked (800x480) it is
+## always open, so a pick reads at once; the HISTORY tab covers it and nothing
+## is read, the AGENT tab brings it back and reading resumes. On the 480x320
+## minimum the picked agent's card is the two-row panel's line, whose preview
+## cannot be seen: nothing is read while it is, reading starts once Enter opens
+## the card up, and stops again once Escape folds it back. All through real
+## clicks and keys. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer
+## tab
+## (D-READ: the docked form reads; was `test_reads_stop_while_the_card_is_a_compact_header`).
+func test_reads_stop_while_the_card_is_folded_or_off_its_page() -> void:
 	for screen: Vector2 in [Vector2(SCREEN), Vector2(480, 320)]:
 		# Blocked, so a read that leaked would come within a second.
 		var raw := _changed(_raw(), "alpha:p3", {"agent_status": "blocked"})
@@ -1081,14 +1089,31 @@ func test_reads_stop_while_the_card_is_a_compact_header() -> void:
 		var office := await _office_with(false, true, true, screen)
 		var card := _card(office)
 		await _pick_bee(office, "alpha:p3", false)
-		_check(office.hud.card_compact(), "%s: the picked agent's card is a compact header" % screen)
-		await _quiet(card, "%s: the card is a compact header" % screen)
-		await _tap(KEY_ENTER)
-		_check(not office.hud.card_compact(), "%s: Enter opens the card up" % screen)
-		await _reading_again(card)
-		await _tap(KEY_ESCAPE)
-		_check(office.hud.card_compact(), "%s: Escape folds it back" % screen)
-		await _quiet(card, "%s: the card is folded back" % screen)
+		if screen.y >= 400:
+			_check(office.hud.inspector.docked(), "%s: the picked agent's card is docked, open" % screen)
+			await _reading_again(card)
+			var tabs := office.hud.staff.tabs
+			var history := (
+				tabs.get_global_rect().position + tabs.get_tab_rect(OfficeBottomPanel.Page.HISTORY).get_center()
+			)
+			await _click(history)
+			await _frames(2)
+			_eq(office.hud.page(), OfficeBottomPanel.Page.HISTORY, "%s: a click on HISTORY covers the card" % screen)
+			await _quiet(card, "%s: the HISTORY page covers the card" % screen)
+			var agent := tabs.get_global_rect().position + tabs.get_tab_rect(OfficeBottomPanel.Page.AGENT).get_center()
+			await _click(agent)
+			await _frames(2)
+			_eq(office.hud.page(), OfficeBottomPanel.Page.AGENT, "%s: AGENT brings it back" % screen)
+			await _reading_again(card)
+		else:
+			_check(office.hud.card_compact(), "%s: the picked agent's card is the two-row line" % screen)
+			await _quiet(card, "%s: the card is the line" % screen)
+			await _tap(KEY_ENTER)
+			_check(not office.hud.card_compact(), "%s: Enter opens the card up" % screen)
+			await _reading_again(card)
+			await _tap(KEY_ESCAPE)
+			_check(office.hud.card_compact(), "%s: Escape folds it back" % screen)
+			await _quiet(card, "%s: the card is folded back" % screen)
 		root.remove_child(office)
 		office.free()
 
@@ -1420,12 +1445,20 @@ func test_the_staff_panels_buttons_show_their_whole_labels() -> void:
 	_check(office.hud.card_compact(), "and Esc folds it back to its line")
 	# The one line's own buttons (`‹ ›`, Monitor, Open, NEXT), short and long words.
 	_whole_labels(card, "(480, 320), one line")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 800x480
+	# docks the panel; the
+	# line's long words are a wide short screen's, 640x320.
+	office.test_screen = Vector2(640, 320)
+	office.refresh()
+	await _frames(3)
+	_check(office.hud.card_compact(), "640x320: still one line")
+	_eq((card.get_node("%CompactOpen") as Button).text, "Open", "in its long words")
+	_whole_labels(card, "(640, 320), one line")
 	office.test_screen = Vector2(800, 480)
 	office.refresh()
 	await _frames(3)
-	_check(office.hud.card_compact(), "800x480: still one line")
-	_eq((card.get_node("%CompactOpen") as Button).text, "Open", "in its long words")
-	_whole_labels(card, "(800, 480), one line")
+	_check(office.hud.inspector.docked(), "800x480: docked")
+	_whole_labels(card, "(800, 480), docked")
 	_eq(_all_inputs(), 0, "nothing was sent")
 
 

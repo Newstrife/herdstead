@@ -1,7 +1,7 @@
 class_name EventList
 extends HdPanel
-## The drawer's EVENTS page: the fleet's StateLog events as rows (EventRow),
-## newest on top, the NEWS strip's entries and older ones in the same words.
+## The bottom panel's EVENTS page: the fleet's StateLog events as rows
+## (EventRow), newest on top, the NEWS row's entries and older ones in the same words.
 ## A click on a row picks its pane, as the agent list does.
 ##
 ## Plain log data in, pane keys out. Rows are kept by event id and changed in
@@ -23,7 +23,7 @@ var _rows: Dictionary[int, EventRow] = {}
 
 
 func _ready() -> void:
-	# The drawer's thin bar, shown only when rows overflow (the scroll reserves
+	# The panel's thin bar, shown only when rows overflow (the scroll reserves
 	# its room either way), never focused.
 	var scroll: ScrollContainer = %Scroll
 	var bar := scroll.get_v_scroll_bar()

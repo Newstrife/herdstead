@@ -562,6 +562,57 @@ func test_a_branch_edited_between_press_and_release_is_refused() -> void:
 	_eq(_branch_box(office).text, "v1-b", "the box keeps what was typed")
 
 
+## The branch box holds the keyboard only while the viewer works in it: with
+## a name typed, PageDown lets it go and steps the zone (the office's key, as
+## anywhere else), a press anywhere outside it lets it go (the press does what
+## it does there), and `L` then holds the lens. The name stays typed; nothing
+## is sent. (D-PGKEYS, S3 PANEL-a1, 2026-10-27; measured: a focused box takes
+## PageDown unless it lets go in its own gui_input.)
+func test_the_branch_box_lets_the_page_keys_through_and_lets_go_outside() -> void:
+	_fakes("snapshot_worktrees", ["pane.read"])
+	var office := await _office_with(false, false)
+	var trees := _worktree_button(office)
+	var box := _branch_box(office)
+	await _zone_pick(office, hs)
+	await _click_visible_pane(office, hs_p3)
+	await _open_panel(office)
+	await _until(trees.is_visible_in_tree, "the worktree row")
+	await _click_control(box)
+	_check(box.has_focus(), "the box takes the keyboard")
+	await _type("v1")
+	_eq(box.text, "v1", "a name typed")
+	var before := office.navigator.current_zone(office.frame)
+	await _tap(KEY_PAGEDOWN)
+	await _frames(2)
+	_check(not box.has_focus(), "PageDown lets the box go")
+	_check(office.navigator.current_zone(office.frame) != before, "and steps the zone, as the office's key")
+	_eq(box.text, "v1", "the name stays typed")
+	await _tap(KEY_PAGEUP)
+	await _frames(2)
+	_eq(office.navigator.current_zone(office.frame), before, "PageUp, the box let go, steps back")
+	await _click_control(box)
+	_check(box.has_focus(), "a click puts the keyboard back in the box")
+	var corner := office.hud.world_rect().position + Vector2(4, 4)
+	await _click(corner)
+	await _frames(2)
+	_check(not box.has_focus(), "a press on the world lets it go")
+	var held := InputEventKey.new()
+	held.keycode = KEY_L
+	held.physical_keycode = KEY_L
+	held.pressed = true
+	Input.parse_input_event(held)
+	Input.flush_buffered_events()
+	await _frames(3)
+	_check(office.lens.held, "L then holds the lens")
+	held.pressed = false
+	Input.parse_input_event(held)
+	Input.flush_buffered_events()
+	await _frames(2)
+	_check(not office.lens.held, "and lets it go")
+	await _wait(0.5)
+	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "nothing was sent")
+
+
 ## A mezzanine is no source for a worktree: off, with the reason. And herdr's
 ## own refusals from the repo's floor are said in one cleaned line: a linked
 ## source, no git repo, and git's failure by its headline only (no `hint:`,
@@ -585,9 +636,12 @@ func test_a_mezzanine_source_is_off_and_herdrs_git_refusals_show_one_line() -> v
 	_check("linked worktree" in trees.tooltip_text, "the tooltip says why: " + trees.tooltip_text)
 	await _click_control(trees)
 	await _frames(2)
-	# S3 BAR-b (2026-10-27): the SPACES rail's row is gone, and the page keys are
-	# the branch box's while it holds the keyboard: 1 is on the same map, and the
-	# wheel brings its shell's desk into view (_click_visible_pane()).
+	# S3 BAR-b (2026-10-27): the SPACES rail's row is gone. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the
+	# 52-unit bar band on tall screens, no drawer tab:
+	# the branch box lets the page keys through (D-PGKEYS), so PageUp goes back to the repo's own space.
+	await _tap(KEY_PAGEUP)
+	await _frames(2)
+	_eq(office.navigator.current_zone(office.frame), hs, "PageUp from the mezzanine: the repo's own space")
 	await _click_visible_pane(office, hs_p3)
 	await _open_panel(office)
 	await _until(trees.is_visible_in_tree, "the repo's own floor")

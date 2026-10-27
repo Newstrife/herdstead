@@ -1,8 +1,8 @@
 extends "res://tools/office_test_base.gd"
-## The NEWS strip and the drawer's EVENTS page: the state log's events in
+## The NEWS line and the bottom panel's EVENTS page: the state log's events in
 ## herdr's words, newest first, a click on one picking its pane as the agent
-## list does, the ones that cannot be picked disabled, the strip's fixed nodes
-## and its one fade, the page's rows kept by event id, the tabs, `A` and the ▶,
+## list does, the ones that cannot be picked disabled, the line's fixed nodes
+## and its one fade, the page's rows kept by event id, the panel's tabs, `A`,
 ## the smallest screen, and none of it sending anything. Clicks and keys go
 ## through real input. Run through run_tests.sh.
 ##
@@ -12,10 +12,12 @@ extends "res://tools/office_test_base.gd"
 ## No herdr at all: the fleet's Local client is stopped and snapshots are handed
 ## to it directly, as the incremental suite does.
 
-## Nodes an EVENTS row is made of: the button, its two lines and the box that
-## stacks them, the time, the icon's slot and badge, who, and what: the state
-## that ended and the one that began.
-const ROW_NODES := 10
+## Nodes an EVENTS row is made of: the button, the line that holds the rest,
+## the time, the icon's slot and badge, who, and what: the state that ended
+## and the one that began. 10 -> 8 (S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall
+## screens, no drawer tab: the
+## row is one line, D-EVROW; its two line boxes went).
+const ROW_NODES := 8
 
 
 func _initialize() -> void:
@@ -273,12 +275,14 @@ func test_events_tab_lists_the_same_ring_and_keeps_its_rows() -> void:
 	_feed(office, two)
 	await _frames(2)
 	var hud := office.hud
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.AGENTS, "the drawer opens on AGENTS")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the page
+	# is the bottom panel's.
+	_eq(hud.page(), OfficeBottomPanel.Page.AGENT, "the panel starts on AGENT")
 	_check(hud.event_list.shown_ids().is_empty(), "the hidden page has no rows yet")
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.EVENTS, "the click shows EVENTS")
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
+	_eq(hud.page(), OfficeBottomPanel.Page.EVENTS, "the click shows EVENTS")
 	_check(hud.event_list.is_visible_in_tree(), "the page is shown")
-	_check(not hud.agent_list.is_visible_in_tree(), "the agent list is not")
+	_check(not hud.inspector.is_visible_in_tree(), "the card is not")
 	_eq(hud.event_list.shown_ids(), _ids_newest_first(office), "a row per event, newest on top")
 	var since: Label = hud.event_list.get_node("%Since")
 	var opened := office.fleet.state_log().opened_unix
@@ -306,9 +310,8 @@ func test_events_tab_lists_the_same_ring_and_keeps_its_rows() -> void:
 	_done(office)
 
 
-## A row reads its time, the icon of the state it went to, who on its first
-## line and what on its second; a machine's row wears the connected or offline
-## mark.
+## A row reads its time, the icon of the state it went to, who and what, on
+## one line; a machine's row wears the connected or offline mark.
 func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	var office := await _live_office()
 	var one := _with(fixture, "api:p1", {"agent_status": "blocked"})
@@ -317,7 +320,7 @@ func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	_feed(office, two)
 	_set_online(office, false)
 	_set_online(office, true)
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var events := office.fleet.state_log().events()
 	_eq(events.size(), 5, "online, two changes, offline, online")
 	if events.size() != 5:
@@ -362,8 +365,8 @@ func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	_eq([launched.previous_state, launched.state], [StateLog.UNKNOWN, "idle"], "from unknown to idle")
 	_eq(office.hud.event_list.row_for(launched.id).shown_text(), "etl · 数据 pipeline\nidle", "only idle")
 	_eq(office.hud.news.item(0).text.substr(6), "etl · 数据 pipeline idle", "and NEWS says the same")
-	# An hour-long segment in the drawer's width: the ended part is cut short,
-	# never the state the change went to, and the tooltip keeps all of it.
+	# An hour-long segment: the state the change went to is never squeezed, and
+	# the tooltip keeps all of it.
 	var long := StateLog.Event.new()
 	long.id = events[1].id
 	long.kind = StateLog.Kind.STATE
@@ -386,7 +389,10 @@ func test_an_events_row_reads_time_icon_agent_space_and_state() -> void:
 	var whole := ended.get_theme_font("font").get_string_size(
 		ended.text, HORIZONTAL_ALIGNMENT_LEFT, -1, ended.get_theme_font_size("font_size")
 	)
-	_check(ended.size.x < whole.x, "and is the one cut short: %.0f of %.0f" % [ended.size.x, whole.x])
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the row
+	# is one line across
+	# the panel, 700-odd wide, not the drawer's 144: nothing needs cutting short.
+	_check(ended.size.x >= whole.x, "and has room for them whole: %.0f of %.0f" % [ended.size.x, whole.x])
 	_check(blocked.tooltip_text.begins_with("working 1h 05m+ → blocked\n"), "the tooltip says all of it")
 	_done(office)
 
@@ -398,7 +404,7 @@ func test_an_events_row_click_picks_and_a_gone_one_is_disabled() -> void:
 	_feed(office, working)
 	var blocked := _with(working, "infra:p3", {"agent_status": "blocked"})
 	_feed(office, blocked)
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var events := office.fleet.state_log().events()
 	var row := office.hud.event_list.row_for(events[events.size() - 1].id)
 	_check(not row.disabled, "the newest row can be clicked")
@@ -451,12 +457,15 @@ func test_every_locate_counts_one_navigation() -> void:
 	await _press(office.hud.news.item(0))
 	await _frames(2)
 	_eq([office.picked_key, navigator.nav_revision], [_pk("web:p2"), revision + 5], "a NEWS entry: one")
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var events := office.fleet.state_log().events()
 	await _press(office.hud.event_list.row_for(events[events.size() - 1].id))
 	await _frames(2)
 	_eq(navigator.nav_revision, revision + 6, "an EVENTS row: one")
-	await _press_tab(office, OfficeHud.DrawerTab.AGENTS)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# drawer has no tab; `A` opens it.
+	await _office_key(office, KEY_A)
+	await _frames(2)
 	var key := _pk("infra:p1")
 	await _press(office.hud.agent_list.row_for(key))
 	await _frames(2)
@@ -464,69 +473,74 @@ func test_every_locate_counts_one_navigation() -> void:
 	_done(office)
 
 
-## `A` on the EVENTS page shows AGENTS and gives the list the keyboard: the
-## list takes keys only where it can be seen. The working fold opens the
-## OVERVIEW, and the list takes neither a filter nor the keyboard.
+## `A` opens the drawer and gives the list the keyboard, and leaves the bottom
+## panel on its EVENTS page: the list and the page are no longer two pages of
+## one drawer. The ▶ closes the drawer and lets the keyboard go. The working
+## fold opens the OVERVIEW, and the list takes neither a filter nor the keyboard.
 ## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; the
 ## WORKING counter's list filter is a fold's OVERVIEW now.
-func test_a_switches_to_agents_and_takes_the_keyboard() -> void:
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the EVENTS
+## page is the bottom panel's.
+func test_a_opens_the_list_and_leaves_the_panels_page() -> void:
 	var office := await _live_office()
 	var hud := office.hud
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.EVENTS, "on EVENTS")
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
+	_eq(hud.page(), OfficeBottomPanel.Page.EVENTS, "on EVENTS")
 	await _office_key(office, KEY_A)
 	await _frames(2)
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.AGENTS, "`A` shows AGENTS")
-	_check(hud.agent_list.is_visible_in_tree() and hud.agent_list.has_keyboard(), "and the list takes the keyboard")
-	_eq(hud.drawer_tabs.theme_type_variation, &"DrawerTabsHeld", "its tab says so")
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
-	_check(not hud.agent_list.has_keyboard(), "leaving AGENTS lets the keyboard go")
+	_check(hud.drawer_open() and hud.agent_list.is_visible_in_tree(), "`A` opens the drawer")
+	_check(hud.agent_list.has_keyboard(), "and the list takes the keyboard")
+	_eq(hud.page(), OfficeBottomPanel.Page.EVENTS, "the panel stays on EVENTS")
+	_eq(hud.drawer_tabs.theme_type_variation, &"DrawerTabsHeld", "the drawer's tab says the list holds the keyboard")
+	await _press(hud.get_node("%Collapse") as Control)
+	await _frames(2)
+	_check(not hud.drawer_open() and not hud.agent_list.has_keyboard(), "the ▶ closes it and lets the keyboard go")
 	_eq(hud.drawer_tabs.theme_type_variation, &"DrawerTabs", "and its tab says that too")
 	await _press(hud.bar.fold_of(PortraitBarModel.Group.WORKING))
 	await _frames(2)
 	_check(hud.overview_open(), "the working fold opens the OVERVIEW")
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.EVENTS, "the drawer stays on EVENTS")
+	_eq(hud.page(), OfficeBottomPanel.Page.EVENTS, "the panel stays on EVENTS")
 	_eq(hud.agent_list.presence_filter(), [] as Array[AgentListModel.Presence], "the list takes no filter")
 	_check(not hud.agent_list.has_keyboard(), "nor the keyboard")
 	_done(office)
 
 
-## The ▶ beside the tabs closes the drawer to its strip, which opens it again
-## on the page it showed. A new event while it was shut is not laid out until
-## the page can be seen, and is there as soon as it opens.
-func test_the_drawer_closes_from_the_heading_and_keeps_its_tab() -> void:
+## The EVENTS page comes into sight by its tab and goes by the AGENT tab. A
+## new event while it is out of sight is not laid out until the page can be
+## seen, and is there as soon as it shows.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+## drawer's ▶ and closed strip gave way
+## to the panel's tabs.
+func test_the_events_page_comes_and_goes_by_its_tab() -> void:
 	var office := await _live_office()
 	var hud := office.hud
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
-	var collapse: Button = hud.get_node("%Collapse")
-	var strip: Button = hud.get_node("%DrawerTab")
-	await _press(collapse)
-	await _frames(2)
-	_check(not hud.drawer_open(), "the ▶ closes the drawer")
-	_check(strip.is_visible_in_tree(), "to its strip")
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
+	_check(hud.event_list.is_visible_in_tree(), "the EVENTS tab shows the page")
+	await _press_tab(office, OfficeBottomPanel.Page.AGENT)
+	_check(not hud.event_list.is_visible_in_tree(), "the AGENT tab hides it")
+	_check(hud.inspector.is_visible_in_tree(), "for the card")
 	_feed(office, _with(fixture, "api:p1", {"agent_status": "blocked"}))
 	await _frames(2)
 	var newest := office.fleet.state_log().last_id()
 	_check(not hud.event_list.shown_ids().has(newest), "a page out of sight is not laid out")
-	await _press(strip)
-	await _frames(2)
-	_check(hud.drawer_open(), "the strip opens it")
-	_eq(hud.drawer_tab(), OfficeHud.DrawerTab.EVENTS, "on EVENTS still")
-	_eq(hud.event_list.shown_ids(), _ids_newest_first(office), "the event while it was shut is there")
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
+	_eq(hud.page(), OfficeBottomPanel.Page.EVENTS, "on EVENTS again")
+	_eq(hud.event_list.shown_ids(), _ids_newest_first(office), "the event while it was hidden is there")
 	_done(office)
 
 
-## At the 480x320 minimum the NEWS strip, the staff panel's line and the side
-## columns stand apart, and the tabs stay inside the drawer (opened by a real
-## click on its strip). More entries than the strip holds: each is shown whole
-## or not at all, never cut (a cut `2s+` would read `2s`). Opened up for
-## answering, the panel takes the strip's room.
+## At the 480x320 minimum the bar, the bottom panel's two rows and the drawer
+## (opened by `A`) stand apart, and NEWS stands in the panel's top row. More
+## entries than NEWS holds: each is shown whole or not at all, never cut (a
+## cut `2s+` would read `2s`). Opened up, the panel keeps NEWS in its top row.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: NEWS moved
+## into the panel's top row, the
+## drawer opens by `A` (no closed tab), the world runs to the right edge.
 func test_the_smallest_screen_keeps_news_staff_and_columns_apart() -> void:
 	var office := await _live_office()
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _press(tab)
+	await _office_key(office, KEY_A)
 	await _frames(2)
-	_check(office.hud.drawer_open(), "the strip opens the drawer")
+	_check(office.hud.drawer_open(), "`A` opens the drawer")
 	var changes: Dictionary[String, String] = {
 		"api:p1": "blocked", "web:p2": "working", "api:p4": "done", "infra:p3": "blocked"
 	}
@@ -538,18 +552,16 @@ func test_the_smallest_screen_keeps_news_staff_and_columns_apart() -> void:
 	office.refresh()
 	await _frames(3)
 	var hud := office.hud
-	_eq(hud.placed(hud.news), Rect2(16, 296, 448, 20), "NEWS along the bottom")
-	_eq(hud.placed(hud.staff), Rect2(16, 264, 448, 28), "the compact staff panel above it")
-	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(hud.placed(hud.right_column).end.y, 248.0, "the drawer stops above the panel")
-	var panels: Array[Rect2] = [hud.placed(hud.news), hud.placed(hud.staff), hud.placed(hud.right_column)]
+	_eq(hud.placed(hud.staff), Rect2(16, 266, 448, 50), "the panel's two rows along the bottom")
+	_eq(hud.placed(hud.right_column).end.y, 250.0, "the drawer stops above the panel")
+	var panels: Array[Rect2] = [hud.placed(hud.bar), hud.placed(hud.staff), hud.placed(hud.right_column)]
 	for i in panels.size():
 		for j in range(i + 1, panels.size()):
 			_check(not panels[i].intersects(panels[j]), "%s and %s stand apart" % [panels[i], panels[j]])
-	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "the world between them")
-	_check(hud.news.get_combined_minimum_size().x <= 448.0, "the strip asks for no more than its width")
-	_eq(hud.news.get_global_rect(), Rect2(16, 296, 448, 20), "and stands where it was placed")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 202), "the world between them")
 	var strip := hud.news.get_global_rect()
+	_check(hud.staff.get_global_rect().encloses(strip), "NEWS inside the panel")
+	_check(hud.news.get_combined_minimum_size().x <= strip.size.x, "asking for no more than its width")
 	var whole := 0
 	var out_of_sight := 0
 	for index in OfficeNews.ITEMS:
@@ -562,18 +574,18 @@ func test_the_smallest_screen_keeps_news_staff_and_columns_apart() -> void:
 		elif not strip.intersects(box):
 			out_of_sight += 1
 		else:
-			_fail("entry %d is cut by the strip's edge: %s in %s" % [index, box, strip])
-	_check(whole >= 2, "the newest entries show whole: %d" % whole)
+			_fail("entry %d is cut by the line's edge: %s in %s" % [index, box, strip])
+	_check(whole >= 1, "the newest entries show whole: %d" % whole)
 	_check(out_of_sight >= 1, "and the ones that do not fit are out of sight: %d" % out_of_sight)
-	_check(hud.right_column.get_global_rect().encloses(hud.drawer_tabs.get_global_rect()), "the tabs inside the drawer")
+	_check(hud.right_column.get_global_rect().encloses(hud.drawer_tabs.get_global_rect()), "the tab inside the drawer")
 	hud.expand_card()
 	await _frames(3)
-	_check(not hud.news.visible, "opened up on a short screen, the panel takes the strip's room")
-	_eq(hud.placed(hud.staff), Rect2(16, 176, 448, 128), "the panel at full height")
-	_eq(hud.world_rect(), Rect2(16, 48, 296, 112), "the world above it")
+	_check(hud.news.is_visible_in_tree(), "opened up, NEWS stays in the top row")
+	_eq(hud.placed(hud.staff), Rect2(16, 167, 448, 149), "the panel at full height")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 103), "the world above it")
 	hud.compact_card()
 	await _frames(2)
-	_check(hud.news.visible, "folded, the strip is back")
+	_eq(hud.placed(hud.staff), Rect2(16, 266, 448, 50), "folded back to its two rows")
 	_done(office)
 
 
@@ -584,7 +596,7 @@ func test_read_only_news_and_events_send_nothing() -> void:
 	_check(office.fleet.read_only(), "this suite runs read-only")
 	_feed(office, _with(fixture, "api:p1", {"agent_status": "blocked"}))
 	await _press(office.hud.news.item(0))
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	await _press(office.hud.event_list.row_for(office.fleet.state_log().last_id()))
 	await _frames(2)
 	_check(not office.hud.news.item_texts().is_empty(), "NEWS has entries")
@@ -639,15 +651,19 @@ func test_news_says_starting_new_agent_and_new_session() -> void:
 	_done(office)
 
 
-## More EVENTS rows than the page's box show the drawer's thin scroll bar
+## More EVENTS rows than the page's box show the panel's thin scroll bar
 ## (DrawerScroll, never focused) and the wheel scrolls them; every row's
 ## `→ state` ends 4 units left of the bar, and where it ends with only a few
 ## rows and no bar: the page keeps the bar's room either way.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the page is
+## the panel's,
+## its rows one line, so it holds fewer of them (the 116 docked body) and the
+## bar shows with as many events as before.
 func test_the_events_page_scrolls_with_the_drawer_bar() -> void:
 	var office := await _live_office()
 	_feed(office, _with(fixture, "api:p1", {"agent_status": "blocked"}))
 	await _frames(2)
-	await _press_tab(office, OfficeHud.DrawerTab.EVENTS)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var page := office.hud.event_list
 	var scroll: ScrollContainer = page.get_node("%Scroll")
 	var bar := scroll.get_v_scroll_bar()
@@ -732,15 +748,10 @@ func _press_at(at: Vector2) -> void:
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
 
 
-## A real click on the drawer's tab for `tab`; the drawer, which every run
-## starts closed, is opened first by a real click on its strip.
-func _press_tab(office: OfficeDouble, tab: OfficeHud.DrawerTab) -> void:
-	if not office.hud.drawer_open():
-		var strip: Control = office.hud.get_node("%DrawerTab")
-		await _press(strip)
-		await _frames(2)
-	var tabs := office.hud.drawer_tabs
-	var rect := tabs.get_tab_rect(tab)
+## A real click on the bottom panel's tab for `page`.
+func _press_tab(office: OfficeDouble, page: OfficeBottomPanel.Page) -> void:
+	var tabs := office.hud.staff.tabs
+	var rect := tabs.get_tab_rect(page)
 	await _press_at(tabs.get_global_rect().position + rect.get_center())
 	await _frames(2)
 

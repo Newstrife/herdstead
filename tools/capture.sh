@@ -4,16 +4,17 @@
 # at zoom 2 and zoom 4 (and with the drawer open, `--drawer=open`, every run
 # starting with it closed), the agent list in its flat and tree views
 # at 2x, 4x and the 480x320 minimum, and with three machines (one of them
-# dropped, one with worktree mezzanines), the NEWS strip and the drawer's
-# EVENTS page after a run of state changes (`--drawer=events`, office-events-*
+# dropped, one with worktree mezzanines), the NEWS line and the bottom panel's
+# EVENTS page after a run of state changes (`--panel=events`, office-events-*
 # at 2x and the minimum), an agent starting in a shell as herdr's snapshot
 # shows it (office-starting-*, 2x, 4x and the minimum) and one that blocks before its
-# launch is over (office-blocked-start-*), the agent list's
-# History group after that run (list-history-*), the drawer's two pages with
-# few rows (no scroll bar) and with more than they hold (the thin bar:
-# drawer-few-* / drawer-scroll-*, 2x, 4x and the minimum), the agent card as an operator with
+# launch is over (office-blocked-start-*), the bottom panel's
+# HISTORY page after that run (`--panel=history`, panel-history-*), the drawer's AGENTS page and the
+# panel's EVENTS page with few rows (no scroll bar) and with more than they hold (the thin bar:
+# drawer-few-agents-* / drawer-scroll-agents-*, panel-few-events-* / panel-scroll-events-*, 2x, 4x and
+# the minimum), the agent card as an operator with
 # scripted terminal text (working and blocked) at zoom 2 and 4, its answer mode
-# (tools/capture_card.gd, by real input: picked (the staff panel's one line, at every size),
+# (tools/capture_card.gd, by real input: picked (the bottom panel docked, two rows at the minimum),
 # offered and open on a blocked agent, 12 of 31 rows
 # clipped, not sent, unknown result, a refused line; START AGENT on a shell and
 # NEW PANE BESIDE on an agent; Close armed on a working agent and a branch typed
@@ -262,19 +263,19 @@ mkdir -p "$OUT"
 SHOTS="preview-daylight.png office-zoom2.png office-zoom4.png office-drawer-open-zoom2.png"
 # The same office at night (`--light=night`, DayLight), 2x, 4x and the 480x320 minimum.
 SHOTS="$SHOTS office-night-zoom2.png office-night-zoom4.png office-night-min.png"
-# NEWS and the drawer's EVENTS page after a run of status changes, 2x and the 480x320 minimum.
+# NEWS and the bottom panel's EVENTS page after a run of status changes, 2x and the 480x320 minimum.
 SHOTS="$SHOTS office-events-zoom2.png office-events-min.png"
 # An agent starting in the shell api:p3: walking in from the door under the hourglass, 2x, 4x and the minimum.
 SHOTS="$SHOTS office-starting-zoom2.png office-starting-zoom4.png office-starting-min.png"
 # A start that asks at once: hand up, chip with its wait, the blocked badge, 2x, 4x and the minimum.
 SHOTS="$SHOTS office-blocked-start-zoom2.png office-blocked-start-zoom4.png office-blocked-start-min.png"
-# The agent list's History unfolded after that run of changes, and the drawer's
-# two pages with few rows and with more than they hold: 2x, 4x and the minimum.
+# The bottom panel's HISTORY page after that run of changes, and the drawer's
+# AGENTS and the panel's EVENTS pages with few rows and with more than they
+# hold: 2x, 4x and the minimum.
 for scale in zoom2 zoom4 min; do
-	SHOTS="$SHOTS list-history-$scale.png"
-	for page in agents events; do
-		SHOTS="$SHOTS drawer-few-$page-$scale.png drawer-scroll-$page-$scale.png"
-	done
+	SHOTS="$SHOTS panel-history-$scale.png"
+	SHOTS="$SHOTS drawer-few-agents-$scale.png drawer-scroll-agents-$scale.png"
+	SHOTS="$SHOTS panel-few-events-$scale.png panel-scroll-events-$scale.png"
 done
 # The agent list: flat (raised with --attention) and tree, per pack and scale.
 LIST_TAGS="daylight-zoom2 daylight-zoom4 daylight-min"
@@ -465,7 +466,7 @@ for scale in zoom2 min; do
 	[ "$scale" = "min" ] && window="--resolution 960x640"
 	# shellcheck disable=SC2086
 	CAPTURE_PREPARE=stage_events godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom=2 --drawer=events \
+		--pack=res://assets/daylight/manifest.json --zoom=2 --panel=events \
 		--wait=6 --capture="$OUT/office-events-$scale.png"
 	wait "$EVENTS_PID" 2>/dev/null
 	EVENTS_PID=""
@@ -603,9 +604,9 @@ for scale in zoom2 zoom4 min; do
 done
 ctl reset '{"fixture": "snapshot_floors"}'
 
-echo "== the drawer: History, and its two pages with few rows and with many"
-# `--list=history` folds every group of the flat list but History: the lines
-# the run of changes above leaves (api:p1 and web:p2 stopped waiting).
+echo "== the bottom panel's HISTORY, and the drawer's and EVENTS' pages with few rows and with many"
+# `--panel=history` starts on the bottom panel's HISTORY page: the lines the
+# run of changes above leaves (api:p1 and web:p2 stopped waiting).
 for scale in zoom2 zoom4 min; do
 	zoom="${scale#zoom}"
 	window="$(window_for "$zoom")"
@@ -615,8 +616,8 @@ for scale in zoom2 zoom4 min; do
 	fi
 	# shellcheck disable=SC2086
 	CAPTURE_PREPARE=stage_events godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --list=history --drawer=open \
-		--wait=6 --capture="$OUT/list-history-$scale.png"
+		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --panel=history \
+		--wait=6 --capture="$OUT/panel-history-$scale.png"
 	wait "$EVENTS_PID" 2>/dev/null
 	EVENTS_PID=""
 done
@@ -636,8 +637,8 @@ for scale in zoom2 zoom4 min; do
 		--wait="$DWELL" --capture="$OUT/drawer-few-agents-$scale.png"
 	# shellcheck disable=SC2086
 	godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --drawer=events \
-		--wait="$DWELL" --capture="$OUT/drawer-few-events-$scale.png"
+		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --panel=events \
+		--wait="$DWELL" --capture="$OUT/panel-few-events-$scale.png"
 done
 ctl reset '{"fixture": "snapshot_floors"}'
 # More than they hold: the 80-pane stress map on AGENTS (its own fake), and a
@@ -669,8 +670,8 @@ for scale in zoom2 zoom4 min; do
 		--wait="$DWELL" --capture="$OUT/drawer-scroll-agents-$scale.png"
 	# shellcheck disable=SC2086
 	CAPTURE_PREPARE=stage_events godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --drawer=events \
-		--wait=9 --capture="$OUT/drawer-scroll-events-$scale.png"
+		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --panel=events \
+		--wait=9 --capture="$OUT/panel-scroll-events-$scale.png"
 	wait "$EVENTS_PID" 2>/dev/null
 	EVENTS_PID=""
 done
@@ -691,8 +692,8 @@ ctl reset '{"fixture": "snapshot_floors"}'
 
 echo "== the agent list, flat and tree, against the same fake herdr"
 # The minimum is a 960x640 window at 2x: the 480x320 screen, as is 4x in the
-# 1920x1280 window. The staff panel along the bottom is its one line at every
-# size. The flat shots hold the keyboard (--attention), the tree shots not;
+# 1920x1280 window. The bottom panel is docked on the tall screens and two
+# rows at the minimum. The flat shots hold the keyboard (--attention), the tree shots not;
 # every list shot opens the drawer, which every run starts closed.
 for pack in daylight; do
 	for scale in zoom2 zoom4 min; do

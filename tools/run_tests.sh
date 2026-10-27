@@ -103,12 +103,28 @@ MIN_CASES_OFFICE_NAVIGATOR=26
 # replaced (chips, a card's place, the page keys), six retired with the rail
 # (its windows, their cap, the in-view marks twice, the narrow rail, its
 # names), three added (the world's left edge, a card outlined, narrow chips).
-MIN_CASES_MAP_NAVIGATION=17
+# MAP NAVIGATION 17 -> 18 (S3 PANEL-a1): a zone of shells only is reached
+# through the OVERVIEW (D-SHELLZONE).
+MIN_CASES_MAP_NAVIGATION=18
 MIN_CASES_EDGE_ARROWS=20
 MIN_CASES_ATTENTION_STORE=28
 # AGENT LIST 36 -> 38: the 37th case was already there; NEXT with nobody next
-# is an opaque pill.
-MIN_CASES_AGENT_LIST=38
+# is an opaque pill. 38 -> 24 (S3 PANEL-a1): ten staff-panel cases moved to
+# BOTTOM PANEL (the one-row smallest screen, compact until opened, both forms
+# close, the card's note, the line's Monitor, NEXT's words, the opaque pill,
+# a hidden slot, the NEWS slot, the compact identity) and four retired with
+# the drawer's closed tab and its EVENTS page (floors planned for the tab:
+# BOTTOM PANEL's no-closed-tab case; the tab and `A`: the same and ATTENTION
+# INTEGRATION's `A` case; the tab's number: nothing shows it now, the title's
+# (N) stays in ALERTS; the EVENTS page renders once: BOTTOM PANEL's pages render
+# only while they show).
+MIN_CASES_AGENT_LIST=24
+# The bottom panel (S3 PANEL-a1): docked or two rows, its tabs and pages, NEWS
+# in its top row, NEXT and `‹ ›`, the HISTORY page, the bar's band, picks and
+# their page, no drawer tab; ten cases moved from AGENT LIST, twelve new.
+# 22 -> 24 (S3 PANEL-a1 round 2): the docked card says the fixture's names
+# whole at 960; every docked state keeps its write controls in the 116 panel.
+MIN_CASES_BOTTOM_PANEL=24
 MIN_CASES_ATTENTION_INTEGRATION=19
 MIN_CASES_FRAME_LOOP=9
 MIN_CASES_PIXEL_PEOPLE=53
@@ -141,12 +157,18 @@ MIN_CASES_LAUNCH=44
 MIN_CASES_PROMPT=12
 MIN_CASES_SPLIT=16
 MIN_CASES_CLOSE=15
-MIN_CASES_SPACES=16
+# SPACES 16 -> 17 (S3 PANEL-a1): the branch box lets the page keys through
+# and lets go on a press outside it (D-PGKEYS).
+MIN_CASES_SPACES=17
 MIN_CASES_REFUSAL_LADDER=23
 # The agent card's picture (CardPicture): pure tables, no scene and no herdr.
 # 27 -> 30: the 28th case was already there; the card and NEXT call a pane by
-# its name (DisplayName), two cases.
-MIN_CASES_CARD_PICTURE=30
+# its name (DisplayName), two cases. 30 -> 34 (S3 PANEL-a1): the card form
+# became the docked form (renamed in place); new: a closed card is the empty
+# state, only a short screen folds, docked NEXT in a row, and the docked
+# preview's six rows (twelve opened or answering). 34 -> 35 (S3 PANEL-a1
+# round 2): the docked form puts the outcome on one line under NEXT.
+MIN_CASES_CARD_PICTURE=35
 # How a start that is over is said across cards of its pane: four transitions
 # by real input and the closing case, in a suite of its own because
 # tools/test_launch.gd stands at gdlint's file cap.
@@ -436,6 +458,8 @@ run_suites() {
 		--socket="$WORK/edge-arrows-nowhere.sock" --work="$WORK"
 	run_scene_suite test_attention_store "ATTENTION STORE TESTS" "$MIN_CASES_ATTENTION_STORE"
 	run_scene_suite test_agent_list "AGENT LIST TESTS" "$MIN_CASES_AGENT_LIST" -- --work="$WORK"
+	run_scene_suite test_bottom_panel "BOTTOM PANEL TESTS" "$MIN_CASES_BOTTOM_PANEL" -- --read-only \
+		--socket="$WORK/panel-nowhere.sock" --work="$WORK"
 	run_scene_suite test_attention_integration "ATTENTION INTEGRATION TESTS" "$MIN_CASES_ATTENTION_INTEGRATION" -- \
 		--read-only --socket="$WORK/attention-nowhere.sock" --work="$WORK"
 	run_scene_suite test_frame_loop "FRAME LOOP TESTS" "$MIN_CASES_FRAME_LOOP" -- --read-only \

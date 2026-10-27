@@ -6,7 +6,7 @@ The rules for writing to herdr are in [the write boundary](WRITE_BOUNDARY.md); w
 is in [the visual language](VISUAL_LANGUAGE.md).
 
 Contents: [Running](#running) · [The office](#the-office) · [Top bar](#top-bar) · [Machines, spaces and edge arrows](#machines-spaces-and-edge-arrows) ·
-[Agent list](#agent-list-drawer) · [Staff panel](#staff-panel-and-agent-card) · [Answer mode](#answer-mode) ·
+[Agent list](#agent-list-drawer) · [Bottom panel](#bottom-panel-and-agent-card) · [Answer mode](#answer-mode) ·
 [Start agent, New pane, Close, New space, Worktree](#start-agent-new-pane-close-new-space-worktree) ·
 [Terminal monitor](#terminal-monitor) · [NEWS, EVENTS, OVERVIEW](#news-events-and-overview) · [Lens](#lens) ·
 [Strategic view](#strategic-view) · [Keyboard](#keyboard) · [Window, zoom, frame rate](#window-zoom-and-frame-rate) ·
@@ -64,8 +64,9 @@ Other office options (mostly for screenshots and tests):
 | `--capture=<png>` | Screenshot after the first snapshot is drawn (or the OFFLINE screen after 8 s), then quit; prints `CAPTURE_OK:` |
 | `--wait=<s>` | With `--capture=`, wait this many more seconds |
 | `--attention` | Start with the agent list holding the keyboard |
-| `--list=tree` | Start the agent list in its tree view (`--list=history` folds every flat group but History) |
-| `--drawer=open` / `--drawer=events` | Start with the drawer open, on AGENTS or on EVENTS |
+| `--list=tree` | Start the agent list in its tree view |
+| `--drawer=open` | Start with the drawer open |
+| `--panel=history` / `--panel=events` | Start on the bottom panel's HISTORY or EVENTS page (every run otherwise starts on AGENT) |
 | `--overview=open` | Start with OVERVIEW open |
 | `--strategic=open` | Start with the strategic view open |
 | `--lens=held` | Hold the lens for the whole run |
@@ -191,7 +192,7 @@ colour while a machine is down). Hover that line: each machine, whether it is on
 
 ## Machines, spaces and edge arrows
 
-There is no left column: the world starts 16 units in from the left, as the staff panel does, and getting around is in
+There is no left column: the world starts 16 units in from the left, as the bottom panel does, and getting around is in
 the top bar and on the keys.
 
 - **Machines.** With more than Local, each machine has a chip after the wordmark: its name (cut short on a narrow bar,
@@ -219,13 +220,11 @@ top bar**, and NEXT reaches them.
 
 ## Agent list drawer
 
-The right column is a drawer that **starts closed on every run**: a vertical tab `◀ AGENTS · n` on the right edge
-(n = agents that need you). Click it to open the drawer (without keyboard focus), or press `A` to open it and give the
-list the keyboard; `▶` in the tab row closes it and the world widens again. Maps are planned for the closed drawer, so
-opening it never moves pods; pan to see the ones it covers. The drawer's open state is not remembered. Expanding the
-staff panel does not close the list.
-
-The drawer has two tabs: **AGENTS** and **EVENTS** (see [NEWS, EVENTS and OVERVIEW](#news-events-and-overview)).
+The right column is a drawer that **starts closed on every run** and then takes no room: there is no tab on the right
+edge, and the world runs to it. Press `A` to open it and give the list the keyboard; `▶` in its tab row closes it and
+the world widens again. Maps are planned for the closed drawer, so opening it never moves pods; pan to see the ones it
+covers. The drawer's open state is not remembered. The bottom panel does not close the list. (EVENTS is the bottom
+panel's page now: see [NEWS, EVENTS and OVERVIEW](#news-events-and-overview).)
 
 The AGENTS list has one row per pane on every machine, in two views:
 
@@ -262,33 +261,49 @@ to their machine. Launch state comes from `snapshot.agents[]` and is attached on
 terminal id matches, with provider, workspace and tab checked; stale agent entries never override pane status events.
 A new session invalidates the old wait clock.
 
-## Staff panel and agent card
+## Bottom panel and agent card
 
-The bottom of the screen is the staff panel, which hosts the agent card. The card and HUD are in English; a sentence that
-does not fit is in the tooltip.
+The bottom of the screen is the bottom panel: a row of tabs, **AGENT | HISTORY | EVENTS**, with the NEWS line beside them,
+over the page shown. Every run starts on AGENT, the agent card. The card and HUD are in English; a sentence that does not
+fit is in the tooltip.
 
-**Compact by default, at every size.** On a screen at least 400 units tall it is a card at the bottom-left: portrait,
-the pane's name, the state in a pill of its colour, who and where (`CLAUDE · api / main`), and `‹ ›`, `Monitor ⤢`, `Open ⏎` under them (the `⤢` and `⏎` are small icons after the word), with NEXT (▶) at the right
-end; the office shows between them but takes no click there. Below 400 units it is one line: name · state · where, how long
-it has waited, `‹ ›`, `Monitor ⤢`, `Open ⏎`, NEXT. Below 640 units of screen width these read `⤢`, `⏎`, and NEXT shows only
-the name. Compact, the panel reads no preview: to see a working agent's terminal, expand it.
+**Docked on a screen at least 400 units tall.** The panel is always open there, 116 units high whatever its page, so a tab
+never moves the world: the portrait, the pane's name, the state in a pill of its colour and its wait, who and where
+(`CLAUDE · api / main`); a live preview of the terminal's last 6 rows (herdr's `detection` when blocked, the tail of
+`recent_unwrapped` otherwise); START AGENT or NEW PANE (its title beside the kinds or the button) over Close · New space ·
+branch · Worktree on one line; the pane's details (when the card is at least 1000 units wide, from a 1040-wide screen); and at the right end one column:
+NEXT with `‹ ›` beside it, then **Monitor ⤢** and **Answer ⏎**, **Switch herdr here** and its note, and the outcome on one line.
+There is nothing to fold, so `Esc` goes on to OVERVIEW or the strategic view.
 
-- `Enter`, `Open ⏎` or answer mode expand it to full height: portrait, state, wait, location (a shell shows `SHELL` /
-  `no agent` instead of portrait and state), a live 12-row monospace preview of the terminal (herdr's `detection` when
-  blocked, the tail of `recent_unwrapped` otherwise), details, actions and NEXT. Full height below 640 units gives NEXT's
-  room to the preview.
-- `Esc` (outside answer mode) or `▾ Esc` in the actions column collapse it again; selecting another pane collapses
-  it too. When answer mode ends by itself after a key is sent, the panel stays open so the result stays visible.
-- `×` at the card's top right closes it altogether: the pick is forgotten (herdr's focus leads the office again, and
-  no write is offered to anybody) and only NEXT stays. Picking a desk, a chip or a list row (or `N`) opens a card
-  again; herdr's focus moving never does.
+**Two rows below 400 units.** The tabs over one line: name · state · where, how long it has waited, `Monitor ⤢`, `Open ⏎`,
+`×`, NEXT and `‹ ›` (the `⤢` and `⏎` are small icons after the word; below 640 units of width they read `⤢`, `⏎`, and NEXT
+shows only the name). The line reads no preview.
+
+- `Enter`, `Open ⏎`, answer mode, and the HISTORY and EVENTS tabs open it to full height with the whole 12-row preview
+  (a shell shows `SHELL` / `no agent` instead of portrait and state). Full height below 640 units gives NEXT's room to
+  the preview.
+- `Esc` (outside answer mode), `▾ Esc` in the actions column, or the AGENT tab after HISTORY / EVENTS fold it again;
+  selecting another pane folds it too. When answer mode ends by itself after a key is sent, the panel stays open so the
+  result stays visible.
+
+On every screen:
+
+- `×` at the card's top right (on the line, at its end) closes the card: the pick is forgotten (herdr's focus leads the
+  office again, and no write is offered to anybody); the panel keeps its height and says how to open a card again, and
+  NEXT stays. Picking a desk, a chip or a list row (or `N`) opens a card again; herdr's focus moving never does.
 - `‹ ›` step through NEXT's queue: select only, never expand or answer.
+- Every pick shows the AGENT page, except a click on a HISTORY or EVENTS line, which keeps its page.
+- **HISTORY** lists the panes that were blocked or done this run and are not any more, newest first: what they waited as,
+  the name, the space, and `OFFLINE` or `GONE`. Click a line to select that pane, if it is still the same terminal;
+  a greyed line says why it cannot be.
+- The branch box of New worktree lets `PageUp` / `PageDown` through to the space step, and lets go of the keyboard on a
+  click anywhere outside it and its Worktree button.
 
 **Switch herdr here** (on a remote machine: Switch herdr on <machine>) is enabled only for a seat you picked yourself,
 and only while it is still the terminal you picked. It switches herdr's shared view, and **clears UNREAD for every pane of
 that tab** (the note beside it says `Clears tab's UNREAD`).
 
-**NEXT** at the right end says what pressing it would do and to whom, by name (`Answer needs approval` / `Read refactor the fleet`) and how
+**NEXT** at the right end says what pressing it would do and to whom, by name (`NEXT: Answer needs approval 12m (N)` / `Read refactor the fleet`) and how
 long they have waited. Clicking it equals pressing `N`: select that agent and expand its panel; a blocked one enters
 answer mode once its question shows (nothing is sent; you still press the key, so `N` then a digit answers), a done one
 only expands. Under `--read-only` there is no verb; it only selects. With nothing to do it reads `All clear` and greys
@@ -299,7 +314,7 @@ out.
 Only for an agent seat you picked yourself. `Enter` or **Answer ⏎** in the card header opens it; opening sends nothing.
 A click on a blocked agent's chip, NEXT or `N` opens it too, once the question shows; nothing opens it by itself.
 
-Answer mode is a modal: the staff panel, at most 640×272 units, stands in the middle of the room under the bar over
+Answer mode is a modal: the bottom panel, at most 640×272 units and with its tabs hidden, stands in the middle of the room under the bar over
 the dimmed office, laid out top to bottom: who and where, the terminal across the whole panel, the answer keys in one
 row, the reply box, and along the foot Monitor, Close and what became of the last answer. NEXT stays at its right end on
 a wide enough screen. The world keeps the room the opened panel left it. The dim only darkens: clicks go
@@ -333,7 +348,7 @@ shown a preview read after the write. A lost reply shows `Unknown result: look f
 
 ## Start agent, New pane, Close, New space, Worktree
 
-All five are mouse clicks on the staff panel only; the keyboard never triggers them. Under `--read-only` they do not
+All five are mouse clicks on the bottom panel's card only; the keyboard never triggers them. Under `--read-only` they do not
 exist. None is retried; a lost reply is reported as unknown, and the next snapshot decides.
 
 **START AGENT** (a shell seat selected): next to the preview, one button per agent kind seen in this machine's snapshot
@@ -389,7 +404,7 @@ a source. When git refuses, the footer shows only its first line (`herdr refused
 ## Terminal monitor
 
 A near-full-screen pixel display of one pane; one at a time. Open it by double-clicking an agent in the agent list (or
-`Enter` there), clicking **Monitor ⤢** on the staff panel (`⤢` when narrow), or pressing `M` (opens on the pane the panel
+`Enter` there), clicking **Monitor ⤢** on the bottom panel (`⤢` when narrow), or pressing `M` (opens on the pane the panel
 shows). It draws herdr's own screen (`visible`, in colour) at the pane's real rows and columns, up to 400×200 (larger
 panes are clipped and the status line says so), wide characters in two cells, box drawing drawn by the monitor itself.
 It reads 5 times a second while the window has focus, once a second without, and slows down when drawing is slow.
@@ -421,16 +436,17 @@ The title bar has the same **Switch herdr here**.
 All three read the state log: the state changes observed since this run opened, in herdr's words. It is bounded, holds
 no terminal text and is never saved. Clicking an entry only selects the pane.
 
-**NEWS** is the bottom line of the screen: the latest 8 events, newest on the left. The time is written after the segment
+**NEWS** stands in the bottom panel's top row, beside its tabs: the latest 8 events, newest on the left. The time is written after the segment
 that ended: `11:40 refactor the fleet · api working 38m → done` (`+` = at least; a long name is cut, the tooltip says it whole). An entry whose pane is gone is disabled (the tooltip
 says so); machine entries are not clickable.
 
-**EVENTS** is the drawer's second tab: the same events, newest on top, up to 200 rows.
+**EVENTS** is the bottom panel's third tab: the same events, newest on top, up to 200 rows, one line each. Clicking a row
+selects its pane and keeps the page.
 
 **OVERVIEW** opens from the top bar's `13 panes`, a fold, or `O`, over the world and both side columns. One row per pane: state, how
 long this segment has lasted, total blocked time this run, how many times it got stuck, and a timeline since opening
 (hatching = not observed). Columns: SPACE / TAB, STATE, FOR, BLOCKED, TIMES. Click a column head to sort, chips to filter,
-a row to select that pane; the staff panel works as usual (you can answer from it). `O`, `Esc` or `X  Esc` close it; in
+a row to select that pane; the bottom panel works as usual (you can answer from it). `O`, `Esc` or `X  Esc` close it; in
 answer mode `Esc` leaves answer mode first. `M` does nothing while it is open.
 
 ## Lens
@@ -441,7 +457,7 @@ no track shows `?`), chips are hidden, every seat's name plate shows, the floor 
 urgent state (the strategic view's cell colours), furniture dims, and the theme cell in the top bar reads `LENS · hold L`. It does not light while the monitor, OVERVIEW or
 the strategic view is open or a text box has the keyboard; a press that started there has to be released first.
 
-**Pointing.** Hovering a HUD line about a pane (a NEWS entry, an agent list row, an EVENTS row, a portrait card) draws a
+**Pointing.** Hovering a HUD line about a pane (a NEWS entry, an agent list row, an EVENTS row, a HISTORY line, a portrait card) draws a
 still dashed frame in `ink` / `paper` around that seat; for a pane on another machine, its portrait card gets a white
 ring instead. Hovering an edge arrow rings its zone's blocked cards. Pointing never selects, reads, writes, pans or changes map.
 
@@ -454,7 +470,7 @@ idle and starting warm white, shell dark), and the wait written in each blocked 
 It shows at a glance who on the machine is blocked / done / working / idle and where they sit. The hover tip gives
 provider, state, time and place; over a caption, the space's repository and checkout (a caption too long for its column
 is cut, never shrinking the cells, and its tip starts with the whole name). Click a cell to select that pane,
-close the view and pan its seat into view. `S` or `Esc` closes it. The top bar, the drawer, the staff panel, NEWS, `N`
+close the view and pan its seat into view. `S` or `Esc` closes it. The top bar, the drawer, the bottom panel, `N`
 and PageUp / PageDown keep working (a card's place or a page key scrolls the diagram to that space's section; another
 machine's place or chip redraws it for that machine); arrows and the wheel do not pan the world. The top bar's theme cell reads
 `STRATEGIC · S`, the panel title shows `S · Esc`, and a machine whose map has no pods shows `No desks on this machine`. `S` does
@@ -467,9 +483,9 @@ nothing while the monitor or OVERVIEW is open or a text box has the keyboard.
 | Drag, arrows, wheel (outside panels) | Pan |
 | `PageUp` / `PageDown` | Pan to the previous / next space (a zone of the map; the map of another machine only past its ends). The order is ascending, so **PageUp goes to the lower-numbered space and PageDown to the higher** (the reverse of the FLOORS minimap, which listed the highest first): from a source zone down into its mezzanines, from a mezzanine up to its source; PageDown from a machine's last zone into the next machine's first, PageUp the other way; stops at the ends |
 | `N` | Next agent that needs you, across every online machine and zone: only blocked ones while any are blocked, otherwise UNREAD (longest wait first; unknown start counts as longest). Selects it, shows its machine's map, pans to it and expands the panel per NEXT's verb. Never sends. To see done agents while some are blocked, click DONE |
-| `Enter` (or keypad Enter) | Expand the staff panel; on an answerable picked agent whose question shows, press again for answer mode |
+| `Enter` (or keypad Enter) | Show the AGENT page and, on a short screen, open the bottom panel; on an answerable picked agent whose question shows, press again for answer mode |
 | `1`–`9`, `y` | In answer mode: send that key |
-| `Esc` | Leave answer mode; outside it, collapse the panel; close OVERVIEW / strategic view |
+| `Esc` | Leave answer mode; outside it, fold a short screen's opened panel; close OVERVIEW / strategic view |
 | `M` | Terminal monitor on the pane the panel shows |
 | `A` | Open the drawer and give the agent list the keyboard (flat view) |
 | `O` | OVERVIEW |
@@ -481,7 +497,7 @@ nothing while the monitor or OVERVIEW is open or a text box has the keyboard.
 
 Digit keys never change zone or map (`1`–`9` are answer keys). Outside answer mode, and while the reply box has no focus, the
 card takes no office keys. While the terminal monitor is open it is the reverse: every key goes to the terminal. The top
-bar, edge arrows, drawer and staff panel stay fixed on screen; only the world pans.
+bar, edge arrows, drawer and bottom panel stay fixed on screen; only the world pans.
 
 ## Window, zoom and frame rate
 
@@ -697,7 +713,7 @@ foreground the default cap is 30 and in the background 12; `max_fps` in the outp
 
 ## Limits
 
-- **Writes come only from gestures.** The only writes are the ones a person makes on the staff panel, in answer mode or
+- **Writes come only from gestures.** The only writes are the ones a person makes on the bottom panel, in answer mode or
   in the terminal monitor. The one request not caused by a gesture is a single read-only `agent.get` when a launch this
   run started reaches its deadline. Refreshes, timers, state changes and the event stream never write. Nothing is
   approved automatically, nothing is inferred from terminal text, no agent is started automatically, and writes are never
@@ -827,8 +843,9 @@ scenes/office.tscn       main scene, connects to herdr
 scenes/preview.tscn      mock showroom (no herdr)
 scenes/avatar_studio.tscn, scenes/people_showroom.tscn
 scenes/ui/               HUD scenes: hud.tscn (layout lives here), bar (portrait_card, portrait_fold, machine_chip),
-                         edge_arrows / edge_arrow, inspector (staff panel),
-                         agent list, news, event list, overview, strategic, terminal_monitor
+                         edge_arrows / edge_arrow, bottom_panel (its pages: inspector, the agent card;
+                         history_list / history_row; event list / event row; news in its top row),
+                         agent list, overview, strategic, terminal_monitor
 scenes/world/            world prefabs: table (a pod), station, decor, chip, machine_plate, zone_sign
 scenes/people/           pixel_person.tscn and the showroom cells
 scripts/office.gd        OfficeScene, the composition root
@@ -847,9 +864,10 @@ scripts/model/           typed models: HerdrSnapshot (the only reader of raw sna
 scripts/layout/          map and zone planning, seat planning, walk graph, validation
 scripts/world/           pods (table.gd), stations, chips, the floor view, machine plate, zone signs, shell,
                          presentation (walking), pointer
-scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait fold, machine chip), edge arrows, agent list, staff
-                         panel (inspector writes what card_picture, pure, says it shows; card_details, card_words,
-                         card_actions, launch_block), monitor, NEWS, EVENTS, OVERVIEW, strategic view
+scripts/ui/              HUD scripts: hud, theme, bar (portrait card, portrait fold, machine chip), edge arrows, agent list, bottom
+                         panel (bottom_panel; inspector writes what card_picture, pure, says it shows; card_details,
+                         card_words, card_actions, launch_block; history_list / history_row), monitor, NEWS, EVENTS,
+                         OVERVIEW, strategic view
 scripts/art/             typed art pack models; the only readers of manifest JSON
 scripts/people/          PixelPerson prefab script
 tools/                   builders, contract tests, fake herdr / fake ssh, test suites (test_*.gd), capture and perf

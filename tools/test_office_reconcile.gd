@@ -366,10 +366,13 @@ func _check_floor_cells(office: OfficeScene) -> void:
 
 
 func test_complete_floor_and_unique_wall_cells_follow_the_plan() -> void:
-	# 628 wide: the floor is planned 488 units wide, one lane (8 inner cells);
+	# 592 wide: the floor is planned 568 units wide (17 cells, two lanes);
 	# with nine more agents api:t1 is a pod of 7 cells, and api:t2's (3) wraps
 	# to a second pod row (the fixture's own two pods share one row).
-	var office := await _live_office(_wide_api(9), Vector2(628, 480))
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 628 now
+	# plans 604 (18 cells,
+	# three lanes, one pod row); 592 is the width that plans what 628 did.
+	var office := await _live_office(_wide_api(9), Vector2(592, 480))
 	_check(office.layout_plan().zones[0].rows.size() > 1, "fixture exercises multiple pod rows")
 	_check_floor_cells(office)
 	var signature := office.layout_plan().geometry_signature()
@@ -404,7 +407,9 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 		"the floor is planned for the drawer closed"
 	)
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(hud.plan_width(), 740.0, "740 wide at 800x480")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: no
+	# closed tab to plan for.
+	_eq(hud.plan_width(), 776.0, "776 wide at 800x480")
 	var world_id := office.world.get_instance_id()
 	var attempts := office.plans.attempt_count()
 	var plan := office.layout_plan().geometry_signature()
@@ -416,10 +421,11 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 			continue
 		if rightmost == null or station.target_rect().end.x > rightmost.target_rect().end.x:
 			rightmost = station
-	var tab: Control = hud.get_node("%DrawerTab")
-	await _click(tab.get_global_rect().get_center())
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: `A`
+	# opens the drawer (no closed tab).
+	await _office_key(office, KEY_A)
 	await _frames(2)
-	_check(hud.drawer_open(), "a real click on the tab opens the drawer")
+	_check(hud.drawer_open(), "`A` opens the drawer")
 	_eq(office.camera.free_rect(), hud.world_rect(), "the world's room stops at the open drawer")
 	_eq(office.world.get_instance_id(), world_id, "the world is not rebuilt")
 	_eq(office.plans.attempt_count(), attempts, "the floor is not planned again")
@@ -491,20 +497,22 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 	_done(office)
 
 
-## On a screen tall enough the compact panel is a card at the bottom-left and
-## NEXT stands at the right end; the office shows between them but takes no
-## click and no wheel there (the user's choice: a dead gap). A real click on a
-## desk seen through the gap picks nothing; a wheel notch there pans nothing.
+## On a screen tall enough the bottom panel is docked, full width: a desk
+## under it takes no click and no wheel there. A real click on a desk under
+## the panel's preview picks nothing; a wheel notch there pans nothing.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the card
+## form and its dead gap
+## beside NEXT are gone; the docked panel covers the whole bottom.
 func test_the_gap_between_the_card_and_next_takes_no_click() -> void:
 	# api with 27 more agents, so a pod reaches the middle of the screen,
-	# where the gap is (the fixture's own pods stand in its left third).
+	# under the panel's preview (the fixture's own pods stand in its left third).
 	var office := await _live_office(_wide_api(27))
 	await _frames(4)
 	var hud := office.hud
-	_check(hud.inspector.card(), "800x480 is tall enough for the card")
-	var gap: Control = hud.inspector.get_node("%CardGap")
-	_check(gap.is_visible_in_tree(), "the gap stands between the card and NEXT")
-	var hole := gap.get_global_rect()
+	_check(hud.inspector.docked(), "800x480 is tall enough for the docked panel")
+	var screen: Control = hud.inspector.get_node("%Preview")
+	_check(screen.is_visible_in_tree(), "its preview shows")
+	var hole := screen.get_global_rect()
 	var seen: OfficeStation = null
 	var at := Vector2.ZERO
 	# D2 (2026-10-27): the band is two cells (SEATED-Q2): the desks stand 32
@@ -524,14 +532,14 @@ func test_the_gap_between_the_card_and_next_takes_no_click() -> void:
 				break
 		if seen != null:
 			break
-	_check(seen != null, "a desk shows through the gap")
+	_check(seen != null, "a desk stands under the preview")
 	if seen == null:
 		_done(office)
 		return
 	var before := office.picked_key
 	await _click(at)
 	await _frames(2)
-	_eq(office.picked_key, before, "a click on it through the gap picks nothing")
+	_eq(office.picked_key, before, "a click on the panel over it picks nothing")
 	_check(not office.camera.dragging, "the office never saw the press")
 	var pan := office.camera.pan
 	root.push_input(_mouse_button(at, MOUSE_BUTTON_WHEEL_DOWN, true), true)
@@ -998,7 +1006,7 @@ func test_zones_on_one_map_keep_their_rectangles_and_the_world_when_paged() -> v
 		for index in counts[space]:
 			var pane := {"pane_id": "%s:p%d" % [space, index], "tab_id": space + ":t", "workspace_id": space}
 			_list(snapshot, "panes").append(pane)
-	# 880 wide lays the world out 740 units wide: a first plan is 23 cells.
+	# 880 wide lays the world out 856 units wide (S3 PANEL-a1: no drawer tab): a first plan is 26 cells.
 	var office := await _live_office(snapshot, Vector2(880, 480))
 	var a := HerdrFleet.pane_key(LOCAL, "a")
 	var b := HerdrFleet.pane_key(LOCAL, "b")
@@ -1039,7 +1047,7 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 
 
 ## PLAN_R2 §1.10, density: 1920×960 at 2x (the 960×480 view), the drawer
-## closed, the staff card one line; the first zone visited (S3 BAR-b: by the
+## closed, the bottom panel docked; the first zone visited (S3 BAR-b: by the
 ## page keys, not its SPACES row; herdr's focus is there already, so the view
 ## is the one it opens on); the seats whose click rect (target_rect(), no chip) is wholly inside
 ## world_rect() are counted. Two workspaces, each of four tabs of 8, 4, 8 and 4
@@ -1050,9 +1058,13 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 func test_a_zone_call_shows_the_planned_density() -> void:
 	for rows: int in [2, 1]:
 		var office := await _live_office(_density(rows), Vector2(960, 480))
-		_check(not office.hud.drawer_open() and office.hud.card_compact(), "drawer closed, card one line")
+		_check(not office.hud.drawer_open() and office.hud.inspector.docked(), "drawer closed, panel docked")
 		# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-		_eq(office.hud.world_rect(), Rect2(16, 48, 900, 308), "the world's room at 1920×960, 2x")
+		# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 52
+		# bar, 151 docked panel.
+		# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: 241 -> 276, a
+		# 116 docked panel.
+		_eq(office.hud.world_rect(), Rect2(16, 68, 936, 276), "the world's room at 1920×960, 2x")
 		var plan := office.layout_plan()
 		var a := plan.zone(HerdrFleet.pane_key(LOCAL, "a"))
 		var b := plan.zone(HerdrFleet.pane_key(LOCAL, "b"))

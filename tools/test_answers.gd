@@ -1190,9 +1190,10 @@ func test_the_card_offers_only_what_the_pane_may_receive() -> void:
 	_eq(_all_inputs(), 0, "nothing sent")
 
 
-## The whole question is read (lines 200) and compared, not only the 12 rows
-## the card shows: 31 rows, "12 of 31 rows", and a change in row 1, which the
-## card does not show, stops the key. A row wider than the card says "clipped".
+## The whole question is read (lines 200) and compared, not only the rows the
+## card shows: 31 rows, "6 of 31 rows" docked ("12 of …" in answer mode), and a
+## change in row 1, which the card does not show, stops the key. A row wider
+## than the card says "clipped".
 func test_the_whole_question_is_compared_not_just_the_rows_shown() -> void:
 	var rows := PackedStringArray()
 	for index in 31:
@@ -1200,7 +1201,9 @@ func test_the_whole_question_is_compared_not_just_the_rows_shown() -> void:
 	var question := "\n".join(rows) + "\n"
 	var office := await _blocked_bee(question)
 	var card := _card(office)
-	_check(card.preview_caption().begins_with("12 of 31 rows · "), "the caption says so: " + card.preview_caption())
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: docked,
+	# six rows show.
+	_check(card.preview_caption().begins_with("6 of 31 rows · "), "the caption says so: " + card.preview_caption())
 	var last: Dictionary = _asked("control-b", "pane.read").back()
 	_eq([last.get("source"), _number(last, "lines")], ["detection", 200.0], "the whole of it was read")
 	var changed := {"pane_id": "alpha:p3", "source": "detection", "text": question.replace("row 1 of", "row 1 in")}
@@ -1299,8 +1302,9 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	var office := await _office_with(false, true, true, Vector2(480, 320))
 	await _pick_bee(office, "alpha:p3", false)
 	var card := _card(office)
-	var tab: Control = office.hud.get_node("%DrawerTab")
-	await _click_control(tab)
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
+	# the drawer has no closed tab to click; opening it is this case's setup.
+	office.hud.open_drawer()
 	await _frames(3)
 	var list := office.hud.agent_list
 	var scroll: ScrollContainer = list.get_node("%Scroll")
@@ -1322,9 +1326,14 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	_ctl("control-b", "next", stage)
 	await _open_answer(office)
 	await _frames(3)
-	_eq(office.hud.placed(card).size, Vector2(448, 272), "the card at 480x320 in answer mode, the modal's whole height")
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# bottom panel floats (the
+	# card is its AGENT page), its top row hidden; the slot it left is the opened one (149).
+	_eq(office.hud.placed(office.hud.staff).size, Vector2(448, 272), "the panel at 480x320 in answer mode, the modal")
+	var top: Control = office.hud.staff.get_node("%TopRow")
+	_check(not top.is_visible_in_tree() and not office.hud.news.is_visible_in_tree(), "its tabs and NEWS hidden")
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(office.hud.world_rect().size, Vector2(296, 112), "the world above it keeps a desk's room, the drawer open")
+	_eq(office.hud.world_rect().size, Vector2(296, 103), "the world above it keeps a desk's room, the drawer open")
 	_eq(office.hud.world_rect().position.x, 16.0, "16 in from the left, where the rail stood")
 	_fits(card, "answer mode")
 	_panels_apart(office, "answer mode")
@@ -1332,7 +1341,9 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	await _until(func() -> bool: return card.outcome_text().begins_with("Not sent: the terminal"), "a refusal")
 	await _frames(3)
 	var outcome: Label = card.get_node("%Outcome")
-	_eq(outcome.get_visible_line_count(), outcome.get_line_count(), "the refusal shows whole along the foot")
+	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller; the verbs and
+	# the outcome stand in the right-hand column now, not along the foot: the refusal wraps there, every line shown.
+	_eq(outcome.get_visible_line_count(), outcome.get_line_count(), "the refusal shows whole under the verbs")
 	_fits(card, "answer mode, a refusal in two lines")
 	_panels_apart(office, "a refusal")
 	var preview: Label = card.get_node("%Preview")
@@ -1352,8 +1363,11 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 ## The Escape ladder: in answer mode Escape only leaves answer mode, and
 ## the panel stays open with its details; out of it, Escape folds the panel to
 ## its line; one more Escape changes nothing. By real keys; nothing is sent.
+## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: at the
+## 480x320 minimum, where the
+## panel folds (docked, there is nothing to fold).
 func test_escape_leaves_answer_mode_first_and_folds_the_panel_second() -> void:
-	var office := await _blocked_bee()
+	var office := await _blocked_bee(QUESTION, Vector2(480, 320))
 	var card := _card(office)
 	await _open_answer(office)
 	_check(not office.hud.card_compact(), "answer mode stands at full height")
@@ -1418,7 +1432,7 @@ func test_answer_mode_writes_nothing_without_a_gesture() -> void:
 	_check(card.answering(), "answer mode stayed open")
 
 
-## Answer mode is a modal: the staff panel, at most `staff_modal_width` wide
+## Answer mode is a modal: the bottom panel, at most `staff_modal_width` wide
 ## and `staff_modal_height` tall, stands in the middle of the room under the
 ## bar, laid out top to bottom (who, the terminal, the keys, the foot), over the dim,
 ## which covers the whole screen, and the world keeps the room the opened panel
@@ -1438,7 +1452,10 @@ func test_answer_mode_is_a_modal_over_the_dim() -> void:
 	_check(dim.is_visible_in_tree(), "the dim shows in answer mode")
 	_eq(dim.get_global_rect(), Rect2(Vector2.ZERO, screen), "over the whole screen")
 	_eq(dim.mouse_filter, Control.MOUSE_FILTER_IGNORE, "and lets every click through")
-	var panel := card.get_global_rect()
+	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
+	# bottom panel floats, the
+	# card is its AGENT page inside it.
+	var panel := hud.staff.get_global_rect()
 	var below := hud.placed(hud.bar).end.y + hud.staff_modal_gap
 	var space := screen.y - below - hud.staff_modal_gap
 	var size := Vector2(
@@ -1455,7 +1472,7 @@ func test_answer_mode_is_a_modal_over_the_dim() -> void:
 	_check(card.shown_pane_key() != picked, "a click through the dim picked another agent")
 	_check(not card.answering(), "which left answer mode")
 	_check(not dim.visible, "and took the dim away")
-	_eq(card.get_global_rect().end.y, screen.y + hud.staff.offset_bottom, "the panel is back along the bottom")
+	_eq(hud.staff.get_global_rect().end.y, screen.y + hud.staff.offset_bottom, "the panel is back along the bottom")
 	_eq(_all_inputs(), 0, "nothing was sent")
 
 

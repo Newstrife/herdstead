@@ -1291,10 +1291,10 @@ func test_a_start_herdr_gave_up_is_said_and_the_shell_is_offered_again() -> void
 	_eq(_count("control-a", "agent.start"), 1, "nothing was retried")
 
 
-## Every key the card's keyboard knows, pressed over a picked shell whose
-## kinds are on: no start, no write of any kind.
+## Every key the card's keyboard knows, pressed over a picked shell whose kinds are on: no start, no write
+## of any kind. At 480x320 (S3 PANEL-a1, 2026-10-27: docked, nothing folds), where Escape folds the panel.
 func test_the_keyboard_never_starts_an_agent() -> void:
-	var office := await _shell_card("$ \n", ["pane.read", "agent.start"])
+	var office := await _shell_card("$ \n", ["pane.read", "agent.start"], {}, {}, Vector2(480, 320))
 	await _until(func() -> bool: return _kinds_enabled(office).size() == 3, "every kind is on")
 	for code: Key in [KEY_ENTER, KEY_KP_ENTER, KEY_1, KEY_2, KEY_9, KEY_Y, KEY_SPACE, KEY_TAB]:
 		await _tap(code)
@@ -1378,10 +1378,10 @@ func test_herdrs_refusals_of_a_start_are_said_and_owe_a_look() -> void:
 	_eq(_count("control-a", "agent.start"), 2, "two gestures, two starts, nothing retried")
 
 
-## 480x320: the shell's compact line opens with Enter (a shell with kinds to
-## start may open now), and the block takes the PANE details' place, every
-## button whole, inside the panel and off the others; Esc folds it. At 800x480,
-## opened again (the panel is one line at every size), both show.
+## 480x320: the shell's compact line opens with Enter (a shell with kinds to start may open now), and the
+## block takes the PANE details' place, every button whole, inside the panel and off the others; Esc folds
+## it. At 1280x720, docked, both show. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band
+## on tall screens, no drawer tab. Round 2 (2026-10-28): the panel 116 tall; details_beside_launch_from 900 -> 1000.
 func test_the_launch_block_fits_the_smallest_screen_and_keeps_pane_details_when_wide() -> void:
 	var office := await _shell_card("$ \n", ["pane.read"], {}, {}, Vector2(480, 320), false)
 	var card := _card(office)
@@ -1393,9 +1393,9 @@ func test_the_launch_block_fits_the_smallest_screen_and_keeps_pane_details_when_
 	await _until(func() -> bool: return _kinds_enabled(office).size() == 3, "its kinds are on")
 	await _frames(3)
 	_check(launch.is_visible_in_tree() and not more.is_visible_in_tree(), "the block in PANE's place")
-	_eq(office.hud.placed(card).size, Vector2(448, 128), "the card at 480x320, opened")
+	_eq(office.hud.placed(office.hud.staff).size, Vector2(448, 149), "the panel at 480x320, opened")
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(office.hud.world_rect().size, Vector2(420, 112), "the world above it keeps a desk's room")
+	_eq(office.hud.world_rect().size, Vector2(456, 103), "the world above it keeps a desk's room")
 	_launch_fits(card, "480x320")
 	_panels_apart(office, "480x320, opened")
 	_ctl(
@@ -1410,14 +1410,14 @@ func test_the_launch_block_fits_the_smallest_screen_and_keeps_pane_details_when_
 	_launch_fits(card, "480x320, a confirm")
 	await _tap(KEY_ESCAPE)
 	await _until(office.hud.card_compact, "Esc folds it")
-	office.test_screen = Vector2(800, 480)
+	office.test_screen = Vector2(1280, 720)
 	office.refresh()
 	await _frames(2)
-	_check(office.hud.card_compact(), "800x480: still one line")
+	_check(office.hud.inspector.docked(), "1280x720: docked")
 	await _open_panel(office)
-	await _until(func() -> bool: return launch.is_visible_in_tree() and more.is_visible_in_tree(), "800x480: both")
+	await _until(func() -> bool: return launch.is_visible_in_tree() and more.is_visible_in_tree(), "1280x720: both")
 	await _frames(3)
-	_launch_fits(card, "800x480")
+	_launch_fits(card, "1280x720")
 	_eq(_writes_seen("control-a"), PackedStringArray(), "nothing written")
 
 
