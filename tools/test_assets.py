@@ -878,9 +878,10 @@ class PixelSourceTests(unittest.TestCase):
             len(files),
             len(draw_pixel_sources.DESK_PIECES) + len(draw_pixel_sources.FIXTURE_SIZES)
             + len(draw_pixel_sources.DENSE_SIZES) + len(draw_pixel_sources.PARTITION_SIZES)
-            + len(draw_pixel_sources.MARK_PROVIDERS) + 18,
+            + len(draw_pixel_sources.MARK_PROVIDERS) + len(draw_pixel_sources.CARPET_FAMILIES) + 18,
             "8 desk props, 2 fixture props, 3 density-2 pieces (the idle mug: D2, 2026-10-27), 7 partition pieces, "
-            "23 provider marks (D3, 2026-10-27), the pod family's 17 images, 1 manifest",
+            "23 provider marks (D3, 2026-10-27), 5 zone carpets (S3 item 7, 2026-10-27: one carpet per zone, in its "
+            "group's family), the pod family's 17 images, 1 manifest",
         )
         self.assertEqual(len(draw_pixel_sources.DENSE_SIZES), 3, "the paper stack, the idle mug and the seat mark")
         self.assertEqual(files, sorted(path.relative_to(second) for path in second.rglob("*") if path.is_file()))
@@ -1166,6 +1167,48 @@ class PixelSourceTests(unittest.TestCase):
         built = json.loads((ROOT / "assets/daylight/manifest.json").read_text())
         self.assertIn("idle_mug", built["props"], "the built pack carries it")
         self.assertTrue((ROOT / "assets/daylight/props/idle_mug.png").is_file(), "and its picture")
+
+    def test_added_palette_colours_keep_their_distance_and_the_palette_its_cap(self):
+        """S3 item 7 (2026-10-27): one carpet per zone, in its group's family.
+
+        A palette colour is added, never changed (docs/ASSET_SPEC.md): the
+        pack carries at most 64, every two of them at least 12 apart
+        (Manhattan, RGB), and the ten zone-carpet colours are among them.
+        """
+        palette = json.loads((ROOT / "art/daylight/pack.json").read_text())["palette"]
+        self.assertLessEqual(len(palette), 64, "at most 64 colours")
+        colours = [(name, bytes.fromhex(value)) for name, value in palette.items()]
+        for index, (name, colour) in enumerate(colours):
+            for other, against in colours[index + 1:]:
+                apart = sum(abs(a - b) for a, b in zip(colour, against))
+                self.assertGreaterEqual(apart, 12, f"{name} and {other} are {apart} apart")
+        for family in ("sage", "sky", "terra", "teal", "lilac"):
+            for key in (f"carpet_{family}", f"carpet_{family}_edge"):
+                self.assertIn(key, palette, f"the zone carpet's {key}")
+
+    def test_the_carpets_ship_as_drawn(self):
+        """S3 item 7 (2026-10-27): one carpet per zone, in its group's family.
+
+        art/daylight ships exactly the five zone carpets the tool draws, pixel
+        for pixel, each declared a 32x32-unit nine-patch on a zero pivot with
+        margins of 2 units on each side (a one-unit edge and a unit of fill).
+        """
+        drawn = self.draw("drawn")
+        manifest = json.loads((ROOT / "art/daylight/pack.json").read_text())
+        self.assertEqual(draw_pixel_sources.CARPET_FAMILIES, ("sage", "sky", "terra", "teal", "lilac"),
+                         "one family per accent, in ArtContract.ACCENTS' order")
+        for family in draw_pixel_sources.CARPET_FAMILIES:
+            name = f"carpet_{family}"
+            self.assertEqual(manifest["ui"].get(name), {"path": f"ui/{name}.png", "size": [32, 32], "pivot": [0, 0],
+                                                        "nine_patch": [2, 2, 2, 2]}, name)
+            # Pixels, not bytes: zlib on another platform encodes the same picture differently.
+            with Image.open(drawn / f"ui/{name}.png") as carpet, Image.open(ROOT / f"art/daylight/ui/{name}.png") as shipped:
+                self.assertEqual(carpet.size, shipped.size, name)
+                self.assertEqual(list(carpet.convert("RGBA").getdata()), list(shipped.convert("RGBA").getdata()),
+                                 f"{name}: art/daylight ships what the tool draws")
+        self.assertEqual(sorted(path.name for path in (ROOT / "art/daylight/ui").glob("carpet_*.png")),
+                         sorted(f"carpet_{family}.png" for family in draw_pixel_sources.CARPET_FAMILIES),
+                         "no stray carpet ships")
 
     def test_a_desk_piece_on_the_rows_the_table_keeps_free_is_refused(self):
         palette = draw_pixel_sources.palette_of(ROOT / "art/daylight/pack.json")

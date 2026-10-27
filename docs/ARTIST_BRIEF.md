@@ -1,7 +1,7 @@
 # Artist brief: Herdstead theme packs
 
-For a pixel artist who does not write code. The job is **a whole new theme**: the same 68 PNGs
-(16 tiles, 22 props, 12 UI images, 18 pod-family pieces) in a new style. When you are done, run
+For a pixel artist who does not write code. The job is **a whole new theme**: the same 73 PNGs
+(16 tiles, 22 props, 17 UI images, 18 pod-family pieces) in a new style. When you are done, run
 the self-check commands and hand in one folder. The program loads your pack without a single code change.
 
 Sizes, sources and the reasons behind them are in [ASSET_SPEC.md](ASSET_SPEC.md); this brief covers
@@ -20,7 +20,7 @@ art/<id>/
   pack.json               <- change id / name / palette values; keep the structure
   tiles/ walls/  16       32×32 units = 64×64 PNG (walls in walls/, other tiles in tiles/; pack.json's path decides)
   props/         22       see below
-  ui/            12       see below
+  ui/            17       see below
   table/         18 + manifest.json   the pod family, see below
   fonts/                  copy as is; do not replace
 ```
@@ -38,7 +38,7 @@ large floor areas. An image not yet repainted may stay at 1x; the build fills it
 `floor.wood_a/b/c`, `floor.walkway`,
 the 9 `wall.{cap,face,front}_{left,center,right}`, `wall.side_left/right` and `wall.threshold`.
 There are no rugs and no inner-wall joints: a pod stands on the floor itself, and a workspace's zone is bounded
-by the partition kit below, not by walls.
+by the partition kit below, not by walls, and lies on its carpet (a UI image, below), not on a tile.
 
 **Furniture** (canvas and pivot are hard constraints; the desks, chairs and laptops belong to the
 pod family, not here):
@@ -98,12 +98,15 @@ The first versions of the desk items and the pod family were drawn by a program
 (`art/pixel_people/`); you deliver no character images. You only name which animation each state
 uses in `pack.json`'s `states` (§4).
 
-**12 UI images**: 9 icons of 16×16 (`working`, `blocked`, `unread`, `idle`, `unknown`, `offline`,
+**17 UI images**: 9 icons of 16×16 (`working`, `blocked`, `unread`, `idle`, `unknown`, `offline`,
 `starting`, `branch`, `connected`), pivot 8,16, except `connected` at 8,8; `panel` and `hud_panel`
 32×32, pivot 0,0, nine-patch margins `[4,4,4,4]` (`panel` light, for the world's chips and signs and the tools;
 `hud_panel` dark, for every HUD panel); `selection_seat` 32×48, pivot 16,46 (four corner marks round a seat).
 (All in units; 2x PNG: icons 32×32, `panel` and `hud_panel` 64×64 (margins of 8 texels; the middle is
 stretched, so it must be one flat colour), `selection_seat` 64×96.)
+The five zone carpets `carpet_sage` / `_sky` / `_terra` / `_teal` / `_lilac`: 32×32, pivot 0,0, nine-patch margins
+`[2,2,2,2]` (64×64 at 2x): a flat fill in `carpet_<family>` inside a one-unit edge in `carpet_<family>_edge`, nothing
+else (the middle is stretched); muted and darker than the wood, never near a state colour.
 
 ---
 

@@ -42,7 +42,7 @@ semantic ID, so no audio asset family.
 | View | Orthographic top-down, objects show a little of their top; figures face front. No isometric or perspective mixing |
 | Tile | 32×32 PNG RGBA8 / sRGB at density 1; schema v2 multiplies by the density |
 | Transparency | `nearest` (and every v1 pack): alpha 0 or 255 only, no baked backgrounds, glow or shadows, hard edges. `linear` (density > 1 only): soft edges and shadows allowed |
-| Palette | 49 colours in `art/daylight/pack.json`. In a `nearest` pack every opaque pixel **exactly equals** one of them. A `linear` pack picks colours freely but must still define every key: UI text, panels, name plates and lighting take colours from it |
+| Palette | 59 colours in `art/daylight/pack.json`, at most 64. In a `nearest` pack every opaque pixel **exactly equals** one of them. A `linear` pack picks colours freely but must still define every key: UI text, panels, name plates and lighting take colours from it. A colour is added, never changed: an added one keeps at least 12 (Manhattan, RGB) from every other (`tools/test_assets.py`), and one that covers a surface in the world (a carpet) at least 48 (Euclidean) from every state colour and from `cream` / `paper` |
 | Outline | `nearest`: native 1 px dark ink, stepped corners, no anti-aliasing. `linear`: soft or varying outlines, but the silhouette must still read against the floor |
 | Scale | Even scales only: 2× / 4× / 6× / 8× (`-` / `=` step two at a time; `OfficeScene.content_scale_for` is the one rule). Below a 960×640 window the scale drops to 1×: degraded, below the supported size, not a scale step. No automatic trim, rotation or packing |
 | Import | Lossless; Fix Alpha Border = true; Premult Alpha = false; `mipmaps/generate` by asset family (see "Import policy by asset family") |
@@ -182,7 +182,7 @@ on. `pack.json` is the authority on paths and on which cells are in use.
 - `wall.threshold`: the front-wall threshold.
 
 The top wall is cap + face, 64 units tall. The front wall and threshold are not laid in the open office (see
-[the world model](WORLD_MODEL.md)). There are no rugs: a pod stands on the floor itself. There are no row walls
+[the world model](WORLD_MODEL.md)). A pod stands on the floor itself (no rug); a zone lies on its carpet (a UI nine-patch, "Zone carpets" below), never a tile. There are no row walls
 and no wall joints (the T joint and the free end of the retired row walls are gone with them): a zone is bounded
 by the partition kit (props, below), and only a rectangular shell is promised — no inner corners, crossings or
 doorways. There are no Terrain auto-connect rules.
@@ -411,7 +411,7 @@ and licences in `assets/agent_badges/ATTRIBUTIONS.md`) appear only in Avatar Stu
 64×64 images in the minified family, and drawing one on a laptop would scale a texture at run time. In the office
 the provider is the pack's own few-texel mark at the seat.
 
-## UI assets (12, and a mark per provider) and state semantics
+## UI assets (17, and a mark per provider) and state semantics
 
 - 16×16 icons: working, blocked, unread, idle, unknown, offline, starting, branch, connected.
 - 10×10 key hints beside a staff-panel button's word, in `paper`: `key_enter` (the Enter key, after `Open` and `Answer`
@@ -424,6 +424,22 @@ the provider is the pack's own few-texel mark at the seat.
   showroom's notes); `hud_panel`: the same shape for the dark HUD's panels.
 - `selection_seat`: 32×48 transparent corner marks round a seated figure, pivot 16,46.
 - `mark_<provider>`: the provider's mark at a seat, one per agent in `data/agent_catalog.json` (see "Provider marks").
+- `carpet_<family>`: a zone's carpet, five families (see "Zone carpets").
+
+### Zone carpets
+
+Each zone lies on one carpet inside its partitions, in its worktree group's family: `ArtContract.CARPETS`
+(`carpet_sage`, `carpet_sky`, `carpet_terra`, `carpet_teal`, `carpet_lilac`), index for index with `ACCENTS`, picked by
+`OfficeZoneSign.carpet_of()` (the sign's `accent_of()` index). Each is a UI image of **32×32 units (64×64 texels at
+density 2) on the pivot `[0, 0]` with `nine_patch` `[2, 2, 2, 2]`**: fully opaque, its outermost unit in
+`carpet_<family>_edge` and every texel inside it in `carpet_<family>`, nothing else. The middle is stretched by a
+`NinePatchRect`, so it is **one flat colour** (a pattern there would be resampled; invariant 6). Both colours keep at
+least 48 (Euclidean) from every state colour and from `cream` / `paper`, so a carpet never reads as a signal, and
+are darker than the wood so a carpet reads at 2x without an outline; the tab labels on it are `paper`. Drawn texel by
+texel by `tools/draw_pixel_sources.py` (`CARPET_FAMILIES`, `carpet_piece()`; `make pixel-sources`), copied into
+`art/daylight/ui/`. To add a family: one PNG, two palette colours (added, never changed, under the palette rules),
+one `pack.json` `ui` entry, and a name in `CARPETS` together with an accent in `ACCENTS`: the two must stay the same
+length.
 
 ### Provider marks
 

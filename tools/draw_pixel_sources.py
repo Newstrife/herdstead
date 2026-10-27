@@ -14,8 +14,8 @@ nothing else):
   paper stack `done_stack_small` (a state signal, the done seat's paper on a
   pod desk), the idle mug `idle_mug` (a state signal, the idle seat's mug on a
   pod desk: the painted `desk_mug`'s pixels, texel for texel), the seat selection mark `selection_seat` (ui), the zone
-  partition kit (`partition_*`, props) and the provider marks a laptop
-  wears (`mark_<provider>`, ui).
+  partition kit (`partition_*`, props), the provider marks a laptop
+  wears (`mark_<provider>`, ui) and the zone carpets (`carpet_<family>`, ui).
 
 It writes a complete tree into an empty directory: `props/`, `ui/` and `table/`, laid
 out exactly as `art/daylight/` is. Nothing here ever writes into `art/`, and
@@ -79,6 +79,15 @@ the floor under the top wall): each drawing fills its canvas as
 its bottom outline on the row above its foot (the pivot's y) and nothing below;
 a counter's opaque width is its whole canvas, which is its footprint
 (OfficeDecor.FOOTPRINT).
+
+What a zone carpet keeps (`carpet_<family>`, one per CARPET_FAMILIES, the
+order of ArtContract.CARPETS): a 32x32-unit canvas (64x64 texels) on the pivot
+[0, 0], declared in pack.json with `nine_patch` [2, 2, 2, 2]; fully opaque,
+its outermost unit (CARPET_EDGE, 2 texels) all `carpet_<family>_edge` and
+every texel inside it `carpet_<family>`, and nothing else: a NinePatchRect
+stretches the middle, so the middle is one flat colour (no pattern to smear).
+No texel within 48 (RGB distance) of a state colour or of the idle pill's
+paper and cream (CARPET_STATE_COLOURS), so a carpet never reads as a signal.
 
 Deterministic: the same palette always gives the same bytes.
 """
@@ -734,6 +743,28 @@ def partition_piece(name: str, palette: dict[str, str]) -> Image.Image:
     return result
 
 
+## The zone carpets, one per worktree-group family (ArtContract.CARPETS, in
+## the order of ArtContract.ACCENTS): a flat fill inside a one-unit edge, drawn
+## at DENSE as a nine-patch source (see the module docstring).
+CARPET_FAMILIES = ("sage", "sky", "terra", "teal", "lilac")
+CARPET_SIZE = (32, 32)
+CARPET_EDGE = 1
+CARPET_STATE_COLOURS = ("working", "blocked", "unread", "muted", "task_light", "cream", "paper")
+
+
+def carpet_piece(family: str, palette: dict[str, str]) -> Image.Image:
+    """The carpet of `family`: its edge colour round the outermost unit, its fill inside."""
+    width, height = (value * DENSE for value in CARPET_SIZE)
+    edge = CARPET_EDGE * DENSE
+    result = Image.new("RGBA", (width, height), rgba(palette, f"carpet_{family}_edge"))
+    result.paste(rgba(palette, f"carpet_{family}"), (edge, edge, width - edge, height - edge))
+    states = [bytes.fromhex(palette[name]) for name in CARPET_STATE_COLOURS]
+    for _, colour in result.getcolors():
+        near = min(sum((a - b) ** 2 for a, b in zip(colour[:3], state)) ** 0.5 for state in states)
+        require(near >= MARK_STATE_DISTANCE, f"carpet_{family}: {colour[:3]} is {near:.1f} from a state colour")
+    return result
+
+
 class Sketch:
     """A canvas of legend letters, drawn on with rectangles: what a fixture is
     built from before pixel_map() paints it, so it keeps to the same legend."""
@@ -903,6 +934,10 @@ def draw(source: Path, output: Path) -> list[Path]:
         target = output / f"ui/mark_{provider}.png"
         lid_mark(provider, palette).save(target)
         written.append(target)
+    for family in CARPET_FAMILIES:
+        target = output / f"ui/carpet_{family}.png"
+        carpet_piece(family, palette).save(target)
+        written.append(target)
     generate_templates(source, output / "table")
     written.extend(sorted((output / "table").iterdir()))
     return written
@@ -920,7 +955,7 @@ def main() -> None:
         parser.exit(1, f"draw_pixel_sources: {error}\n")
     print(f"PIXEL_SOURCES_OK: {args.output} ({len(written)} files: {len(DESK_PIECES)} desk props, "
           f"{len(FIXTURE_SIZES)} fixture props, {len(DENSE_SIZES) + len(PARTITION_SIZES)} density-{DENSE} pieces, "
-          f"{len(MARK_PROVIDERS)} provider marks, the table family)")
+          f"{len(MARK_PROVIDERS)} provider marks, {len(CARPET_FAMILIES)} zone carpets, the table family)")
 
 
 if __name__ == "__main__":

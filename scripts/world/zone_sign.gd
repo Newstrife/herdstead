@@ -40,6 +40,12 @@ static func accent_of(group: String) -> int:
 	return posmod(group.hash(), ArtContract.ACCENTS.size())
 
 
+## Which carpet (ArtContract.CARPETS) a worktree group's zones lie on: the
+## family of its accent, so a group shares its carpet as it shares its stripe.
+static func carpet_of(group: String) -> StringName:
+	return ArtContract.CARPETS[accent_of(group)]
+
+
 ## The number a zone is known by: herdr's workspace number (`3`), a mezzanine
 ## its source's number and a letter (`3A`, ZoneModel.level_label). The one place
 ## it is written: the sign says it, and so do the SPACES rail's chip, the edge

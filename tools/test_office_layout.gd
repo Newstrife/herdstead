@@ -1311,7 +1311,16 @@ func test_the_top_run_and_lane_gaps_keep_their_place_when_a_zone_grows() -> void
 	var before: Dictionary[String, Vector2] = {}
 	for placed in first.decorations:
 		before[placed.key] = placed.position
-		if placed.key.begins_with("top/"):
+		# S3-CARPET (2026-10-27): where no grid step stands a plant, a stand-in stands in the first window gap
+		# that takes it, keyed `top/wNN` by the gap (FRAME-Q2's must-fix): not a grid step.
+		if placed.key.begins_with("top/w"):
+			var gap := placed.key.trim_prefix("top/w").to_int()
+			_eq(placed.key, "top/w%02d" % gap, "keyed by the window gap: " + placed.key)
+			var gaps := OfficeShell.window_gaps(first, _pen())
+			_check(gap < gaps.size(), "a window gap of the map: " + placed.key)
+			if gap < gaps.size():
+				_eq(placed.position, Vector2(gaps[gap], OfficeShell.TOP_RUN_FOOT), "in its gap's middle: " + placed.key)
+		elif placed.key.begins_with("top/"):
 			_eq(placed.key, "top/%03d" % placed.key.get_slice("/", 1).to_int(), "keyed by the grid step: " + placed.key)
 			_eq(
 				placed.position.x,

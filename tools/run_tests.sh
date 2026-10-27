@@ -69,12 +69,12 @@ PYTHON="${PYTHON:-$DEFAULT_PYTHON}"
 # Cases discover themselves (tools/test_base.gd), so nothing lists them.
 # These floors are what each file runs today: a file that silently loses
 # its cases fails here instead of staying green. Raise them as cases are added.
-MIN_CASES_ART=31
+MIN_CASES_ART=32
 MIN_CASES_CLIENT=52
 MIN_CASES_MACHINE=34
 MIN_CASES_INCREMENTAL=54
 MIN_CASES_OFFICE_LAYOUT=53
-MIN_CASES_OFFICE_MAP=24
+MIN_CASES_OFFICE_MAP=25
 MIN_CASES_OFFICE_SERVICE=16
 # GEOMETRY 27 -> 25: its two row-wall sign and title cases went with the row
 # walls (lane B2a); MAP's test_top_run_and_lane_gap_pieces_clear_... covers
@@ -86,7 +86,7 @@ MIN_CASES_OFFICE_GEOMETRY=32
 MIN_CASES_OFFICE_FRAMES=5
 MIN_CASES_OFFICE_QUIET=8
 MIN_CASES_DAY_LIGHT=8
-MIN_CASES_OFFICE_RECONCILE=22
+MIN_CASES_OFFICE_RECONCILE=23
 MIN_CASES_OFFICE_WALKING=33
 MIN_CASES_OFFICE_RESTS=28
 MIN_CASES_OFFICE_NAVIGATOR=26
@@ -115,7 +115,7 @@ MIN_CASES_MONITOR=36
 MIN_CASES_TOP_BAR=27
 MIN_CASES_STATE_LOG=22
 MIN_CASES_NEWS_EVENTS=16
-MIN_CASES_LENS=20
+MIN_CASES_LENS=22
 # What every surface calls a pane (DisplayName), live and as a table.
 MIN_CASES_NAMES=8
 MIN_CASES_STRATEGIC=28

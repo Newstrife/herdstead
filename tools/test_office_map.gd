@@ -13,8 +13,13 @@ const FURNISHED_WIDTHS: Array[int] = [11, 20, 24, 32, 60]
 ## 7 of its 8 inner cells, so no other pod shares its row there (two 2-pane
 ## pods, 3 cells each, do share one); one lane (4 cells) cannot hold it.
 const ROW := 12
-## Top-wall plants of the two maps of the top-run case, by the width asked.
-const TOPS_BY_WIDTH: Dictionary[int, int] = {11: 0, 20: 0, 24: 2, 32: 0, 60: 0}
+## Top-wall plants of the two maps of the top-run case, by the width asked,
+## and the one piece each map stands there (key @ x).
+## S3-CARPET (2026-10-27): every width stands one; FRAME-Q2's gap at 5L + 3 with L odd is closed.
+const TOPS_BY_WIDTH: Dictionary[int, int] = {11: 2, 20: 2, 24: 2, 32: 2, 60: 2}
+const TOP_PIECES: Dictionary[int, String] = {
+	11: "top/w00@200", 20: "top/w00@216", 24: "top/001@232", 32: "top/w00@248", 60: "top/w00@216"
+}
 
 var people: PixelPeople
 ## Made on first use by _pen().
@@ -817,7 +822,11 @@ func test_top_run_and_lane_gap_pieces_clear_the_door_windows_pantry_signs_and_pa
 			if plan == null:
 				continue
 			for placed in plan.decorations:
-				tops_by_width[width] += 1 if placed.key.begins_with("top/") else 0
+				if placed.key.begins_with("top/"):
+					tops_by_width[width] += 1
+					var piece := "%s@%d" % [placed.key, int(placed.position.x)]
+					_eq(piece, TOP_PIECES[width], "%d cells: the top wall's one piece" % width)
+					_eq(placed.position.y, OfficeShell.TOP_RUN_FOOT, "%d cells: at the top wall's foot" % width)
 			print("TOP_RUN %d cells asked, %d wide" % [width, plan.floor_cells.size.x])
 			var grid := 32.0
 			var covers: Array[Rect2] = OfficeShell.wall_covers(plan, _pen())
@@ -849,11 +858,117 @@ func test_top_run_and_lane_gap_pieces_clear_the_door_windows_pantry_signs_and_pa
 					)
 	board.free()
 	_check(pieces > 20 and tops > 0, "the maps stand furniture: %d pieces, %d on the top wall" % [pieces, tops])
-	# Z1 (2026-10-27): at 5L + 3 with L odd the top run's grid (72 + 160k) meets the windows / door and stands no plant;
-	# S3-CARPET re-grids it (FRAME-Q2). Top-wall plants of both maps, by the width asked (the map's width in brackets):
-	# 11 (13 wide) none, as on the base; 20 (18) none; 24 (23) one each; 32 (28) none, 60 (58) none, where the base's
-	# 23- and 53-cell maps stood one each. At a map width both plans reach the count is the base's.
+	# S3-CARPET (2026-10-27): the top run's grid (72 + 160k) meets the windows / door at 5L + 3 with L odd (and at 13);
+	# where no grid step stands a plant, the first window gap that takes one stands one (OfficeShell.window_gaps(),
+	# `top/wNN`), FRAME-Q2's must-fix. Both maps, by the width asked (the map's width in brackets): 11 (13 wide), 20
+	# (18), 32 (28) and 60 (58) stand the stand-in, none lower than before (all were 0); 24 (23) keeps its grid
+	# step top/001 at 232, identical to the base's.
 	_eq(tops_by_width, TOPS_BY_WIDTH, "the top-wall run's plants at each shipped width")
+
+
+## S3 item 7 (2026-10-27): one carpet per zone, in its group's family. The
+## worktrees fixture (tools/fixtures/snapshot_worktrees.json: herdstead with
+## two mezzanines, notes, a worktree whose source is closed) drawn at 800
+## units: Ground holds the shell, then the carpets, then the pods'
+## backgrounds; each placed zone lies on one carpet at
+## OfficeShell.carpet_rect(), on the floor, off every corridor, its own aisle
+## row and every other zone's slot, taking no pointer, in the family its
+## sign's stripe wears (a mezzanine its source's). A workspace with no tab
+## lies on one too.
+func test_each_zone_lies_on_one_carpet_of_its_groups_family() -> void:
+	var parsed: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string("res://tools/fixtures/snapshot_worktrees.json")
+	)
+	_check(parsed is Dictionary, "the fixture reads")
+	if parsed is not Dictionary:
+		return
+	var fixture_file: Dictionary = parsed
+	var machines: Array[MachineView] = [
+		MachineView.new("local", "LOCAL", HerdrSnapshot.from_wire(_dict(fixture_file, "snapshot")), false)
+	]
+	var map := OfficeProjection.frame(machines, _pen().art.state_names()).buildings[0].map
+	var plan := FloorPlanCache.new().prepare(map, _pen(), 800.0)
+	_check(plan != null, "the fixture's map is planned")
+	if plan == null:
+		return
+	var view := _drawn_view(plan, map)
+	var order: Array[String] = []
+	for child in view.ground.get_children():
+		order.append(String(child.name))
+	_eq(order.slice(0, 2), ["Shell", "Carpets"] as Array[String], "Ground: the shell, then the carpets")
+	_eq(order.size(), 2 + view.desks.size(), "then one background per pod, and nothing else")
+	for tab: String in view.desks:
+		_check(view.desks[tab].background.get_index() >= 2, tab + ": its background after the carpets")
+	var holder := view.ground.get_node("Carpets")
+	_eq(holder.get_child_count(), plan.zones.size(), "one carpet per placed zone")
+	var art := _pen().art
+	var grid := float(FloorLayoutPolicy.GRID)
+	var floor_rect := Rect2(Vector2(plan.floor_cells.position) * grid, Vector2(plan.floor_cells.size) * grid)
+	var models: Dictionary[String, ZoneModel] = {}
+	for zone in map.zones:
+		models[zone.key] = zone
+	var mezzanines := 0
+	for zone in plan.zones:
+		var carpet := view.carpet(zone.zone_key)
+		_check(carpet != null and carpet.get_parent() == holder, zone.zone_key + ": a carpet in Ground/Carpets")
+		if carpet == null:
+			continue
+		var lies := OfficeShell.carpet_rect(zone)
+		_eq(
+			[carpet.position, carpet.size * carpet.scale],
+			[lies.position, lies.size],
+			zone.zone_key + ": at carpet_rect"
+		)
+		_eq(carpet.mouse_filter, Control.MOUSE_FILTER_IGNORE, zone.zone_key + ": takes no pointer")
+		_check(floor_rect.encloses(lies), zone.zone_key + ": on the floor")
+		for corridor in plan.corridors:
+			var walk := Rect2(Vector2(corridor.position) * grid, Vector2(corridor.size) * grid)
+			_check(not lies.intersects(walk), "%s: off the corridor %s" % [zone.zone_key, walk])
+		var slot := zone.slot()
+		var aisle := Rect2(Vector2(slot.position) * grid, Vector2(slot.size.x, zone.aisle_cells) * grid)
+		_check(not lies.intersects(aisle), zone.zone_key + ": never under its own aisle row")
+		for other in plan.zones:
+			if other != zone:
+				var taken := Rect2(Vector2(other.slot().position) * grid, Vector2(other.slot().size) * grid)
+				_check(not lies.intersects(taken), "%s: off %s's slot" % [zone.zone_key, other.zone_key])
+		var shown := models[zone.zone_key]
+		var mezzanine := not shown.mezzanine_of.is_empty()
+		var group := shown.mezzanine_of if mezzanine else shown.key
+		var family := OfficeZoneSign.carpet_of(group)
+		_eq(carpet.texture, art.sprite_texture(art.ui_sprite(family)), zone.zone_key + ": its group's family")
+		var stripe: ColorRect = view.zone_sign(zone.zone_key).get_node("%Accent")
+		_eq(
+			stripe.color,
+			art.color(ArtContract.ACCENTS[ArtContract.CARPETS.find(family)]),
+			zone.zone_key + ": the family of the stripe its sign wears"
+		)
+		if mezzanine and view.carpet(shown.mezzanine_of) != null:
+			mezzanines += 1
+			_eq(carpet.texture, view.carpet(shown.mezzanine_of).texture, zone.zone_key + ": its source's carpet")
+	_eq(mezzanines, 2, "both of herdstead's mezzanines lie on its carpet")
+	view.root.free()
+	var zones: Array[ZoneModel] = [_zoned("machine/1", 1, [_room("a", 2)]), _zoned("machine/2", 2, [])]
+	var bare_map := MapModel.of_zones("machine", zones)
+	var bare_plan := FloorPlanCache.new().prepare(bare_map, _pen(), 800.0)
+	_check(bare_plan != null and bare_plan.zone("machine/2") != null, "a workspace with no tab is placed")
+	if bare_plan != null and bare_plan.zone("machine/2") != null:
+		var bare := _drawn_view(bare_plan, bare_map)
+		var empty := bare.carpet("machine/2")
+		_check(empty != null, "and lies on a carpet")
+		if empty != null:
+			_eq(empty.position, OfficeShell.carpet_rect(bare_plan.zone("machine/2")).position, "at its carpet_rect")
+		bare.root.free()
+
+
+## `plan` drawn for `map` by a floor view on a root of its own in the tree
+## (the case frees `root`).
+func _drawn_view(plan: FloorPlan, map: MapModel) -> OfficeFloorView:
+	var floor_root := Node2D.new()
+	root.add_child(floor_root)
+	var view := OfficeFloorView.new()
+	view.setup(_pen(), floor_root)
+	view.reconcile(plan, map)
+	return view
 
 
 ## A lane gap's pieces are keyed by their lane and row: where another zone

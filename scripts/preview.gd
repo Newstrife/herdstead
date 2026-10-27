@@ -182,7 +182,7 @@ func _record(target: String) -> void:
 	get_tree().quit()
 
 
-## One mock workspace as the office draws one: a zone (its partitions, its sign
+## One mock workspace as the office draws one: a zone (its carpet, its partitions, its sign
 ## saying `number` and `space`) holding one tab, a pod of four desks named `tab`
 ## under it, with a station on both sides of each desk. `split` (API) seats six
 ## workers and a shell and is selected; the other (WEB) seats four workers and
@@ -227,6 +227,15 @@ func zone(at: Vector2, number: int, space: String, tab: String, split: bool) -> 
 	var placed := ZonePlacement.new()
 	placed.zone_key = space
 	placed.cells = ZONE_CELLS
+	# Its carpet inside the partitions, in the family its key wears, flat on
+	# the floor under the pod, as the office lays it (OfficeFloorView).
+	var carpet := NinePatchRect.new()
+	carpet.name = "Carpet" + space
+	carpet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lies := OfficeShell.carpet_rect(placed)
+	pen.dress_nine_patch(carpet, art.ui_sprite(OfficeZoneSign.carpet_of(space)), lies.size)
+	carpet.position = at + lies.position
+	ground.add_child(carpet)
 	var partitions := Node2D.new()
 	partitions.name = "Partitions" + space
 	partitions.y_sort_enabled = true
