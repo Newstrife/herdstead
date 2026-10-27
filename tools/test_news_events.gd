@@ -435,7 +435,8 @@ func test_every_locate_counts_one_navigation() -> void:
 	var revision := navigator.nav_revision
 	await _office_key(office, KEY_N)
 	_eq(navigator.nav_revision, revision + 1, "`N`: one")
-	await _press(office.hud.bar.cards()[0])
+	# S3 BAR-b (2026-10-27): on the card's face; the lower half of its words is its place, which pans.
+	await _press(office.hud.bar.cards()[0].get_node("%Face") as Control)
 	await _frames(2)
 	_eq(navigator.nav_revision, revision + 2, "a blocked card: one")
 	var on: Button = office.hud.inspector.get_node("%StepOn")
@@ -539,15 +540,13 @@ func test_the_smallest_screen_keeps_news_staff_and_columns_apart() -> void:
 	var hud := office.hud
 	_eq(hud.placed(hud.news), Rect2(16, 296, 448, 20), "NEWS along the bottom")
 	_eq(hud.placed(hud.staff), Rect2(16, 264, 448, 28), "the compact staff panel above it")
-	_eq(hud.placed(hud.spaces).end.y, 248.0, "the minimap stops above the panel")
-	_eq(hud.placed(hud.right_column).end.y, 248.0, "so does the drawer")
-	var panels: Array[Rect2] = [
-		hud.placed(hud.news), hud.placed(hud.staff), hud.placed(hud.spaces), hud.placed(hud.right_column)
-	]
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(hud.placed(hud.right_column).end.y, 248.0, "the drawer stops above the panel")
+	var panels: Array[Rect2] = [hud.placed(hud.news), hud.placed(hud.staff), hud.placed(hud.right_column)]
 	for i in panels.size():
 		for j in range(i + 1, panels.size()):
 			_check(not panels[i].intersects(panels[j]), "%s and %s stand apart" % [panels[i], panels[j]])
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 200), "the world between them")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 200), "the world between them")
 	_check(hud.news.get_combined_minimum_size().x <= 448.0, "the strip asks for no more than its width")
 	_eq(hud.news.get_global_rect(), Rect2(16, 296, 448, 20), "and stands where it was placed")
 	var strip := hud.news.get_global_rect()
@@ -571,7 +570,7 @@ func test_the_smallest_screen_keeps_news_staff_and_columns_apart() -> void:
 	await _frames(3)
 	_check(not hud.news.visible, "opened up on a short screen, the panel takes the strip's room")
 	_eq(hud.placed(hud.staff), Rect2(16, 176, 448, 128), "the panel at full height")
-	_eq(hud.world_rect(), Rect2(96, 48, 216, 112), "the world above it")
+	_eq(hud.world_rect(), Rect2(16, 48, 296, 112), "the world above it")
 	hud.compact_card()
 	await _frames(2)
 	_check(hud.news.visible, "folded, the strip is back")

@@ -2,7 +2,7 @@ class_name StrategicLayout
 extends RefCounted
 ## Where the strategic view (`S`) draws each pod of a machine's map and each
 ## seat at it, for a room of a given size: a schematic, not a map. The map's
-## zones are sections, in the SPACES rail's order; a section is a caption band
+## zones are sections, in the page keys' order (OfficeNavigator.section()); a section is a caption band
 ## naming its zone and then that zone's pod rows (FloorPlan's, in `index` order,
 ## empty rows left out) top to bottom, each row's pods left to right without
 ## the plan's gaps. A pod keeps only its columns and its two sides (far over

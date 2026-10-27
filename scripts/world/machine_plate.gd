@@ -108,7 +108,7 @@ static func problem_line(
 	return said if named.is_empty() else ", ".join(named) + ": " + said
 
 
-## The machine's live state as the SPACES rail shows it, and `reason`, its SSH
+## The machine's live state as its chip in the top bar says it, and `reason`, its SSH
 ## forward's last complaint. Only text changes: a flapping machine relabels.
 func show_state(state: MachineLiveness.State, reason: String) -> void:
 	var text := "LIVE"

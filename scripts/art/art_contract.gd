@@ -31,8 +31,8 @@ const JACKET_LIGHT := &"jacket_light"
 const WOOD_LIGHT := &"wood_light"
 const TASK_LIGHT := &"task_light"
 const CONTACT_SHADOW := &"contact_shadow"
-## The done state's own colour (its badge is `unread`): an UNREAD window in the
-## SPACES rail.
+## The done state's own colour (its badge is `unread`): a done card's frame,
+## an UNREAD square in the strategic view, the lens's wash.
 const UNREAD := &"unread"
 ## Structure accents, never state: a worktree group's zones share one on their
 ## signs (and HudTheme's PlateAccent variations, in this order).
@@ -186,8 +186,8 @@ const UI_HUD_PANEL := &"hud_panel"
 const UI_SELECTION_SEAT := &"selection_seat"
 const UI_BRANCH := &"branch"
 ## Three display overlays, not herdr states: a pane whose agent is still
-## starting, a machine that has dropped, and one that is answering. The
-## SPACES rail's machine headings wear all three.
+## starting, a machine that has dropped, and one that is answering: the agent
+## list, EVENTS, the OVERVIEW and the card wear them.
 const UI_STARTING := &"starting"
 const UI_OFFLINE := &"offline"
 const UI_CONNECTED := &"connected"

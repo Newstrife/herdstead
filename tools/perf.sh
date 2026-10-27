@@ -8,7 +8,7 @@
 #
 # Scenarios: medium (3 zones on one map, 36 panes), stress (1 zone, 10 tabs x 8
 # panes), spaces30 (30 zones of one tab on one map, 189 panes, ten of them
-# mezzanines: many signs, partitions and SPACES rows) and overview (the stress
+# mezzanines: many signs, partitions and carpets) and overview (the stress
 # map in a 3200x1600 window at 2x, zoomed out: the
 # whole map on screen, in a window a 3456-pixel-wide laptop display still
 # holds; a display too small for it is said

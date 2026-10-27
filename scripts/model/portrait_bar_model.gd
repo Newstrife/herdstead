@@ -55,6 +55,9 @@ class Card:
 	var state := ""
 	## The zone that seats it; empty when no zone does.
 	var zone_key := ""
+	## That zone and its building, for the place's tooltip (the zone's sign);
+	## null when no zone seats it.
+	var zone: ZoneRef
 	## Its worktree group: the mezzanine's source zone, else its own zone;
 	## empty when unseated. The tag's colour comes from it, never the state.
 	var group_key := ""
@@ -149,6 +152,7 @@ func _add(frame: OfficeFrame, pane: PaneModel, group: Group) -> void:
 	card.starting = pane.launching()
 	card.zone_key = frame.zone_of(pane.key)
 	var zone := frame.find_zone(card.zone_key) if not card.zone_key.is_empty() else null
+	card.zone = zone
 	if zone != null:
 		var source := zone.zone_model.mezzanine_of
 		card.group_key = source if not source.is_empty() else zone.zone_model.key

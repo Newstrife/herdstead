@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/machine_chip.gd" id="1"]
+
+[node name="MachineChip" type="Button"]
+custom_minimum_size = Vector2(40, 26)
+size_flags_vertical = 4
+focus_mode = 0
+theme_type_variation = &"MachineChip"
+clip_text = true
+text_overrun_behavior = 3
+script = ExtResource("1")
+wide_width = 40.0
+narrow_width = 20.0

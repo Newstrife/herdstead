@@ -69,13 +69,13 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
                           │                         │
                           ▼                         ▼
         OfficeFloorView + OfficeMachinePlate (scenes/world):   OfficeHud (scenes/ui):
-        Ground + Sorted (y-sort), zones (a carpet in its worktree group's family, partitions, OfficeZoneSign), pod / station (a blocked seat's chip: OfficeChip) / person   top bar portrait strip (PortraitBarModel → PortraitCard / PortraitFold; OfficeTotals for `13 panes` and the status line's hover) / left SPACES rail (OfficeSpaces, SpaceRows in: a heading shows its machine's map, a row pans to its zone; a narrow rail under 1280) + edge arrows on the world's edges toward blocked desks off screen (OfficeEdgeArrows, EdgeArrowModel in) /
+        Ground + Sorted (y-sort), zones (a carpet in its worktree group's family, partitions, OfficeZoneSign), pod / station (a blocked seat's chip: OfficeChip) / person   top bar: machine chips (MachineChip, OfficeTotals' rows in: a chip shows its machine's map) and the portrait strip (PortraitBarModel → PortraitCard / PortraitFold; a card's place pans to its zone; OfficeTotals for `13 panes` and the status line's hover) + edge arrows on the world's edges toward blocked desks off screen (OfficeEdgeArrows, EdgeArrowModel in) /
                                                              right drawer (closed at start): the AGENTS tab's agent list (AgentListModel; its History group comes from StateLog via AgentHistory) and the EVENTS tab /
                                                              bottom staff panel (agent card, `inspector`; compact by default: a card on tall screens, one row below; what it shows is CardPicture, pure, written into the scene's nodes) + NEXT (NextModel's verbs) / bottom row NEWS (NewsItem) /
                                                              OVERVIEW, opened by PANES or O (OverviewModel; the timeline is a Control drawn in _draw())
         OfficeFloorView also answers, once and in floor coordinates, where a desk's signal is: signal_extent() (the pointer's frame, the camera's reveal), arrow_target() (the edge arrows' aim: the chip alone, on purpose), pod_extent(), zone_opening();
         office.gd's reveal() / reveal_zone() only hand an answer to OfficeCamera (reveal() a desk with headroom, open_on() a zone at its sign's top: two rules, pure statics)
-        OfficeViewMarks: follows the view without a refresh: which SPACES rows are in view, and the edge arrows (each aimed at OfficeFloorView.arrow_target(); handed to the HUD only when they change)
+        OfficeViewMarks: follows the view without a refresh: the edge arrows (each aimed at OfficeFloorView.arrow_target(); handed to the HUD only when they change)
         OfficeQuestionTips: the world tooltip (`%WorldTip`) over a blocked seat's chip (the question's excerpt) and over a zone's sign (repository and checkout)
         OfficeLens: the lens while L is held (one duration row per station, a wash under each pod, furniture dimmed); OfficePointer: a dashed frame off the station while a HUD row is hovered
         OfficeStrategic: the strategic view on `S` (a schematic of the shown machine's map over the world area; StrategicModel in, StrategicLayout lays out, %Plan's _draw() draws)
@@ -179,7 +179,7 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
       It never calls `preview_shown`, does not count as "seen", and does not unlock write-then-look.
       Clicks in NEWS, EVENTS and OVERVIEW only select a pane (the same path as a list click) and never write; neither do the state log and their refreshes.
       A click on a portrait card only selects (the list's path); a fold, a tally or `13 panes` only opens or filters the OVERVIEW; none writes, and none reads.
-      A click on a SPACES heading or row and a click on an edge arrow only navigate: they show a machine's map or pan to a zone or a desk, select nothing (the arrow) and never write.
+      A click on a machine chip, a portrait card's place or an edge arrow only navigates: it shows a machine's map or pans to a zone or a desk, selects nothing and never writes.
 
 ## If you change X, also update Y
 
@@ -217,7 +217,7 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
   "pressing selects the station" slip in, because the test bypassed the input path. Run a new case once against the implementation before your change, to confirm it fails.
 - Never weaken an assertion to make a test pass. When behaviour has to change, say why first, then change the assertion.
 - Tests that need herdr use `tools/fake_herdr.py`, tests that need ssh use `tools/fake_ssh.py`; tests and CI never connect to a real herdr.
-- The fake herdr answers only the read-only three by default, refuses everything else and records it as a violation. Suites that build an office but open no writes run with `--read-only` (`tools/run_tests.sh`); the SPACES rail and the plate's problem line are `tools/test_space_rail.gd` (never `tools/test_spaces.gd`, which is a write suite) and the edge arrows `tools/test_edge_arrows.gd`;
+- The fake herdr answers only the read-only three by default, refuses everything else and records it as a violation. Suites that build an office but open no writes run with `--read-only` (`tools/run_tests.sh`); map navigation (machine chips, a card's place, the page keys, the world's left edge) and the plate's problem line are `tools/test_map_navigation.gd` (never `tools/test_spaces.gd`, which is a write suite) and the edge arrows `tools/test_edge_arrows.gd`;
   write-boundary cases live only in `tools/test_commands.gd`, `tools/test_raw_input.gd` (the monitor's pass-through input), `tools/test_answers.gd` (answer mode: keys and the one-line reply), `tools/test_bubbles.gd` (chip reads, NEXT, portrait-card clicks), `tools/test_monitor.gd`
   (terminal monitor: the grid and real input), `tools/test_overview.gd` (the staff panel answers as usual while the overview is open; the only deliberate write in that suite),
   `tools/test_launch.gd` (the boundary's `agent.prompt`, `agent.start` and `pane.split`, and the staff panel's START AGENT block), `tools/test_prompt.gd` (the card's one-line reply through `agent.prompt`),
@@ -244,7 +244,7 @@ herdr machine list ─ Roster ┘        │      commands: CommandContext in, C
   The script load check in `make check` and `make check-quick` catches this; do not skip it.
 - **Load-sensitive suites.** The write suites and a few others wait on wall-clock time against a fake herdr; on a loaded machine (other projects' tests, two `make check` at once)
   one of them can fail with a time-out or a count off by one: MONITOR's frame budget, OVERVIEW's and BUBBLE's ten-second read and chip order, ANSWER / LAUNCH / CLOSE / SPACES waits,
-  STRATEGIC's redraw count, INCREMENTAL's wait label, SPACE RAIL's in-view marks have all done it. The rule: look at `uptime`, rerun that suite alone (`make test-suite`), then the
+  STRATEGIC's redraw count, INCREMENTAL's wait label have all done it. The rule: look at `uptime`, rerun that suite alone (`make test-suite`), then the
   full check once more, and report every run as it was; never loosen the assertion, never call a run green that was not, and never run two full checks side by side.
 - Commit art products (`art/`, `assets/`, `.import`) separately from code.
 - Do not push or open PRs unless asked.

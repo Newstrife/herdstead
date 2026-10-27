@@ -4,8 +4,8 @@ extends Control
 ## the shown map with blocked desks off screen (the office's EdgeArrowModel
 ## list, longest wait first), standing on the edge those desks lie beyond. A
 ## click on one pans to its desk and selects nothing; hovering one outlines its
-## zone's SPACES row. Another machine's blocked agents are not here: the rail
-## counts them.
+## zone's blocked cards in the top bar. Another machine's blocked agents are
+## not here: the top bar's cards show them.
 ##
 ## The HUD lays this control over world_rect() and shows it while there are
 ## arrows and nothing covers the world (OfficeHud._fit_edge_arrows()). It takes

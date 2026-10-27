@@ -1,7 +1,8 @@
 class_name OfficeBar
 extends Control
-## The top bar: the wordmark on the left, then the portrait strip, who needs
-## you as faces (the blocked in the order `N` walks them, each with how long
+## The top bar: the wordmark on the left, among several machines a chip per
+## machine (a click shows its map), then the portrait strip, who needs you as
+## faces (the blocked in the order `N` walks them, each with how long
 ## it has waited; then the done, oldest first; then the working and the idle,
 ## in place order), then `13 panes` and the chime switch, and two
 ## right-aligned lines, the pack's name and how the office is running, as wide
@@ -10,14 +11,18 @@ extends Control
 ## (PortraitBarModel.fit(), from the widths the scene's nodes measure), never
 ## hiding the longest-waiting blocked. `13 panes` and the chime switch show
 ## where titles are allowed; on a narrower bar they step aside and the strip
-## takes their room. Hovering the status line says how each machine answers.
+## takes their room. Hovering the status line says how each machine answers,
+## and a machine chip says it for its machine.
 ##
-## Its nodes are permanent, but for the cards: a card exists only while its
-## pane shows as a card or a face, and a pane that stops showing gives its node
-## back to a pool, hidden and not freed, for the next pane to take. The pool is
-## bounded by the strip's width, not by the panes. A click on a card, a fold
-## or `13 panes` is the office's to act on (portrait_picked, fold_pressed,
-## panes_pressed).
+## Its nodes are permanent, but for the cards and the chips: a card exists only
+## while its pane shows as a card or a face, and a pane that stops showing gives
+## its node back to a pool, hidden and not freed, for the next pane to take.
+## The pool is bounded by the strip's width, not by the panes. A chip is kept by
+## its machine's key for as long as the fleet has that machine. A click on a
+## card, a card's place, a chip, a fold or `13 panes` is the office's to act on
+## (portrait_picked, zone_picked, machine_picked, fold_pressed, panes_pressed).
+## The bar is how the mouse moves between machines (the chips) and zones (a
+## card's place); PageUp / PageDown and `S` reach the zones nobody waits in.
 ##
 ## In a window that fills the screen the bar is also its title bar: the window's
 ## own buttons (the macOS traffic lights) stand over its left end, so the
@@ -28,6 +33,10 @@ extends Control
 signal portrait_picked(key: String)
 ## The pointer rests on pane `key`'s card (empty: on none any more).
 signal portrait_pointed(key: String)
+## A card's place was clicked: pan to zone `key`, select nothing.
+signal zone_picked(key: String)
+## A machine chip was clicked: show machine `key`'s map.
+signal machine_picked(key: String)
 ## A fold or a tally was clicked: its group's state in the OVERVIEW.
 signal fold_pressed(group: PortraitBarModel.Group)
 ## `13 panes` was clicked: the OVERVIEW, opened or closed.
@@ -37,6 +46,7 @@ signal panes_pressed
 signal chime_toggled(on: bool)
 
 const CARD_SCENE := preload("res://scenes/ui/portrait_card.tscn")
+const CHIP_SCENE := preload("res://scenes/ui/machine_chip.tscn")
 ## What the theme line says while the lens is held (show_lens()).
 const LENS_LINE := "LENS · hold L"
 ## What it says while the strategic view is open (show_strategic()).
@@ -60,6 +70,12 @@ var _chime_on := false
 var _alarmed := false
 ## Every machine, for the status line's hover.
 var _machines: Array[OfficeTotals.MachineRow] = []
+## Machine key -> its chip, while there are several machines.
+var _chips: Dictionary[String, MachineChip] = {}
+## Whether the bar has its titles (set_titled()): the chips are wide.
+var _titled := true
+## The panes whose cards a hovered HUD line outlines (point()), as a set.
+var _pointed: Dictionary[String, bool] = {}
 ## Who the strip shows, and dressed from what.
 var _model := PortraitBarModel.new()
 var _art: ArtPack
@@ -88,6 +104,7 @@ func _ready() -> void:
 	var switch: Button = %Chime
 	switch.pressed.connect(func() -> void: chime_toggled.emit(not _chime_on))
 	var strip: Control = %Strip
+	strip.resized.connect(_fit_chips)
 	strip.resized.connect(_lay_out)
 
 
@@ -139,9 +156,92 @@ func show_bar(theme_name: String, status: String, is_alarmed: bool) -> void:
 	status_label.theme_type_variation = &"LabelBlocked" if is_alarmed else &"LabelCream"
 
 
-## Every machine, for the status line's hover (OfficeTotals.machines_tip()).
-func show_machines(machines: Array[OfficeTotals.MachineRow]) -> void:
+## Every machine, for the status line's hover (OfficeTotals.machines_tip()),
+## and, when there are `several`, a chip each in the fleet's order, machine
+## `shown`'s (its map is the one drawn) the current one. Chips are kept by
+## machine key and written in place; a machine gone takes its chip with it.
+## The chips take their room from the strip, which fits what is left.
+func show_machines(machines: Array[OfficeTotals.MachineRow], shown := "", several := false) -> void:
 	_machines = machines
+	var row: HBoxContainer = %MachineRow
+	var listed: Dictionary[String, bool] = {}
+	if several:
+		for machine in machines:
+			listed[machine.key] = true
+	for key: String in _chips.keys():
+		if not listed.has(key):
+			row.remove_child(_chips[key])
+			_chips[key].queue_free()
+			_chips.erase(key)
+	var at := 0
+	for machine in machines:
+		if not listed.has(machine.key):
+			continue
+		var chip: MachineChip = _chips.get(machine.key)
+		if chip == null:
+			chip = CHIP_SCENE.instantiate()
+			row.add_child(chip)
+			chip.set_narrow(not _titled)
+			chip.pressed.connect(func() -> void: machine_picked.emit(chip.key))
+			_chips[machine.key] = chip
+		chip.show_machine(machine, machine.key == shown)
+		if chip.get_index() != at:
+			row.move_child(chip, at)
+		at += 1
+	var clip: Control = %Machines
+	if clip.visible == _chips.is_empty():
+		clip.visible = not _chips.is_empty()
+	_fit_chips()
+
+
+## The chips take the width they need from the room they share with the strip,
+## but never so much that the strip is left less than the ladder's last rung
+## (a tally per group, PortraitBarModel.fit()): the longest-waiting blocked
+## stay in sight however many machines there are. Past that the row of chips
+## is cut where its room ends; the machines beyond it are reached by their
+## cards and PageUp / PageDown. Only the clip's width is written.
+func _fit_chips() -> void:
+	var clip: Control = %Machines
+	if not is_node_ready() or not clip.visible:
+		return
+	var needed := 0.0
+	for chip in chips():
+		needed += chip.get_combined_minimum_size().x
+	var row: HBoxContainer = %MachineRow
+	needed += row.get_theme_constant("separation") * maxi(_chips.size() - 1, 0)
+	var made := metrics()
+	var groups := PortraitBarModel.GROUPS.size()
+	var last_rung := made.tally * groups + made.gap * (groups - 1)
+	var strip: Control = %Strip
+	var width := clampf(strip.size.x + clip.custom_minimum_size.x - last_rung, 0.0, needed)
+	if clip.custom_minimum_size.x != width:
+		clip.custom_minimum_size.x = width
+
+
+## The machine chips, left to right; none for a single machine.
+func chips() -> Array[MachineChip]:
+	var found: Array[MachineChip] = []
+	var row: HBoxContainer = %MachineRow
+	for child in row.get_children():
+		if child is MachineChip:
+			found.append(child)
+	return found
+
+
+## Machine `key`'s chip; null when there is one machine, or no such machine.
+func chip_for(key: String) -> MachineChip:
+	return _chips.get(key)
+
+
+## Outline the cards of panes `keys` (a hovered HUD line points at them), and
+## no other; a pane folded away has no card to outline. Only the cards whose
+## ring changes are written, and nothing is laid out.
+func point(keys: PackedStringArray) -> void:
+	_pointed.clear()
+	for key in keys:
+		_pointed[key] = true
+	for key: String in _shown:
+		_shown[key].set_pointed(_pointed.has(key))
 
 
 ## The lens is held (`held`): the theme line says so, `LENS · hold L`; let go,
@@ -228,12 +328,17 @@ func title_gap() -> float:
 
 
 ## `13 panes` and the chime switch show on a screen wide enough for titles
-## (OfficeHud.fit()) only; on a narrower one the strip takes their room.
+## (OfficeHud.fit()) only; on a narrower one the strip takes their room, and
+## the machine chips go narrow.
 func set_titled(on: bool) -> void:
 	var panes: Button = %Panes
 	var switch: Button = %Chime
 	panes.visible = on
 	switch.visible = on
+	_titled = on
+	for key: String in _chips:
+		_chips[key].set_narrow(not on)
+	_fit_chips()
 
 
 ## The chime is on (`on`) or off: the switch says so, in the lines' cream
@@ -314,6 +419,7 @@ func _lay_out() -> void:
 		node.visible = true
 		node.set_face_only(faces[card.key])
 		node.show_card(card, _art, card.key == _model.selected)
+		node.set_pointed(_pointed.has(card.key))
 		var wait: String = _waits.get(card.key, "")
 		node.show_wait(wait)
 	var at := 0
@@ -329,8 +435,10 @@ func _lay_out() -> void:
 
 
 ## Everything a lay-out at `rung` in `room` units would write, as one string:
-## the rung, the room and the pack, each shown card's words, look and
-## selection, and each fold's count and the names its tooltip lists. Only what
+## the rung, the room and the pack, each shown card's words, look, place (its
+## zone and the sign's tooltip) and selection, and each fold's count and the
+## names its tooltip lists. (A card's pointed ring and the machine chips are
+## written apart, each on its own change: point(), show_machines().) Only what
 ## shows is in it, so a fleet of 400 costs no more than the strip's room.
 func _signature_of(rung: PortraitBarModel.Fit, room: float) -> String:
 	var parts := PackedStringArray(["%d %d %s %s" % [rung.rung, rung.faces_shown, room, _art.base_path]])
@@ -344,7 +452,7 @@ func _signature_of(rung: PortraitBarModel.Fit, room: float) -> String:
 				parts
 				. append(
 					(
-						"%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d"
+						"%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s"
 						% [
 							card.key,
 							card.group,
@@ -358,6 +466,8 @@ func _signature_of(rung: PortraitBarModel.Fit, room: float) -> String:
 							card.machine_label,
 							selected,
 							rung.forms[group],
+							card.zone_key,
+							PortraitCard.place_tip_of(card).c_escape(),
 						]
 					)
 				)
@@ -382,6 +492,8 @@ func _unpooled() -> PortraitCard:
 	var row: HBoxContainer = %Cards
 	row.add_child(made)
 	made.pressed.connect(func() -> void: portrait_picked.emit(made.key))
+	made.place_picked.connect(func(zone: String) -> void: zone_picked.emit(zone))
+	made.place_hovered.connect(func(on: bool) -> void: portrait_pointed.emit(made.key if on else ""))
 	made.mouse_entered.connect(func() -> void: portrait_pointed.emit(made.key))
 	made.mouse_exited.connect(func() -> void: portrait_pointed.emit(""))
 	return made
@@ -390,6 +502,7 @@ func _unpooled() -> PortraitCard:
 func _pool(card: PortraitCard) -> void:
 	card.visible = false
 	card.key = ""
+	card.set_pointed(false)
 
 
 ## The cards showing a pane now, left to right.

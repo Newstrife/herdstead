@@ -89,14 +89,14 @@ func test_status_change_redraws_one_desk() -> void:
 
 func test_same_look_keeps_the_worker() -> void:
 	# Three idle agents on api and three residents, all first seen idle, every one at its seat with a mug
-	# (D2, 2026-10-27: idle sits with a mug; the pantry is a nook nobody walks to). 628 wide: the map is
-	# planned 488 units wide, 15 cells: two lanes of 4 (one of 9 before Z1), 13 cells either way.
+	# (D2, 2026-10-27: idle sits with a mug; the pantry is a nook nobody walks to). 628 wide: the map is planned
+	# 568 units wide (488 before S3 BAR-b retired the rail), 17 cells: two lanes of 4 (one of 9 before Z1), 13 cells.
 	var idle := _with(
 		_with(_with_residents(fixture), "api:p1", {"agent_status": "idle"}), "api:p2", {"agent_status": "idle"}
 	)
 	idle = _with(idle, "api:p4", {"agent_status": "idle"})
 	var office := await _live_office(idle, Vector2(628, 480))
-	_eq(office.hud.plan_width(), 488.0, "planned 488 wide")
+	_eq(office.hud.plan_width(), 568.0, "planned 568 wide")
 	var desk: OfficeStation = office.floor_view.seats[HerdrFleet.pane_key(LOCAL, "api:p4")].node
 	_eq(
 		[desk.actor().position, desk.table.item_piece(desk.column, desk.side)],
@@ -451,7 +451,7 @@ func test_a_click_over_a_panel_picks_nothing() -> void:
 	await _frames(2)
 	_check(office.hud.drawer_open(), "the tab opens the drawer")
 	# The right column is the agent list's drawer; the card is the staff panel along the bottom.
-	for panel: Control in [office.hud.right_column, office.hud.spaces, office.hud.inspector, office.hud.news]:
+	for panel: Control in [office.hud.right_column, office.hud.inspector, office.hud.news]:
 		var bounds := office.hud.placed(panel)
 		# The seat goes under a spot of the panel with no button on it: a click
 		# on a minimap row or a list row is that panel's own gesture, not a desk's.
@@ -1090,24 +1090,23 @@ func test_repeated_pane_id_retains_valid_plan() -> void:
 	_done(office)
 
 
-## A real click on a zone's row in the SPACES rail pans to that zone at once: by
-## the time the button is up the camera has its sign (in its aisle row) at the
-## top of the world, the world is the same one (a zone is part of the machine's map), the
-## plate still names the machine and that row is marked as in view.
-## There is no transition over the world at all. PageUp, a real key (the rail
+## A real click on a portrait card's place (S3 BAR-b: the SPACES rail's row) pans to
+## its zone at once: by the time the button is up the camera has its sign (in
+## its aisle row) at the top of the world, the world is the same one (a zone is part of the machine's map), the
+## plate still names the machine and nothing is selected.
+## There is no transition over the world at all. PageUp, a real key (the order
 ## is ascending: web is 2, api 1), comes back as fast.
 func test_a_floor_call_switches_at_once() -> void:
 	var office := await _live_office()
 	var origin := office.navigator.current_zone(office.frame)
 	var destination := HerdrFleet.pane_key(LOCAL, "web")
-	var minimap := office.hud.spaces
+	var place: Control = office.hud.bar.card_for(HerdrFleet.pane_key(LOCAL, "web:p1")).get_node("%PlaceButton")
 	var title := func() -> String: return office.plate.title_text()
-	# The rail marks the rows whose zone is in view (it highlighted one "current"
-	# row before): a pan shows in those marks the moment it happens.
-	_check(Array(minimap.in_view()).has(origin), "the zone herdr's focus is in is in view: its row is marked")
+	# web:p1 waits in 2: its blocked card's place is how the mouse goes there.
+	# (The rail's in-view marks are gone with it.)
+	var picked := office.picked_key
 	var world_id := office.world.get_instance_id()
-	var row := minimap.row_for(destination)
-	var at := row.get_global_rect().get_center()
+	var at := place.get_global_rect().get_center()
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
 	await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
 	_eq(office.navigator.current_zone(office.frame), destination, "released: the zone is current")
@@ -1119,7 +1118,7 @@ func test_a_floor_call_switches_at_once() -> void:
 	_check(drawn.y > aisle and drawn.y < aisle + 32.0, "the sign's top inside its aisle row")
 	_eq(office.world.get_instance_id(), world_id, "the same world: nothing rebuilt")
 	_eq(str(title.call()), "LOCAL", "the plate names the machine, not the zone")
-	_check(Array(minimap.in_view()).has(destination), "that row is marked as in view")
+	_eq(office.picked_key, picked, "and nothing selected")
 	_check(office.hud.find_child("Transit", true, false) == null, "nothing covers the world on the way")
 	var key := _key(KEY_PAGEUP)
 	await _parsed(key)
@@ -1127,13 +1126,13 @@ func test_a_floor_call_switches_at_once() -> void:
 	await _parsed(key)
 	_eq(office.navigator.current_zone(office.frame), origin, "PageUp is back on the original zone at once")
 	_eq(office.world.get_instance_id(), world_id, "still the same world")
-	_check(Array(minimap.in_view()).has(origin), "and the marks follow")
+	_eq(office.layout_plan().floor_key, LOCAL, "on the same map")
 	_done(office)
 
 
 ## Floor calls in quick succession each switch one floor, and nothing locks the
 ## world meanwhile: the next click on a desk picks it, a snapshot updates the
-## floor in place, and a theme switch and a resize keep the floor buttons.
+## floor in place, and a theme switch and a resize keep the cards' places (S3 BAR-b: the rail's rows).
 func test_rapid_floor_calls_each_switch_and_the_world_stays_clickable() -> void:
 	var office := await _live_office()
 	for wanted: String in ["web", "infra"]:
@@ -1142,8 +1141,9 @@ func test_rapid_floor_calls_each_switch_and_the_world_stays_clickable() -> void:
 		key.pressed = false
 		await _parsed(key)
 		_eq(office.navigator.current_zone(office.frame), HerdrFleet.pane_key(LOCAL, wanted), "PageDown: %s" % wanted)
-	var row := office.hud.spaces.row_for(HerdrFleet.pane_key(LOCAL, "web"))
-	_check(not row.disabled, "the floor buttons stay enabled")
+	var web := HerdrFleet.pane_key(LOCAL, "web:p1")
+	var place: Button = office.hud.bar.card_for(web).get_node("%PlaceButton")
+	_check(not place.disabled, "the cards' places stay enabled")
 	var desk := HerdrFleet.pane_key(LOCAL, "infra:p1")
 	await _click_desk(office, desk)
 	_eq(office.picked_key, desk, "a click on a desk picks it right away")
@@ -1153,8 +1153,8 @@ func test_rapid_floor_calls_each_switch_and_the_world_stays_clickable() -> void:
 	_eq(_badge(_station(office, desk)).state, &"working", "with its live data")
 	office.test_screen = Vector2(640, 320)
 	office.switch_theme(_second_pack())
-	_eq(office.hud.spaces.row_for(row.key), row, "theme and resize keep the floor buttons")
-	_check(not row.disabled, "still enabled")
+	_eq(office.hud.bar.card_for(web).get_node("%PlaceButton"), place, "theme and resize keep it")
+	_check(not place.disabled, "still enabled")
 	_done(office)
 
 
@@ -1198,9 +1198,9 @@ func test_switching_to_an_offline_floor_invents_no_activity() -> void:
 	_eq(office.navigator.current_zone(office.frame), HerdrFleet.pane_key(LOCAL, "web"), "an offline zone is reachable")
 	_check(office.stale, "switching does not turn a disconnected machine live")
 	_eq(_playing(office), [false], "all its workers remain frozen")
-	var row := office.hud.spaces.row_for(HerdrFleet.pane_key(LOCAL, "web"))
-	var blocked: Control = row.get_node("%BlockedIcon")
-	_check(not blocked.visible, "an offline floor has no live blocked count")
+	# S3 BAR-b (2026-10-27): the SPACES rail's blocked count is gone; the bar's cards say who waits.
+	_check(office.hud.bar.card_for(HerdrFleet.pane_key(LOCAL, "web:p1")) == null, "an offline floor's blocked agent")
+	_eq(office.hud.bar.cards(), [] as Array[PortraitCard], "has no card, nor has anyone of it")
 	_done(office)
 
 
@@ -1225,38 +1225,39 @@ func test_a_room_change_moves_the_world_at_once() -> void:
 	var office := await _live_office()
 	office.test_screen = Vector2(800, 480)
 	office.refresh()
-	_eq(office.camera.free_rect().size, Vector2(660, 308), "the room with the drawer closed to its tab, above the card")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(office.camera.free_rect().size, Vector2(740, 308), "the room with the drawer closed to its tab, above the card")
 	office.hud.open_drawer()
 	await _frames(1)
 	_eq(office.camera.free_rect(), office.hud.world_rect(), "the camera's room is the HUD's new one")
-	_eq(office.camera.free_rect().size.x, 536.0, "up to the open drawer")
+	_eq(office.camera.free_rect().size.x, 616.0, "up to the open drawer")
 	_eq(office.world.position, office.camera.free_rect().position, "the world stands in it")
 	_eq(office.plate.size.x, office.camera.free_rect().size.x, "and the plate spans it")
 	_done(office)
 
 
-## A window resize that crosses the FLOORS rail's line (`spaces_named_from`,
-## 1280) moves the column's edge inside the refresh the resize causes
-## (camera.free_rect() fits the HUD, and the HUD says room_changed). That
-## refresh lays the new room out itself: one refresh per resize, never one
-## nested in another. (A resize does not move the staff panel: it is one
-## line at every size until opened.)
-func test_a_resize_across_the_rail_line_refreshes_once() -> void:
+## A window resize moves the world's room inside the refresh the resize causes
+## (camera.free_rect() fits the HUD). That refresh lays the new room out itself:
+## one refresh per resize, never one nested in another. (S3 BAR-b, 2026-10-27:
+## it crossed the SPACES rail's line, `spaces_named_from`; the rail is gone and
+## the world starts 16 in at every width. A resize does not move the staff
+## panel: it is one line at every size until opened.)
+func test_a_resize_moves_the_room_in_one_refresh() -> void:
 	var office := await _live_office()
 	var rooms: Array[bool] = []
 	office.hud.room_changed.connect(func() -> void: rooms.append(true))
-	for step: Array in [[Vector2(1280, 480), true, 144.0], [Vector2(800, 480), false, 96.0]]:
+	for step: Array in [[Vector2(1280, 480), 1220.0, 16.0], [Vector2(800, 480), 740.0, 16.0]]:
 		var screen: Vector2 = step[0]
 		office.refreshes = 0
 		office.deepest_refresh = 0
 		var said := rooms.size()
 		office.test_screen = screen
 		office.refresh()
-		_check(rooms.size() > said, "%s: the column moved inside the refresh" % screen)
+		_eq(rooms.size(), said, "%s: no panel moved: the window alone moves the world's room" % screen)
 		_eq(office.refreshes, 1, "%s: one refresh" % screen)
 		_eq(office.deepest_refresh, 1, "%s: never nested" % screen)
-		_eq(office.hud.spaces_named(), step[1], "%s: the floors named or the rail" % screen)
-		_eq(office.camera.free_rect().position.x, step[2], "%s: the world's room right of it" % screen)
+		_eq(office.camera.free_rect().size.x, step[1], "%s: the world's room as wide as the window leaves it" % screen)
+		_eq(office.camera.free_rect().position.x, step[2], "%s: 16 in from the left" % screen)
 		_check(office.hud.card_compact(), "%s: the staff panel one line throughout" % screen)
 		_eq(office.world.position, office.camera.free_rect().position, "%s: the world stands in it" % screen)
 		await _frames(2)
@@ -1273,18 +1274,17 @@ func test_the_first_plan_uses_the_window_the_refresh_is_for() -> void:
 	var office := await _two_machine_office()
 	_eq(office.navigator.shown_key, LOCAL, "Local's map is shown")
 	_eq(office.plans.plan(BEE), null, "bee's has not been planned yet")
-	_eq(office.hud.world_rect().size.x, 660.0, "the HUD is laid out for the 800-wide window")
-	# 880 wide leaves the world 740 units (drawer closed), 23 cells: four lanes,
-	# a map 23 wide, not the three lanes (18 cells) the 800-wide window's 20 hold.
-	# Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
-	office.test_screen = Vector2(880, 480)
+	_eq(office.hud.world_rect().size.x, 740.0, "the HUD is laid out for the 800-wide window")
+	# 960 wide leaves the world 900 units (drawer closed), 28 cells: five lanes, a map 28 wide, not the
+	# four lanes (23 cells) the 800-wide window's 23 hold. (S3 BAR-b, 2026-10-27, the rail gone: it was 880 -> 740, 23, four.)
+	office.test_screen = Vector2(960, 480)
 	var unfocused: Dictionary = fixture.duplicate(true)
 	unfocused.erase("focused_pane_id")
 	_feed(office, unfocused)
 	_eq(office.navigator.shown_key, BEE, "herdr's focus, now only bee's, shows bee's map, planned for the first time")
-	_eq(office.hud.world_rect().size.x, 740.0, "the HUD is laid out for the 880-wide window")
-	_eq(office.hud.plan_width(), 740.0, "which is the width a first plan asks for")
-	_eq([office.layout_plan().lanes, office.layout_plan().initial_width_cells], [4, 23], "and the plan is made for it")
+	_eq(office.hud.world_rect().size.x, 900.0, "the HUD is laid out for the 960-wide window")
+	_eq(office.hud.plan_width(), 900.0, "which is the width a first plan asks for")
+	_eq([office.layout_plan().lanes, office.layout_plan().initial_width_cells], [5, 28], "and the plan is made for it")
 	_done(office)
 
 
@@ -1302,7 +1302,7 @@ func test_the_current_floor_and_the_bottom_rebuild_nothing() -> void:
 
 
 ## Another zone is the same world (every zone is on its machine's map): the
-## SPACES rail, PageDown and herdr's focus moving zones all pan and rebuild nothing,
+## page keys, a card's place and herdr's focus moving zones all pan and rebuild nothing,
 ## and what shows matches a rebuild from scratch. (Before one map per machine,
 ## each of these was a floor switch that rebuilt the world.)
 func test_floor_change_rebuilds() -> void:
@@ -1561,7 +1561,7 @@ func test_theme_switch_keeps_the_hud() -> void:
 	)
 	_eq(_hud_nodes(office), nodes, "and keeps every HUD node")
 	_check(office.art.sprite_texture(office.art.panel()) != panel, "the panels are dressed from the new pack")
-	_eq(hud.spaces.art, office.art, "and so is the minimap")
+	_eq(hud.strategic.art, office.art, "and so is the strategic view's panel (S3 BAR-b: the SPACES rail's)")
 	_done(office)
 
 

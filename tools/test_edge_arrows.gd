@@ -13,9 +13,9 @@ extends "res://tools/office_test_base.gd"
 ## No herdr at all: the fleet's Local client is stopped and snapshots are handed
 ## to it directly, as the incremental suite does.
 ##
-## (Split out of tools/test_space_rail.gd, which keeps the rail's own cases, so
+## (Split out of tools/test_space_rail.gd, now tools/test_map_navigation.gd, so
 ## that both files stay under gdlint's max-file-lines. The cases moved as they
-## were: `the same way` in the arrow's focus-race case is the heading's, there.)
+## were: `the same way` in the arrow's focus-race case was the SPACES heading's.)
 
 ## The most of the world's width an arrow may cover, in any window. A full
 ## arrow is about 56 units of the narrowest world that shows one in full
@@ -88,9 +88,15 @@ func test_an_arrow_points_at_each_zone_with_blocked_desks_off_screen() -> void:
 	await _frames(2)
 	_check(not arrows.visible, "nobody blocked off screen: no arrow")
 	_check(not badge.is_in_group(StatusBadge.GROUP), "the hidden arrow's badge stops pulsing")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	# Four lanes stand 1, 1B, 4 and 5 in the first row, 1A under 1: panned down
+	# to 1A's row, 5's desk is above the view.
+	office.camera.pan = Vector2(0, 300)
+	await _frames(2)
+	_check(not _chip_on_screen(office, _pane("ops:p1")), "panned down to 1A's row, 5's desk is above the view")
 	_feed(office, _with(_with(fixture, "hud:p1", {"agent_status": "working"}), "ops:p1", {"agent_status": "blocked"}))
 	await _frames(2)
-	_eq(_arrow_texts(office), ["↓ 5 1"], "5 starts waiting below the view: down to it")
+	_eq(_arrow_texts(office), ["↑ 5 1"], "5 starts waiting above the view: up to it")
 	_set_online(office, false)
 	await _frames(1)
 	_check(not arrows.visible, "a machine that drops counts nobody waiting: no arrow")
@@ -244,11 +250,14 @@ func test_an_arrow_stands_inside_the_world_on_the_edge_toward_its_desk() -> void
 
 ## Below `edge_arrows_compact_from` (the 480x320 minimum) an arrow leaves its
 ## zone's number to the tooltip: glyph, badge and count. In every window the
-## arrows stand in the world and never under the rail, the drawer or the staff
-## panel; a full arrow covers at most a quarter of the world's width, and at
-## the minimum nothing stands over the plate's name. The rail's row is the
-## same count and a click on it pans there.
-func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_rail() -> void:
+## arrows stand in the world and never under the bar, the drawer, the staff
+## panel or NEWS; a full arrow covers at most a quarter of the world's width,
+## and at the minimum nothing stands over the plate's name. The blocked agent
+## it points at has its card in the bar, and a click on the card's place pans
+## there. (S3 BAR-b, 2026-10-27: the SPACES rail it once stood beside is gone;
+## the scene's width moved from 360 to 440 so the minimum, now 420 wide, keeps
+## its compact arrows.)
+func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_bar_or_the_drawer() -> void:
 	var office := await _live_office()
 	var wanted := {Vector2(480, 320): true, Vector2(640, 320): false, Vector2(960, 480): false}
 	for screen: Vector2 in wanted:
@@ -267,7 +276,7 @@ func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_rail() -> void
 		_eq(_arrow_texts(office), ["↓ 1" if wanted[screen] else "↓ 1A 1"], "%s: the arrow's words" % screen)
 		_check(arrow.tooltip_text.begins_with("1A HUD-LANE"), "%s: the tooltip names the zone" % screen)
 		_check(room.encloses(rect), "%s: inside the world %s: %s" % [screen, room, rect])
-		for panel: Control in [office.hud.spaces, office.hud.right_column, office.hud.staff, office.hud.news]:
+		for panel: Control in [office.hud.bar, office.hud.right_column, office.hud.staff, office.hud.news]:
 			_check(not office.hud.placed(panel).intersects(rect), "%s: not under %s" % [screen, panel.name])
 		var line: Control = arrow.get_node("%Line")
 		# A Control never shrinks below its minimum: words that do not fit push
@@ -294,11 +303,11 @@ func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_rail() -> void
 	_check(office.hud.world_rect().encloses(name_rect), "the plate's name is on screen: %s" % name_rect)
 	for arrow in office.hud.edge_arrows.shown():
 		_check(not arrow.get_global_rect().intersects(name_rect), "and no arrow stands over it")
-	var row := office.hud.spaces.row_for(_zone("hud"))
-	_check(_node(row, "%BlockedIcon").visible, "the rail's row for 1A has its blocked badge")
-	_eq(_label(row, "%BlockedCount").text, "1", "and its count")
-	await _click_at(row.get_global_rect().get_center())
-	_eq(office.navigator.current_zone(office.frame), _zone("hud"), "a click on the rail's row pans to 1A")
+	var card := office.hud.bar.card_for(_pane("hud:p1"))
+	_check(card != null and not card.face_only(), "1A's blocked agent has its card in the bar")
+	var place: Control = card.get_node("%PlaceButton")
+	await _click_at(place.get_global_rect().get_center())
+	_eq(office.navigator.current_zone(office.frame), _zone("hud"), "a click on the card's place pans to 1A")
 	_done(office)
 
 
@@ -512,6 +521,10 @@ func test_a_click_on_the_first_of_a_crowd_of_arrows_pans_to_its_desk() -> void:
 ## What the arrows were handed is kept whole: zones folded for a narrow world
 ## get their arrows back the moment it widens, and are folded again when it
 ## narrows or goes compact, with no new list from the office and no new node.
+## (S3 BAR-b, 2026-10-27: the SPACES rail is gone; the world starts 16 in and
+## first plans take its width. With the drawer closed no window is narrow
+## enough to fold eight arrows any more (the 480x320 minimum is 420 wide, all
+## eight compact), so the drawer open narrows it, as the rail once did.)
 func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 	var hud := await _hud()
 	var nodes := hud.edge_arrows.find_children("*", "OfficeEdgeArrow", true, false)
@@ -520,13 +533,22 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 	var view := Rect2(Vector2.ZERO, hud.world_rect().size)
 	hud.show_edge_arrows(EdgeArrowModel.of(view, _beyond(view, EdgeArrowModel.Edge.BOTTOM, 8)))
 	await _frames(2)
-	var narrow := _standing(hud, "480x320")
-	_check(narrow.ways.size() < 8 and narrow.folded > 0, "a 340-wide world folds some: " + narrow.said())
+	var least := _standing(hud, "480x320")
+	_eq(
+		[hud.world_rect().size.x, least.ways.size(), least.folded],
+		[420.0, 8, 0],
+		"the minimum: 420 wide, eight compact"
+	)
+	hud.open_drawer()
+	await _frames(2)
+	var narrow := _standing(hud, "480x320, the drawer open")
+	_check(narrow.ways.size() < 8 and narrow.folded > 0, "a 296-wide world folds some: " + narrow.said())
 	_eq(narrow.ways.size() + narrow.folded, 8, "counting all eight")
+	hud.close_drawer()
 	hud.fit(Vector2(960, 480))
 	await _frames(2)
 	var wide := _standing(hud, "960x480")
-	_eq([wide.ways.size(), wide.folded], [8, 0], "an 820-wide world has room for all eight: every zone its own arrow")
+	_eq([wide.ways.size(), wide.folded], [8, 0], "a 900-wide world has room for all eight: every zone its own arrow")
 	_eq(wide.ways, ["z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7"], "in the order handed, longest wait first")
 	_check(
 		hud.edge_arrows.shown().all(
@@ -534,23 +556,25 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 		),
 		"each a way there, in full"
 	)
-	# 560x320: 420 wide with the drawer closed (full arrows), 296 and compact with it open.
-	hud.fit(Vector2(560, 320))
-	await _frames(2)
-	var closed := _standing(hud, "560x320")
-	_eq(closed.ways.size() + closed.folded, 8, "560x320: all eight counted")
-	_check(closed.folded > 0, "560x320: folded again: " + closed.said())
+	# 640x320 with the drawer open: 456 wide (full arrows); at 480x320, 296 and compact.
+	hud.fit(Vector2(640, 320))
 	hud.open_drawer()
 	await _frames(2)
-	_check(hud.edge_arrows_compact(), "the drawer open narrows the world: compact")
-	var opened := _standing(hud, "560x320, the drawer open")
-	_eq(opened.ways.size() + opened.folded, 8, "the drawer open: all eight counted")
-	_check(opened.ways.size() < closed.ways.size(), "with fewer arrows of their own: " + opened.said())
-	hud.close_drawer()
+	_check(not hud.edge_arrows_compact(), "640x320, the drawer open: full arrows")
+	var closed := _standing(hud, "640x320, the drawer open")
+	_eq(closed.ways.size() + closed.folded, 8, "640x320: all eight counted")
+	_check(closed.folded > 0, "640x320: folded again: " + closed.said())
 	hud.fit(Vector2(480, 320))
 	await _frames(2)
+	_check(hud.edge_arrows_compact(), "narrower still: compact")
 	var again := _standing(hud, "480x320 again")
-	_eq([again.ways, again.folded], [narrow.ways, narrow.folded], "back at 480x320: folded as at first")
+	_eq(again.ways.size() + again.folded, 8, "all eight counted")
+	_check(again.ways.size() < closed.ways.size(), "with fewer arrows of their own: " + again.said())
+	_eq(
+		[again.ways, again.folded],
+		[narrow.ways, narrow.folded],
+		"back at 480x320 with the drawer open: folded as at first"
+	)
 	_eq(hud.edge_arrows.find_children("*", "OfficeEdgeArrow", true, false), nodes, "the same eight nodes throughout")
 	hud.free()
 
@@ -772,12 +796,11 @@ func test_no_arrows_for_another_machine_or_a_disconnected_one() -> void:
 	_eq(office.frame.find_zone(last).zone_model.blocked, 1, "bee's agent is blocked")
 	_check(not office.hud.edge_arrows.visible, "no arrow for another machine's zone")
 	_eq(office.hud.edge_arrows.shown().size(), 0, "none at all")
-	var row := office.hud.spaces.row_for(last)
-	_check(_node(row, "%BlockedIcon").visible, "its rail row carries the blocked badge")
-	_eq(_label(row, "%BlockedCount").text, "1", "and the count")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone: another machine's blocked agents show as cards in the bar.
+	_check(office.hud.bar.card_for(blocked) != null, "its blocked agent has a card in the bar")
 	await _click_heading(office, BEE)
 	await _frames(2)
-	_eq(office.navigator.shown_key, BEE, "bee's heading shows bee's map")
+	_eq(office.navigator.shown_key, BEE, "bee's chip shows bee's map")
 	_check(not _chip_on_screen(office, blocked), "which opens on its first zone: the blocked desk is off screen")
 	_eq(_arrow_texts(office), ["↓ 6 1"], "on its own map, an arrow points down to it")
 	_bee(office)._go_offline()
@@ -786,70 +809,69 @@ func test_no_arrows_for_another_machine_or_a_disconnected_one() -> void:
 	_check(office.fleet.is_stale(BEE), "bee drops")
 	_check(not office.hud.edge_arrows.visible, "a dropped machine's map has no arrow")
 	_eq(office.hud.edge_arrows.shown().size(), 0, "none left standing")
-	_check(not _node(row, "%BlockedIcon").visible, "and its row counts nobody")
+	_check(office.hud.bar.card_for(blocked) == null, "and its agent has no card")
 	_done(office)
 
 
-## Hovering an edge arrow, with a real pointer, outlines its zone's SPACES row
-## (SpaceRowPointed), whether or not that row is in view; leaving puts it back.
-## It only points: nothing is selected, panned or picked.
-func test_hovering_an_arrow_outlines_its_zones_row() -> void:
+## Hovering an edge arrow, with a real pointer, outlines its zone's blocked
+## agents' cards in the top bar (PortraitPointed; S3 BAR-b, 2026-10-27: it
+## outlined the zone's SPACES row), whether or not the zone is in view;
+## leaving puts them back. It only points: nothing is selected, panned or picked.
+func test_hovering_an_arrow_outlines_its_zones_blocked_cards() -> void:
 	var office := await _live_office()
 	await _frames(2)
 	var arrow := office.hud.edge_arrows.shown()[0]
-	var row := office.hud.spaces.row_for(_zone("hud"))
+	var card := office.hud.bar.card_for(_pane("hud:p1"))
+	var ring: Control = card.get_node("%Pointed")
 	var pan := office.camera.pan
 	var revision := office.navigator.nav_revision
-	_eq(row.theme_type_variation, &"SpaceRow", "1A's row as usual")
+	_eq(_cards_pointed(office), [], "no card outlined")
 	await _pointer_to(arrow.get_global_rect().get_center())
-	_eq(row.theme_type_variation, &"SpaceRowPointed", "the arrow under the pointer outlines 1A's row")
-	_check(row.pointed(), "pointed at")
-	for key: String in office.hud.spaces.row_keys():
-		if key != _zone("hud"):
-			_eq(office.hud.spaces.row_for(key).theme_type_variation, &"SpaceRow", "and no other: " + key)
+	_eq(_cards_pointed(office), [_pane("hud:p1")], "the arrow under the pointer outlines 1A's blocked card, alone")
+	_check(ring.visible, "by its ring")
+	_eq(ring.theme_type_variation, &"PortraitPointed", "in the theme's look")
 	_eq([office.camera.pan, office.navigator.nav_revision], [pan, revision], "nothing panned or navigated")
 	await _pointer_to(office.hud.world_rect().get_center())
-	_eq(row.theme_type_variation, &"SpaceRow", "leaving restores it")
-	# In view and pointed at once: the mark and the outline are apart. Pan down
-	# until 1A's zone comes into view; its blocked desk is still below it.
-	_check(not row.in_view(), "1A's zone starts out of view")
+	_eq(_cards_pointed(office), [], "leaving restores it")
+	# In view and pointed at once: pan down until 1A's zone comes into view; its
+	# blocked desk is still below it.
+	_check(not _zone_in_view(office, _zone("hud")), "1A's zone starts out of view")
 	var steps := 0
-	while not row.in_view() and steps < 40:
+	while not _zone_in_view(office, _zone("hud")) and steps < 40:
 		office.camera.pan += Vector2(0, 4)
 		await _frames(2)
 		steps += 1
-	_check(row.in_view(), "panned down, 1A's zone is in view and its row marked")
+	_check(_zone_in_view(office, _zone("hud")), "panned down, 1A's zone is in view")
 	var shown := office.hud.edge_arrows.shown()
 	_eq(
 		shown.map(func(each: OfficeEdgeArrow) -> String: return each.zone_key()),
 		[_zone("hud")],
 		"while its blocked desk is still off screen: its arrow stands"
 	)
-	_eq(row.theme_type_variation, &"SpaceRow", "not outlined yet")
+	_eq(_cards_pointed(office), [], "not outlined yet")
 	await _pointer_to(shown[0].get_global_rect().get_center())
-	_check(row.pointed() and row.in_view(), "a row in view is outlined too, and keeps its mark")
-	_eq(row.theme_type_variation, &"SpaceRowPointed", "by the theme's look")
+	_eq(_cards_pointed(office), [_pane("hud:p1")], "a zone in view is outlined too")
 	_done(office)
 
 
 ## An arrow's node is handed another zone while the pointer rests on it (the
-## zone it stood for stopped waiting, another one waits): the row outlined is
-## the zone the arrow stands for now, with no move of the pointer; and when
-## nobody waits any more and the arrow goes, no row is outlined.
+## zone it stood for stopped waiting, another one waits): the cards outlined
+## are the blocked of the zone the arrow stands for now, with no move of the
+## pointer; and when nobody waits any more and the arrow goes, no card is
+## outlined. (S3 BAR-b, 2026-10-27: it outlined the zones' SPACES rows.)
 ## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
 ## In the 480x320 window (the narrowest map's two lanes, FRAME-Q2), with 4 and 6
 ## blocked: both stand in lane 1, one above the other (5 and 6 stand side by side).
-func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_row() -> void:
+func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_cards() -> void:
 	var first := _six_zones()
 	_record_of(first, "w3:t0:p0").agent_status = "blocked"
 	var office := await _live_office(first, Vector2(480, 320))
 	await _frames(2)
 	var arrow := office.hud.edge_arrows.shown()[0]
-	var rail := office.hud.spaces
 	_eq(arrow.zone_key(), _zone("w3"), "an arrow for 4, whose blocked desk is below the view")
 	var at := arrow.get_global_rect().get_center()
 	await _pointer_to(at)
-	_check(rail.row_for(_zone("w3")).pointed(), "the pointer on it outlines 4's row")
+	_eq(_cards_pointed(office), [_pane("w3:t0:p0")], "the pointer on it outlines 4's blocked card")
 	var second := _six_zones()
 	_record_of(second, "w5:t0:p0").agent_status = "blocked"
 	_feed(office, second)
@@ -858,23 +880,23 @@ func test_an_arrow_handed_another_zone_under_the_pointer_outlines_that_zones_row
 	_check(still.size() == 1 and still[0] == arrow, "the same node is the one arrow still")
 	_eq(arrow.zone_key(), _zone("w5"), "handed 6, which waits now")
 	_check(arrow.get_global_rect().has_point(at), "and still under the pointer, which has not moved")
-	_check(rail.row_for(_zone("w5")).pointed(), "6's row is the one outlined")
-	_check(not rail.row_for(_zone("w3")).pointed(), "4's no more")
+	_eq(_cards_pointed(office), [_pane("w5:t0:p0")], "6's blocked card is the one outlined, 4's no more")
 	_feed(office, _six_zones())
 	await _frames(3)
 	_eq(office.hud.edge_arrows.shown().size(), 0, "nobody waits: the arrow goes")
-	_eq(_rows_pointed(office), [], "and no row is outlined")
+	_eq(_cards_pointed(office), [], "and no card is outlined")
 	_done(office)
 
 
 ## Two arrows change places in the pool while neither moves on screen (the
 ## bottom zone's pane takes a new terminal, its wait starts over, the top zone
-## is the longest wait now): the row outlined stays the zone of the arrow under
-## the resting pointer. And an arrow that comes back under the resting pointer,
-## an overlay closed, outlines its row again with no move of the pointer.
+## is the longest wait now): the card outlined stays the blocked of the zone of
+## the arrow under the resting pointer. And an arrow that comes back under the
+## resting pointer, an overlay closed, outlines its card again with no move of
+## the pointer. (S3 BAR-b, 2026-10-27: it outlined the zones' SPACES rows.)
 ## Z1 (2026-10-27): a lane is 4 cells, pitch 5, a new zone takes lanes until it stands one row; the map replans.
 ## In the 480x320 window: at 800x480 the six zones' map is two rows of three.
-func test_arrows_changing_pool_places_keep_the_row_under_the_pointer_outlined() -> void:
+func test_arrows_changing_pool_places_keep_the_card_under_the_pointer_outlined() -> void:
 	var raw := _six_zones()
 	_record_of(raw, "w5:t0:p0").agent_status = "blocked"
 	var office := await _live_office(raw, Vector2(480, 320))
@@ -885,10 +907,11 @@ func test_arrows_changing_pool_places_keep_the_row_under_the_pointer_outlined() 
 	await _visit_zone(office, _zone("w2"))
 	await _frames(3)
 	var bottom := _zone("w5")
+	var waiting := _pane("w5:t0:p0")
 	_eq(_arrow_zones(office), [bottom, _zone("w0")], "6 below and 1 above the view; 6 has waited longer")
 	var at := office.hud.edge_arrows.shown()[0].get_global_rect().get_center()
 	await _pointer_to(at)
-	_eq(_rows_pointed(office), [bottom], "the pointer on 6's arrow outlines 6's row")
+	_eq(_cards_pointed(office), [waiting], "the pointer on 6's arrow outlines 6's blocked card")
 	_record_of(raw, "w5:t0:p0").terminal_id = "another-terminal"
 	_feed(office, raw)
 	await _frames(4)
@@ -898,12 +921,12 @@ func test_arrows_changing_pool_places_keep_the_row_under_the_pointer_outlined() 
 		if arrow.get_global_rect().has_point(at):
 			under.append(arrow.zone_key())
 	_eq(under, [bottom] as Array[String], "6's arrow is where it was, under the pointer")
-	_eq(_rows_pointed(office), [bottom], "and 6's row is still the one outlined")
+	_eq(_cards_pointed(office), [waiting], "and 6's card is still the one outlined")
 	await _office_key(office, KEY_O)
-	_eq(_rows_pointed(office), [], "the overview over the world: no arrow, no row outlined")
+	_eq(_cards_pointed(office), [], "the overview over the world: no arrow, no card outlined")
 	await _office_key(office, KEY_O)
 	await _frames(2)
-	_eq(_rows_pointed(office), [bottom], "closed: the arrow is back under the pointer, and its row outlined")
+	_eq(_cards_pointed(office), [waiting], "closed: the arrow is back under the pointer, and its card outlined")
 	_done(office)
 
 
@@ -972,10 +995,25 @@ func _arrow_zones(office: OfficeDouble) -> Array:
 	return office.hud.edge_arrows.shown().map(func(arrow: OfficeEdgeArrow) -> String: return arrow.zone_key())
 
 
-## The rows the rail outlines as pointed at.
-func _rows_pointed(office: OfficeDouble) -> Array:
-	var rail := office.hud.spaces
-	return rail.row_keys().filter(func(key: String) -> bool: return rail.row_for(key).pointed())
+## The panes whose portrait cards are outlined as pointed at.
+func _cards_pointed(office: OfficeDouble) -> Array:
+	return (
+		office
+		. hud
+		. bar
+		. cards()
+		. filter(func(card: PortraitCard) -> bool: return card.pointed())
+		. map(func(card: PortraitCard) -> String: return card.key)
+	)
+
+
+## Whether zone `key`'s rectangle on the shown map meets the world on screen.
+func _zone_in_view(office: OfficeDouble, key: String) -> bool:
+	var placed := office.floor_view.plan.zone(key)
+	if placed == null:
+		return false
+	var area := placed.bounds()
+	return Rect2(office.floor_view.root.to_global(area.position), area.size).intersects(_view(office))
 
 
 ## A blocked desk of zone `zone` (numbered `number`, named after its key) at

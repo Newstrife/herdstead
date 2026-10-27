@@ -1,8 +1,9 @@
 class_name OfficeHud
 extends CanvasLayer
-## The office's screen-space furniture: the top bar, the SPACES rail on the
-## left with the arrows on the world's edges toward blocked desks off screen,
-## the agent list in a drawer on the right, and the staff panel along the bottom
+## The office's screen-space furniture: the top bar (its machine chips and
+## portrait strip are how the mouse moves between machines and zones), the
+## arrows on the world's edges toward blocked desks off screen, the agent list
+## in a drawer on the right, and the staff panel along the bottom
 ## (the agent card, `inspector`, with NEXT at its right end) over the NEWS
 ## strip, the strategic view over the world rect and the OVERVIEW over the
 ## world when they are open; laid out by the scene and styled by one Theme.
@@ -13,10 +14,10 @@ extends CanvasLayer
 ## never tells a panel where to stand. Moving a panel in `hud.tscn` moves the
 ## world with it.
 
-## A row of the SPACES rail was pressed; `key` is that zone's key. The office
-## pans to that zone at once: there is no transition.
+## A portrait card's place (its zone tag and space) was pressed; `key` is that
+## zone's key. The office pans to that zone at once: there is no transition.
 signal zone_picked(key: String)
-## A heading of the SPACES rail was pressed; `key` is that machine's key. The
+## A machine chip of the top bar was pressed; `key` is that machine's key. The
 ## office shows that machine's map.
 signal machine_picked(key: String)
 ## An edge arrow was pressed: the office pans to the desk of pane `pane_key`,
@@ -67,7 +68,7 @@ signal event_picked(key: String)
 ## that desk, and only points.
 signal pane_pointed(key: String)
 ## The same for an edge arrow and its zone `key`: the office outlines that
-## zone's SPACES row.
+## zone's blocked cards in the top bar.
 signal zone_pointed(key: String)
 ## The EVENTS page has just come into sight by its tab: the office lays it
 ## out now rather than on its next refresh. (The drawer opening on it moves
@@ -99,10 +100,13 @@ const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
 	PortraitBarModel.Group.IDLE: OverviewModel.Filter.IDLE,
 }
 
-## What the world keeps clear of the panels: to the side of the SPACES rail and
-## the right column, and above the staff panel and below the bar. The rest of
-## the geometry is the scene's.
+## What the world keeps clear of the panels: to the side of the right column,
+## and above the staff panel and below the bar. The rest of the geometry is the
+## scene's.
 @export var world_gap := Vector2(8, 16)
+## The world's left edge from the screen's: the staff panel's and the NEWS
+## strip's inset, so the three line up. Set in the scene.
+@export var world_left := 0.0
 ## Where the world tooltip (over a blocked agent's chip, over a zone's sign) stands from the pointer. Set in the scene.
 @export var tip_gap := Vector2.ZERO
 ## The right-hand drawer's left edge, open and closed, from the screen's right
@@ -137,12 +141,6 @@ const FOLD_FILTERS: Dictionary[PortraitBarModel.Group, OverviewModel.Filter] = {
 ## where it says `NEXT:`, whom and the wait in a row (see _fit_staff()). Set in the scene.
 @export var next_width := 0.0
 @export var next_wide_width := 0.0
-## The SPACES column's right edge as a narrow rail (number, windows, blocked)
-## and with the zones' names, and the logical screen width from which it has
-## the names (see _fit_spaces()). Set in the scene.
-@export var spaces_rail_right := 0.0
-@export var spaces_named_right := 0.0
-@export var spaces_named_from := 0.0
 ## The world width below which the edge arrows leave their zone's number to the
 ## tooltip (see _fit_edge_arrows()). Set in the scene.
 @export var edge_arrows_compact_from := 0.0
@@ -165,12 +163,6 @@ var bar: OfficeBar:
 		if _bar == null:
 			_bar = $Screen/Bar
 		return _bar
-
-var spaces: OfficeSpaces:
-	get:
-		if _spaces == null:
-			_spaces = %Spaces
-		return _spaces
 
 ## The agent card, which is the staff panel along the bottom (card = the staff panel).
 var inspector: OfficePaneInspector:
@@ -240,7 +232,6 @@ var monitor: TerminalMonitor:
 ## Logical screen the panels are laid out on; the office sets it with fit().
 var _screen := Vector2(800, 480)
 var _bar: OfficeBar
-var _spaces: OfficeSpaces
 var _inspector: OfficePaneInspector
 var _agent_list: AgentList
 ## The staff panel is down to its compact line; see _fit_staff().
@@ -250,8 +241,6 @@ var _compact := false
 var _drawer_open := false
 ## The staff panel was opened up from its line (expand_card(), or answer mode).
 var _expanded := false
-## The SPACES column says the zones' names (see _fit_spaces()).
-var _spaces_named := false
 ## Whether the edge arrows were last handed any (show_edge_arrows()): an
 ## overlay closing shows the same arrows again without a refresh.
 var _arrows_shown := false
@@ -271,8 +260,8 @@ var _attention_count := 0
 
 
 func _ready() -> void:
-	spaces.zone_picked.connect(func(key: String) -> void: zone_picked.emit(key))
-	spaces.machine_picked.connect(func(key: String) -> void: machine_picked.emit(key))
+	bar.zone_picked.connect(func(key: String) -> void: zone_picked.emit(key))
+	bar.machine_picked.connect(func(key: String) -> void: machine_picked.emit(key))
 	edge_arrows.arrow_picked.connect(func(key: String) -> void: arrow_picked.emit(key))
 	edge_arrows.zone_pointed.connect(func(key: String) -> void: zone_pointed.emit(key))
 	bar.portrait_picked.connect(func(key: String) -> void: portrait_picked.emit(key))
@@ -326,7 +315,6 @@ func dress(art: ArtPack, font: Font) -> void:
 	var screen: Control = $Screen
 	screen.theme = HudTheme.build(art, font)
 	bar.dress(art)
-	spaces.dress(art)
 	edge_arrows.dress(art)
 	inspector.dress(art)
 	agent_list.dress(art)
@@ -567,8 +555,8 @@ func point_strategic(key: String) -> void:
 	strategic.point(key)
 
 
-## Scroll the open strategic view to the section of zone `key`: a SPACES row of
-## the shown machine was picked under it.
+## Scroll the open strategic view to the section of zone `key`: a card's place
+## or a page key picked it under the view.
 func reveal_strategic_section(key: String) -> void:
 	strategic.reveal_section(key)
 
@@ -674,30 +662,28 @@ func _process(_delta: float) -> void:
 ## Every entry that can move a panel (fit(), the card opening or folding, the
 ## list taking the keyboard, answer mode, the drawer) comes through here, so the
 ## office hears room_changed whenever the world's room moved without the window.
-## Each panel's own fit is called from here: the drawer and the SPACES column's
-## width (rail or named) first, then the NEWS strip and the staff panel above
-## it, then the side columns, which stop above the staff panel while it is
-## shown (above the strip while only that is, at the screen's bottom gap while
-## neither is), the overview on that same bottom edge, and the edge arrows last
+## Each panel's own fit is called from here: the drawer first, then the NEWS
+## strip and the staff panel above it, then the right column, which stops
+## above the staff panel while it is shown (above the strip while only that
+## is, at the screen's bottom gap while neither is), the overview on that same
+## bottom edge, and the edge arrows last
 ## (they stand over world_rect(), which reads all of those). Every edge is one of
 ## the scene's values. The order is final: no panel adds a step of its own.
 func _fit_room() -> void:
 	var moved := _fit_drawer()
-	moved = _fit_spaces() or moved
 	moved = _fit_news() or moved
 	moved = _fit_staff() or moved
 	var bottom := _column_bottom()
-	for column: Control in [spaces, right_column]:
-		if column.offset_bottom != bottom:
-			column.offset_bottom = bottom
-			moved = true
+	if right_column.offset_bottom != bottom:
+		right_column.offset_bottom = bottom
+		moved = true
 	moved = _fit_overview() or moved
 	_fit_edge_arrows()
 	if moved:
 		room_changed.emit()
 
 
-## Where the side columns (and the overview) stop, from the screen's bottom.
+## Where the right column (and the overview) stops, from the screen's bottom.
 func _column_bottom() -> float:
 	if staff.visible:
 		return _staff_top() - world_gap.y
@@ -735,28 +721,6 @@ func _fit_drawer() -> bool:
 		return false
 	right_column.offset_left = left
 	return true
-
-
-## The SPACES column is a narrow rail (`spaces_rail_right`: each zone's number,
-## its windows under it and its blocked count, the rest in the row's tooltip)
-## on a screen narrower than `spaces_named_from`, and says the zones' names
-## from there (`spaces_named_right`). Only the rows' `visible` and tooltips
-## change with it. True when its edge moved.
-func _fit_spaces() -> bool:
-	var named := _screen.x >= spaces_named_from
-	if named != _spaces_named:
-		_spaces_named = named
-		spaces.set_named(named)
-	var right := spaces_named_right if named else spaces_rail_right
-	if spaces.offset_right == right:
-		return false
-	spaces.offset_right = right
-	return true
-
-
-## Whether the SPACES column says the zones' names (see _fit_spaces()).
-func spaces_named() -> bool:
-	return _spaces_named
 
 
 ## The drawer's tab says how many agents need a human (attention_count()), a
@@ -836,8 +800,8 @@ func _staff_top() -> float:
 	return _slot_top if _floating else staff.offset_top
 
 
-## The overview stops where the side columns do, so it covers them and the
-## world between them exactly. It is not in world_rect(): it covers, it takes
+## The overview stops where the right column does, so it covers it and the
+## world beside it exactly. It is not in world_rect(): it covers, it takes
 ## no room. True when its edge moved (only the window moves it).
 func _fit_overview() -> bool:
 	overview.set_compact(_screen.x < overview_full_from)
@@ -862,8 +826,8 @@ func show_edge_arrows(arrows: Array[EdgeArrowModel]) -> void:
 
 ## Whether the arrows leave their zone's number to the tooltip: a world
 ## narrower than `edge_arrows_compact_from` (the 480x320 minimum, 4x), where a
-## full arrow would cover too much of it. The SPACES rail's row for that zone
-## says the same count, and NEXT names who waits.
+## full arrow would cover too much of it. The top bar's blocked cards say who
+## waits there, and NEXT names who is next.
 func edge_arrows_compact() -> bool:
 	return world_rect().size.x < edge_arrows_compact_from
 
@@ -926,16 +890,14 @@ func fit(screen: Vector2) -> void:
 	_fit_room()
 
 
-## The screen area left over for the office, from where the panels stand.
-## Each slot takes room only while it is visible: the showroom hides the left
-## column and the NEWS strip (preview.gd). The edge arrows never take any: they stand over the world.
+## The screen area left over for the office, from where the panels stand: from
+## `world_left` (the staff panel's inset) to the right column. Each slot takes
+## room only while it is visible: the showroom hides the right column and the
+## NEWS strip (preview.gd). The edge arrows never take any: they stand over the world.
 func world_rect() -> Rect2:
-	var left := placed(spaces)
 	var right := placed(right_column)
-	var origin := Vector2(world_gap.x, placed(bar).end.y + world_gap.y)
-	var corner := Vector2(_screen.x - world_gap.x, maxf(left.end.y, right.end.y))
-	if spaces.visible:
-		origin.x = left.end.x + world_gap.x
+	var origin := Vector2(world_left, placed(bar).end.y + world_gap.y)
+	var corner := Vector2(_screen.x - world_gap.x, right.end.y)
 	if right_column.visible:
 		corner.x = right.position.x - world_gap.x
 	if staff.visible:
@@ -975,11 +937,19 @@ func show_bar(theme_name: String, status: String, alarmed: bool) -> void:
 	bar.show_bar(theme_name, status, alarmed)
 
 
-## The top bar's portrait strip (`model`), and from `totals` its `13 panes`
-## and the status line's hover.
-func show_portraits(model: PortraitBarModel, totals: OfficeTotals) -> void:
-	bar.show_machines(totals.machine_rows)
+## The top bar's portrait strip (`model`), and from `totals` its `13 panes`,
+## the status line's hover and, among several machines, a chip per machine,
+## `shown`'s (the machine whose map is drawn) the current one.
+func show_portraits(model: PortraitBarModel, totals: OfficeTotals, shown := "") -> void:
+	bar.show_machines(totals.machine_rows, shown, totals.machines_total > 1)
 	bar.show_portraits(model, totals.panes)
+
+
+## Outline the portrait cards of panes `keys` as pointed at (a HUD line about a
+## pane on another machine, an edge arrow's zone's blocked agents), and no
+## other; a pane folded into a fold or a tally has no card to outline.
+func point_cards(keys: PackedStringArray) -> void:
+	bar.point(keys)
 
 
 ## Each blocked card's wait, by pane key, on attention's beat.

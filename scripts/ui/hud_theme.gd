@@ -34,8 +34,8 @@ const LABEL_COLORS: Dictionary[StringName, StringName] = {
 ## Label variations that also change the size, and the palette key they take.
 ## Every size is one of a cut's own (OfficeDraw.cut_for()), and each wears the
 ## cut drawn at it (build()): the headings the heading cut at 12, the small
-## rows (the SPACES rail's numbers, the agent list's chevrons, the portrait
-## cards' and folds' words) the display cut at 8. A heading's
+## rows (the agent list's chevrons, the portrait cards' and folds' words) the
+## display cut at 8. A heading's
 ## variation keeps the name of the size it had before the pixel faces
 ## (Heading13, Heading16): the scenes name them.
 const LABEL_SIZES: Dictionary[StringName, int] = {
@@ -43,7 +43,6 @@ const LABEL_SIZES: Dictionary[StringName, int] = {
 	&"Heading16": 12,
 	&"Heading16Paper": 12,
 	&"Heading16Slate": 12,
-	&"RowNumber": 8,
 	&"Heading13Blocked": 12,
 	&"ListChevron": 8,
 	&"ListChevronCurrent": 8,
@@ -57,7 +56,6 @@ const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"Heading16": ArtContract.PAPER,
 	&"Heading16Paper": ArtContract.PAPER,
 	&"Heading16Slate": ArtContract.MUTED,
-	&"RowNumber": ArtContract.PAPER,
 	&"Heading13Blocked": ArtContract.BLOCKED,
 	&"ListChevron": ArtContract.MUTED,
 	&"ListChevronCurrent": ArtContract.PAPER,
@@ -70,7 +68,7 @@ const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"PortraitCount": ArtContract.PAPER,
 }
 ## The fixed ASCII headings: the wordmark in the display cut at twice its 8,
-## and SPACES, NEWS and NEXT in the heading cut at its 12 (OfficeDraw.cut_for()).
+## and NEWS and NEXT in the heading cut at its 12 (OfficeDraw.cut_for()).
 ## A pack without the cut writes them in the text cut at its 10.
 const DISPLAY_SIZES: Dictionary[StringName, int] = {
 	&"Wordmark": 16,
@@ -82,18 +80,14 @@ const DISPLAY_COLORS: Dictionary[StringName, StringName] = {
 	&"DisplayHeading": ArtContract.PAPER,
 	&"DisplayHeadingMuted": ArtContract.MUTED,
 }
-## Panel variations that are a flat fill of one palette colour: the bar's
-## ground, the SPACES rail's number chips and the slim bar a row whose zone is
-## in view wears at its left edge. A machine's heading wears the pack's own
-## icon rather than a coloured square, so it needs none of these.
+## Panel variations that are a flat fill of one palette colour: the bar's ground.
 const FLAT_PANELS: Dictionary[StringName, StringName] = {
 	&"BarBackground": ArtContract.DEEP,
-	&"RowChip": ArtContract.SLATE,
-	&"SpaceRowInView": ArtContract.PAPER,
 }
-## The SPACES rail's window looks (scenes/ui/space_row.tscn picks one
-## per pane): a state's own colour, idle lit plainly, and dark for a shell or a
-## machine that is not answering.
+## The one colour scale of a pane's state (StrategicModel.window_look() picks
+## one per pane): a state's own colour, idle
+## lit plainly, and dark for a shell or a machine that is not answering. The
+## strategic view's squares and the lens's washes wear it.
 const SECTION_PANELS: Dictionary[StringName, StringName] = {
 	&"WindowWorking": ArtContract.WORKING,
 	&"WindowBlocked": ArtContract.BLOCKED,
@@ -181,12 +175,13 @@ static func build(art: ArtPack, font: Font) -> Theme:
 	_portraits(theme, art)
 	_chime_switch(theme, art)
 	_bar_line(theme, art, font)
+	_machine_chips(theme, art, font)
 	_tooltips(theme, art)
 	_agent_list(theme, art)
 	_edge_arrows(theme, art)
 	_plate(theme, art, font)
 	_card(theme, art, font)
-	_section(theme, art, font)
+	_section(theme, art)
 	_monitor(theme, art, font)
 	_news(theme, art)
 	_overview(theme, art, font)
@@ -205,8 +200,8 @@ static func _sized(theme: Theme, art: ArtPack, font: Font, name: StringName, pix
 
 
 ## The strategic view (`S`, scenes/ui/strategic.tscn), drawn by
-## OfficeStrategicPlan._draw() on the pack's (dark) panel: one colour per SPACES
-## window look (SECTION_PANELS, the one scale), the tables' `frame` in muted with
+## OfficeStrategicPlan._draw() on the pack's (dark) panel: one colour per state
+## look (SECTION_PANELS, the one scale), the tables' `frame` in muted with
 ## a slate `divider` between their far and near seats, the tab's `caption` in
 ## paper and a blocked square's `wait` in ink on it, the selection's `corner`s in
 ## the blocked colour (the world's selection, as vector corners) and the
@@ -560,38 +555,12 @@ static func _panel(theme: Theme, art: ArtPack) -> void:
 	theme.set_stylebox("panel", "HdPanelBare", StyleBoxEmpty.new())
 
 
-## The SPACES rail's rows and headings. Godot's default Button draws grey
-## chrome and a focus ring; every button here is drawn by this theme instead.
+## Godot's default Button draws grey chrome and a focus ring; every button in
+## the HUD is drawn by this theme instead.
 static func _buttons(theme: Theme, art: ArtPack) -> void:
 	for state: String in BUTTON_STATES:
 		theme.set_stylebox(state, "Button", StyleBoxEmpty.new())
 	theme.set_color("font_color", "Button", art.color(ArtContract.PAPER))
-	var plain: Array[String] = ["SpaceRow", "SpaceRowPointed", "SpaceHeading", "SpaceHeadingCurrent"]
-	for name in plain:
-		theme.set_type_variation(name, "Button")
-		theme.set_constant("outline_size", name, 0)
-	# A row and a heading light `deep` under the pointer and `slate` while
-	# pressed. The heading of the machine whose map is shown is the only broad
-	# highlight in the rail: `slate`. (Which zones are in view is the slim bar
-	# at a row's left edge, `SpaceRowInView`.)
-	for state: String in BUTTON_STATES:
-		theme.set_stylebox(state, "SpaceRow", StyleBoxEmpty.new())
-		theme.set_stylebox(state, "SpaceHeading", StyleBoxEmpty.new())
-		theme.set_stylebox(state, "SpaceHeadingCurrent", _flat(art.color(ArtContract.SLATE)))
-	for name: String in ["SpaceRow", "SpaceHeading"]:
-		theme.set_stylebox("hover", name, _flat(art.color(ArtContract.DEEP)))
-		theme.set_stylebox("pressed", name, _flat(art.color(ArtContract.SLATE)))
-	# A zone a hovered HUD line names: a 1-unit paper edge and no fill, in
-	# every state.
-	for state: String in BUTTON_STATES:
-		var edge := _flat(Color.TRANSPARENT)
-		edge.draw_center = false
-		edge.set_border_width_all(1)
-		edge.border_color = art.color(ArtContract.PAPER)
-		theme.set_stylebox(state, "SpaceRowPointed", edge)
-	for name in plain:
-		for role: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-			theme.set_color(role, name, art.color(ArtContract.PAPER))
 
 
 ## The bar's Attention button (AttentionEntry), and the flat buttons and
@@ -628,6 +597,10 @@ static func _attention(theme: Theme, art: ArtPack) -> void:
 ## keeps reads pressed, `slate` with a `paper` edge (PortraitFold<State>On). The
 ## selected card wears a 1-unit `paper` ring just inside its edge, so the
 ## state's colour still shows (PortraitSelected).
+## A card a hovered HUD line points at wears a 1-unit `paper` ring 2 units in,
+## inside the selection's, so the state's edge always shows (PortraitPointed). A card's place is a flat button
+## (PortraitPlaceButton): nothing until the pointer is on it, then a 1-unit
+## `paper` line under it, as a link.
 ## A card's words are labels of their own (LABEL_HEADINGS), not the button's
 ## text, so they keep their colour under the pointer.
 static func _portraits(theme: Theme, art: ArtPack) -> void:
@@ -656,6 +629,17 @@ static func _portraits(theme: Theme, art: ArtPack) -> void:
 	ring.set_border_width_all(1)
 	ring.border_color = art.color(ArtContract.PAPER)
 	theme.set_stylebox("panel", &"PortraitSelected", ring)
+	theme.set_type_variation(&"PortraitPointed", "Panel")
+	theme.set_stylebox("panel", &"PortraitPointed", ring)
+	theme.set_type_variation(&"PortraitPlaceButton", "Button")
+	for look: String in BUTTON_STATES + ["hover_pressed"]:
+		var line := _flat(Color.TRANSPARENT)
+		line.draw_center = false
+		var lit := look.begins_with("hover") or look == "pressed"
+		line.border_width_bottom = 1 if lit else 0
+		line.border_color = art.color(ArtContract.PAPER)
+		line.set_content_margin_all(0)
+		theme.set_stylebox(look, &"PortraitPlaceButton", line)
 	# A card's zone tag: its worktree group's carpet, flat, so it reads as the
 	# room's colour beside the space's name; the index the zone's sign and
 	# carpet use (OfficeZoneSign.accent_of()). It never shows state.
@@ -728,6 +712,47 @@ static func _bar_line(theme: Theme, art: ArtPack, font: Font) -> void:
 			theme.set_color(role, name, ink)
 
 
+## The top bar's machine chips (MachineChip): the machine's label alone at 8,
+## in `paper` while it answers (MachineChip), `muted` while it connects
+## (MachineChipConnecting) and the blocked colour while it is offline
+## (MachineChipOffline: the alarm the MACHINES counter wore); a 1-unit edge in
+## the same colour under the pointer, as `13 panes`; the chip of the machine
+## whose map is drawn stands on `slate` (…Current).
+static func _machine_chips(theme: Theme, art: ArtPack, font: Font) -> void:
+	var inks: Dictionary[String, StringName] = {
+		"MachineChip": ArtContract.PAPER,
+		"MachineChipConnecting": ArtContract.MUTED,
+		"MachineChipOffline": ArtContract.BLOCKED,
+	}
+	for base: String in inks:
+		for kind: String in [base, base + "Current"]:
+			var name := StringName(kind)
+			theme.set_type_variation(name, "Button")
+			theme.set_constant("outline_size", name, 0)
+			_sized(theme, art, font, name, 8)
+			var ink := art.color(inks[base])
+			for state: String in BUTTON_STATES + ["hover_pressed"]:
+				var box := _flat(art.color(ArtContract.SLATE) if kind.ends_with("Current") else Color.TRANSPARENT)
+				box.draw_center = kind.ends_with("Current")
+				var lit := state.begins_with("hover") or state == "pressed"
+				box.set_border_width_all(1 if lit else 0)
+				box.border_color = ink
+				box.content_margin_left = 3
+				box.content_margin_right = 3
+				box.content_margin_top = 0
+				box.content_margin_bottom = 0
+				theme.set_stylebox(state, name, box)
+			for role: String in [
+				"font_color",
+				"font_hover_color",
+				"font_pressed_color",
+				"font_hover_pressed_color",
+				"font_focus_color",
+				"font_disabled_color"
+			]:
+				theme.set_color(role, name, ink)
+
+
 ## Every HUD tooltip (the portrait cards' and folds' names, a list row's details, a
 ## button's hint): paper on `deep` with a muted edge. Godot's own tooltip panel
 ## is see-through, which the office under it would show through.
@@ -747,7 +772,7 @@ static func _tooltips(theme: Theme, art: ArtPack) -> void:
 
 
 ## The agent list (scenes/ui/agent_list*.tscn): rows that light `deep` under
-## the pointer, the selected row `slate` like the SPACES rail's shown machine, group
+## the pointer, the selected row `slate` like the top bar's current machine chip, group
 ## headers on a `deep` band with a slate rule under it, the Flat / Tree switch,
 ## the rows' `…` and the filter box, a dark field like the card's reply box.
 ## The drawer's two pages (this list and EVENTS) scroll with a thin bar
@@ -761,7 +786,7 @@ static func _agent_list(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("ListGroup", "Button")
 	theme.set_type_variation("ListMore", "Button")
 	# A row lights `deep` under the pointer; the selected row is `slate`, like
-	# the SPACES rail's shown machine.
+	# the top bar's current machine chip.
 	for state: String in BUTTON_STATES:
 		var hover := state == "hover" or state == "pressed"
 		var lit: StyleBox = _flat(art.color(ArtContract.DEEP)) if hover else StyleBoxEmpty.new()
@@ -881,11 +906,9 @@ static func _dark_scroll(theme: Theme, art: ArtPack, name: String, wide: int) ->
 		theme.set_stylebox(state, name, grabber)
 
 
-## The SPACES rail's windows (scenes/ui/space_row.tscn): one flat palette colour
-## per state a window can show, on a dark facade; the `+N` after the eighth
-## window; and the plate's worktree-group accents, which follow structure and
-## never state.
-static func _section(theme: Theme, art: ArtPack, font: Font) -> void:
+## The state scale as flat panels (SECTION_PANELS), and the plate's
+## worktree-group accents, which follow structure and never state.
+static func _section(theme: Theme, art: ArtPack) -> void:
 	for name: StringName in SECTION_PANELS:
 		theme.set_type_variation(name, "Panel")
 		theme.set_stylebox("panel", name, _flat(art.color(SECTION_PANELS[name])))
@@ -893,12 +916,6 @@ static func _section(theme: Theme, art: ArtPack, font: Font) -> void:
 		var accent := StringName("PlateAccent%d" % index)
 		theme.set_type_variation(accent, "Panel")
 		theme.set_stylebox("panel", accent, _flat(art.color(ArtContract.ACCENTS[index])))
-	theme.set_type_variation("SectionFacade", "PanelContainer")
-	var facade := _flat(art.color(ArtContract.DEEP))
-	facade.set_content_margin_all(1)
-	theme.set_stylebox("panel", "SectionFacade", facade)
-	_label(theme, &"WindowMore", 8, art.color(ArtContract.MUTED))
-	_sized(theme, art, font, &"WindowMore", 8)
 
 
 ## The terminal monitor (scenes/ui/terminal_monitor.tscn): herdr's own screen on

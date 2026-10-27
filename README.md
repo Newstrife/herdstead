@@ -37,10 +37,11 @@ connects to herdr.
 
 - **The office**: one floor at a time, with a stable grid layout that never reshuffles your tables. People walk in from the
   lift when an agent starts and walk out when it goes. Disconnected machines dim and freeze; offline is never shown as idle.
-- **Top bar counters** in herdr's words (`MACHINES`, `BLOCKED 2 max 12m`, `DONE`, `WORKING`, `IDLE`, `PANES`); click to
-  jump to whoever waited longest or filter the list.
-- **SPACES rail** on the left: every machine's spaces, worktree mezzanines after their source, a mark on the ones in
-  view; and arrows on the edges of the world pointing to blocked agents out of view.
+- **Top bar portrait strip**: who needs you, as faces: the blocked in the order `N` walks them with how long each has
+  waited, then the done, the working and the idle, folded when they do not fit; a card's click selects, its space's
+  click pans there; with several machines, a chip per machine shows its map.
+- **PageUp / PageDown** walk every machine's spaces, worktree mezzanines after their source; arrows on the edges of the
+  world point to blocked agents out of view.
 - **Agent list** drawer (`A`), flat by urgency or as a tree, plus an **EVENTS** tab and a **NEWS** line of state changes
   observed this session.
 - **Staff panel** at the bottom with a live terminal preview, **NEXT** (`N`: the next agent that needs you), and

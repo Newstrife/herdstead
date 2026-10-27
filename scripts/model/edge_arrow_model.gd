@@ -40,7 +40,7 @@ class Target:
 	var wait := StateLog.Wait.new()
 
 
-## The zone's key: the SPACES row a hover outlines.
+## The zone's key: a hover outlines that zone's blocked cards in the top bar.
 var zone_key := ""
 ## The desk a click pans to: the zone's longest-waiting one off screen. Empty
 ## on the `+N` note, which is no way to any one of them.

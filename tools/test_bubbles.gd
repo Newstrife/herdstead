@@ -94,6 +94,9 @@ func test_bubbles_read_blocked_panes_on_screen_one_at_a_time() -> void:
 	# is not.
 	_ctl("control-b", "next", {"action": "hold", "method": "pane.read"})
 	var office := await _office_with(false, true, true, Vector2(480, 480), true)
+	# S3 BAR-b (2026-10-27): the SPACES rail's row went to bee's alpha in one click;
+	# bee's chip does, where the page keys would show Local's bravo on the way.
+	await _heading_pick(office, BEE)
 	await _zone_pick(office, HerdrFleet.pane_key(BEE, "alpha"))
 	await _bee_bubbles_on_screen(office)
 	await _until(func() -> bool: return _number(_ctl("control-b", "stats"), "held_replies") == 1, "a read is held")
@@ -678,7 +681,8 @@ func test_a_blocked_card_click_only_picks_and_reads_nothing() -> void:
 	_check(portrait != null and office.hud.bar.count(PortraitBarModel.Group.BLOCKED) == 1, "one blocked card")
 	if portrait == null:
 		return
-	await _click_control(portrait)
+	# S3 BAR-b (2026-10-27): on the card's face; the lower half of its words is its place, which pans.
+	await _click_control(portrait.get_node("%Face") as Control)
 	_eq(office.picked_key, key, "the click picks the one blocked agent")
 	_eq(
 		[office.navigator.shown_key, office.navigator.current_zone(office.frame)],

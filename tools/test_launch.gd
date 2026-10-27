@@ -1394,7 +1394,8 @@ func test_the_launch_block_fits_the_smallest_screen_and_keeps_pane_details_when_
 	await _frames(3)
 	_check(launch.is_visible_in_tree() and not more.is_visible_in_tree(), "the block in PANE's place")
 	_eq(office.hud.placed(card).size, Vector2(448, 128), "the card at 480x320, opened")
-	_eq(office.hud.world_rect().size, Vector2(340, 112), "the world above it keeps a desk's room")
+	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
+	_eq(office.hud.world_rect().size, Vector2(420, 112), "the world above it keeps a desk's room")
 	_launch_fits(card, "480x320")
 	_panels_apart(office, "480x320, opened")
 	_ctl(
