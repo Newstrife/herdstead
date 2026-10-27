@@ -1,4 +1,4 @@
-extends "res://tools/test_base.gd"
+extends "res://tools/seat_test_base.gd"
 ## Public workstation geometry and identity across repeated placement.
 
 ## How much of a near task lamp's wedge stays in sight on each side of whoever
@@ -606,10 +606,12 @@ func test_labels_clear_the_heads_they_hang_on() -> void:
 			_check(not text.intersects(figure), "%s: the plate's text %s clears the figure %s" % [where, text, figure])
 			_check(not badge.intersects(figure), "%s: the badge %s clears the figure %s" % [where, badge, figure])
 			_check(mark.encloses(figure), "%s: the selection mark %s frames the figure %s" % [where, mark, figure])
-			# Without the lens the plate takes the lens row's slot, next to the tag
-			# row; with it, the lens line takes that slot and the plate moves out.
-			var slot: Vector2 = OfficeStation.LENS_AT[side]
-			_eq(_plate_of(station).position, slot, "%s: unheld, the plate in the lens row's slot" % where)
+			# Without the lens the plate stands in its own slot where the lens row
+			# would be (S3 SEATTAGS round 2: PLATE_REST, 2 units further out, 10
+			# tall, clear of the frame bar and the tab label it now meets at rest);
+			# with it, the lens line takes the row and the plate moves out.
+			var slot: Vector2 = OfficeStation.PLATE_REST[side]
+			_eq(_plate_of(station).position, slot, "%s: unheld, the plate in its own slot" % where)
 			# The lens line clears the figure and the badge as the plate does.
 			station.show_lens(true, "99m+")
 			_eq(_plate_of(station).position, OfficeStation.PLATE_AT[side], "%s: held, the plate moves out" % where)
@@ -983,6 +985,10 @@ func test_desk_node_budget_bounds_real_prefabs_and_retained_empty_slots() -> voi
 ## whether the chips have a wait to tell or not. Within one seat, the plate,
 ## the lens and the tag rows never meet, nor do the seat's and the chip's
 ## rectangles. The rows are where docs/WORLD_MODEL.md says, in pod coordinates.
+## S3 SEATTAGS (2026-10-27): once with every seat taken, then with seats left
+## vacant on either side (alternate, the ends, a lone one, pairs), every pod's
+## plates widened by the floor's own rule (OfficeFloorView.widen_plates()) over
+## the vacant slots, a long name filling each: still nothing meets.
 func test_rows_at_the_pod_pitch_never_meet() -> void:
 	world = Node2D.new()
 	ground = Node2D.new()
@@ -1003,136 +1009,119 @@ func test_rows_at_the_pod_pitch_never_meet() -> void:
 				var station := pen.station(sorted, table, column, side)
 				station.pane_key = "%s/%d/%s" % [table.name, column, side]
 				stations.append(station)
-	for shift: float in [-64.0, -32.0, 0.0, 32.0, 64.0]:
-		lower.relocate(Vector2(256 + shift, 240 + pitch))
-		for station in stations:
-			if station.table == lower:
-				station.rebind(lower, station.column, station.side)
-		for mode: int in 4:
-			var known := mode % 2 == 0
-			var held := mode >= 2
-			for lift: int in [0, -1, -2]:
-				var parts: Array[Rect2] = []
-				var owners: Array[OfficeStation] = []
-				var names: Array[String] = []
-				for station in stations:
-					station.furnish("claude", ArtContract.STATE_BLOCKED, true)
-					station.show_name("S3 item 7, CARPET-B1: a plate's tag hugs its name; a long one fills its row")
-					station.chip().show_wait(5999.0 if known else -1.0)
-					station.show_lens(held, "99m+")
-					var badge: StatusBadge = station.get_node("Overlay/Badge")
-					badge.lift(lift)
-					var rows := _seat_rows(station)
-					for name: String in rows:
-						parts.append(rows[name])
-						owners.append(station)
-						names.append(name)
-				var clashes := PackedStringArray()
-				for index in parts.size():
-					for other in range(index + 1, parts.size()):
-						if not parts[index].intersects(parts[other]):
-							continue
-						if owners[index] == owners[other] and not _same_seat_clash(names[index], names[other]):
-							continue
-						if _facing_marks(owners[index], names[index], owners[other], names[other]):
-							continue
-						clashes.append(
-							(
-								"%s %s %s / %s %s %s"
-								% [
-									owners[index].pane_key,
-									names[index],
-									parts[index],
-									owners[other].pane_key,
-									names[other],
-									parts[other]
-								]
-							)
-						)
-				# Every pod selected: its frame's bars meet nothing of another pod, nor
-				# its own seats' badges, chips, marks or click rectangles (its plate
-				# and lens Labels may reach under a bar with no ink there).
-				for table: OfficeTable in [upper, beside, lower]:
-					table.set_selected(true)
-					for bar in _frame_bars(table):
-						for index in parts.size():
-							var own := owners[index].table == table
-							if own and names[index] in ["plate", "lens"]:
-								continue
-							if bar.intersects(parts[index]):
-								clashes.append(
-									(
-										"%s frame %s / %s %s %s"
-										% [table.name, bar, owners[index].pane_key, names[index], parts[index]]
-									)
-								)
-						for other: OfficeTable in [upper, beside, lower]:
-							if other == table:
-								continue
-							for far_bar in _frame_bars(other):
-								if bar.intersects(far_bar):
-									clashes.append("%s frame %s / %s frame %s" % [table.name, bar, other.name, far_bar])
-				var where := "shift %d, wait %s, lens %s, lift %d" % [shift, known, held, lift]
-				_eq(clashes, PackedStringArray(), where + ": nothing meets")
-				if shift == 0.0:
-					_check_row_literals(upper, stations, known, held, lift)
+	# Which columns hold a pane, by side, on every pod: the first is every seat.
+	var fars: Array[PackedInt32Array] = [[0, 1, 2, 3], [0, 2], [0, 3], [1, 2]]
+	var nears: Array[PackedInt32Array] = [[0, 1, 2, 3], [1, 3], [1], [0, 2, 3]]
+	var widened := 0
+	for pattern in fars.size():
+		for shift: float in [-64.0, -32.0, 0.0, 32.0, 64.0]:
+			lower.relocate(Vector2(256 + shift, 240 + pitch))
+			for station in stations:
+				if station.table == lower:
+					station.rebind(lower, station.column, station.side)
+			widened += _never_meet([upper, beside, lower], stations, fars[pattern], nears[pattern], shift)
+	_check(widened > 0, "plates were widened over vacant seats: %d" % widened)
 	for station in stations:
 		station.free()
 
 
-## The four bars of `table`'s selection frame, in global coordinates.
-func _frame_bars(table: OfficeTable) -> Array[Rect2]:
-	var bars: Array[Rect2] = []
-	for bar: Node in table.get_node("Overlay/Frame").get_children():
-		var control: Control = bar
-		bars.append(control.get_global_transform() * Rect2(Vector2.ZERO, control.size))
-	return bars
-
-
-## Whether these are the seat marks of the two seats facing each other across
-## one desk. Those two may meet: the near worker sits over the desk's near
-## plane, a raised hand's top (pod -28) above the far mark's foot (-24), so the
-## near mark [-32, 16) and the far one [-72, -24) share pod [-32, -24). Only
-## one seat is ever selected, so the two are never drawn together; this case
-## selects every seat only to measure each mark against everything else.
-static func _facing_marks(a: OfficeStation, a_part: String, b: OfficeStation, b_part: String) -> bool:
-	return a_part == "mark" and b_part == "mark" and a.table == b.table and a.column == b.column and a.side != b.side
-
-
-## Whether two parts of the same seat may not meet: the three rows (plate,
-## lens, tag) with each other, and the seat's rectangle with the chip's. The
-## seat mark, and a click rectangle over the rows it answers for, may.
-static func _same_seat_clash(a: String, b: String) -> bool:
-	var rows := ["plate", "lens", "badge"]
-	if a in rows and b in rows:
-		return true
-	if a in rows and b == "chip" or b in rows and a == "chip":
-		return a != "badge" and b != "badge"
-	return (a == "seat" and b == "chip rect") or (a == "chip rect" and b == "seat")
-
-
-## What a seat draws or answers a click with, by name, in global coordinates:
-## only what is shown now.
-func _seat_rows(station: OfficeStation) -> Dictionary[String, Rect2]:
-	var rows: Dictionary[String, Rect2] = {}
-	var badge: Sprite2D = station.get_node("Overlay/Badge")
-	if badge.visible:
-		rows["badge"] = badge.get_global_transform() * _opaque_local(badge)
-	var frame: NinePatchRect = station.chip().get_node("%Frame")
-	if frame.is_visible_in_tree():
-		rows["chip"] = frame.get_global_transform() * Rect2(Vector2.ZERO, frame.size)
-	for label: String in ["Lens", "Plate"]:
-		var control: Label = station.get_node("Overlay/" + label)
-		if control.is_visible_in_tree():
-			rows[label.to_lower()] = control.get_global_transform() * Rect2(Vector2.ZERO, control.size)
-	var mark: Sprite2D = station.get_node("Overlay/Selection")
-	if mark.is_visible_in_tree():
-		rows["mark"] = mark.get_global_transform() * _opaque_local(mark)
-	rows["seat"] = station.target_rect()
-	var chip: CollisionShape2D = station.get_node(OfficeStation.CHIP_TARGET)
-	if not chip.disabled:
-		rows["chip rect"] = _shape_rect(chip)
-	return rows
+## One shift of test_rows_at_the_pod_pitch_never_meet(): its seats taken as
+## `pattern` says, in every mode; how many plates were drawn widened.
+func _never_meet(
+	tables: Array[OfficeTable],
+	stations: Array[OfficeStation],
+	far: PackedInt32Array,
+	near: PackedInt32Array,
+	shift: float
+) -> int:
+	var widened := 0
+	var every := far.size() == 4 and near.size() == 4
+	for mode: int in 4:
+		var known := mode % 2 == 0
+		var held := mode >= 2
+		for lift: int in [0, -1, -2]:
+			var parts: Array[Rect2] = []
+			var owners: Array[OfficeStation] = []
+			var names: Array[String] = []
+			for station in stations:
+				if station.column in (far if station.side == "far" else near):
+					station.pane_key = "%s/%d/%s" % [station.table.name, station.column, station.side]
+					station.furnish("claude", ArtContract.STATE_BLOCKED, true)
+					station.show_name("S3 item 7, CARPET-B1: a plate's tag hugs its name; a long one fills its row")
+					station.chip().show_wait(5999.0 if known else -1.0)
+				else:
+					station.vacate()
+				station.show_lens(held, "99m+")
+				var badge: StatusBadge = station.get_node("Overlay/Badge")
+				badge.lift(lift)
+			for table in tables:
+				var pod: Array[OfficeStation] = []
+				for station in stations:
+					if station.table == table:
+						pod.append(station)
+				OfficeFloorView.widen_plates(pod)
+			for station in stations:
+				if station.plate_row().size.x > OfficeStation.PLATE_SIZE.x and _plate_of(station).visible:
+					widened += 1
+				_check(not station.vacant or not _plate_of(station).visible, "a vacant seat shows no plate")
+				var rows := _seat_rows(station)
+				for name: String in rows:
+					parts.append(rows[name])
+					owners.append(station)
+					names.append(name)
+			var clashes := PackedStringArray()
+			for index in parts.size():
+				for other in range(index + 1, parts.size()):
+					if not parts[index].intersects(parts[other]):
+						continue
+					if owners[index] == owners[other] and not _same_seat_clash(names[index], names[other]):
+						continue
+					if _facing_marks(owners[index], names[index], owners[other], names[other]):
+						continue
+					clashes.append(
+						(
+							"%s %s %s / %s %s %s"
+							% [
+								owners[index].pane_key,
+								names[index],
+								parts[index],
+								owners[other].pane_key,
+								names[other],
+								parts[other]
+							]
+						)
+					)
+			# Every pod selected: its frame's bars meet nothing of another pod, nor
+			# its own seats' badges, chips, marks or click rectangles (its plate
+			# and lens Labels may reach under a bar with no ink there).
+			for table in tables:
+				table.set_selected(true)
+				for bar in _frame_bars(table):
+					for index in parts.size():
+						var own := owners[index].table == table
+						# S3 SEATTAGS round 2: the plate (shown at rest on a small map) stands
+						# clear of its own pod's frame too; only the held lens line may still
+						# reach under a bar with no ink there.
+						if own and names[index] == "lens":
+							continue
+						if bar.intersects(parts[index]):
+							clashes.append(
+								(
+									"%s frame %s / %s %s %s"
+									% [table.name, bar, owners[index].pane_key, names[index], parts[index]]
+								)
+							)
+					for other in tables:
+						if other == table:
+							continue
+						for far_bar in _frame_bars(other):
+							if bar.intersects(far_bar):
+								clashes.append("%s frame %s / %s frame %s" % [table.name, bar, other.name, far_bar])
+			var where := "far %s near %s, shift %d, wait %s, lens %s, lift %d" % [far, near, shift, known, held, lift]
+			_eq(clashes, PackedStringArray(), where + ": nothing meets")
+			if every and shift == 0.0:
+				_check_row_literals(tables[0], stations, known, held, lift)
+	return widened
 
 
 ## The rows of `table`'s first column, in pod coordinates, where the world
@@ -1158,9 +1147,11 @@ func _check_row_literals(
 		_eq(rows.has("lens"), held, "%s: the lens row only under the lens" % where)
 		if held:
 			_eq(to_pod * rows["lens"], Rect2(6, -102.0 if far else 40.0, 20, 12), "%s: lens tag (S3 item 7)" % where)
-		# Held, the plate is the outermost row; unheld, it takes the lens row's slot.
-		var plate_top := (-114.0 if far else 52.0) if held else (-102.0 if far else 40.0)
-		_eq(to_pod * rows["plate"], Rect2(1, plate_top, 30, 12), "%s: the plate row" % where)
+		# Held, the plate is the outermost row; unheld, its own slot (S3 SEATTAGS
+		# round 2: 10 tall, far [-104, -94) under the frame bar, near [42, 52)
+		# 2 under the tab label and 2 over a zone's lower partition).
+		var plate_top := (-114.0 if far else 52.0) if held else (-104.0 if far else 42.0)
+		_eq(to_pod * rows["plate"], Rect2(1, plate_top, 30, 10), "%s: the plate row" % where)
 		_eq(
 			to_pod * rows["chip rect"],
 			Rect2(1, -90.0 if far else 14.0, 30, 18),
@@ -1538,7 +1529,9 @@ func test_the_near_rows_stand_clear_of_the_tab_label() -> void:
 						not rows[name].intersects(label),
 						"%s: the %s %s clears the label %s" % [where, name, rows[name], label]
 					)
-			_check(label.end.y <= rows["plate"].position.y, "%s: the plate hangs below the label" % where)
+			# S3 SEATTAGS round 2: the plate shows at rest on a small map, so it keeps
+			# the seat rows' 2 units from the label (it met the label's box before).
+			_check(label.end.y + 2.0 <= rows["plate"].position.y, "%s: the plate hangs 2 below the label" % where)
 
 
 ## The pod stands on no legs: its two short end legs were retired once the
@@ -1802,13 +1795,14 @@ func test_the_compact_duration_is_bounded_and_fits_its_rows() -> void:
 	_eq(chip_widest, 14.0, "the widest chip form (`99m`) is 14 wide")
 	_eq(lens_widest, 18.0, "the widest lens form (`99m+`) is 18 wide")
 	_check(chip_widest <= wait.size.x, "it fits the chip's slot, %s" % wait.size.x)
-	_eq([OfficeStation.LENS_SIZE, OfficeStation.PLATE_SIZE], [Vector2(30, 12), Vector2(30, 12)], "rows (S3 item 7)")
+	# S3 SEATTAGS round 2: the plate is 10 tall (OfficeDraw.plate_cut()), the lens row still 12.
+	_eq([OfficeStation.LENS_SIZE, OfficeStation.PLATE_SIZE], [Vector2(30, 12), Vector2(30, 10)], "rows (S3 item 7)")
 	_eq(wait.size, Vector2(14, 12), "the chip's slot, measured after the face is on")
 	station.show_lens(true, "99m+")
 	_eq(lens.size, Vector2(lens_widest + 2.0 * OfficeDraw.TAG_PAD, 12), "the widest lens form's tag, in its row")
 	var plate: Label = station.get_node("Overlay/Plate")
 	station.show_name("a pane name longer than its row")
-	_eq(plate.size, Vector2(30, 12), "a long name's tag fills the plate row")
+	_eq(plate.size, Vector2(30, 10), "a long name's tag fills the plate row (S3 SEATTAGS round 2: 10 tall)")
 	_eq(plate.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS_FORCE, "a long name ends in an ellipsis")
 	_eq(plate.get_theme_font_size("font_size"), 8, "the display face at its native 8")
 	station.free()
@@ -1876,125 +1870,110 @@ func test_hovering_a_seat_shows_only_its_plate() -> void:
 		_check(not _plate_of(station).visible, "let go: no plate")
 
 
-func _plate_of(station: OfficeStation) -> Label:
-	return station.get_node("Overlay/Plate")
+## S3 SEATTAGS (2026-10-27): on a map with few occupied seats every plate
+## shows with nothing hovered or selected, and a vacant seat still shows none.
+## A plate next to a vacant seat on its side of the pod takes that seat's slot
+## too (OfficeFloorView.widen_plates()): a long name's tag fills two slots, 62
+## wide, its start over its own column; a short one stays centred on its
+## column; a slot goes to the seat on its left first, else to the one on its
+## right, never to both; a seat taken again gives its slot back. In pod
+## coordinates, as docs/WORLD_MODEL.md says; no widened plate covers a worker.
+func test_a_long_name_takes_a_vacant_neighbours_slot() -> void:
+	var table := _table()
+	_check(table.resize(4), "four columns")
+	var stations: Array[OfficeStation] = []
+	for column in table.columns.size():
+		for side: String in OfficeTable.SIDES:
+			stations.append(pen.station(sorted, table, column, side))
+	_seat_far(stations, [0, 2])
+	await process_frame
+	for station in stations:
+		_eq(
+			_plate_of(station).visible,
+			not station.vacant,
+			"few seats, nothing hovered: %d %s's plate shows only if taken" % [station.column, station.side]
+		)
+	_eq(_pod_plate(stations[0]), Rect2(1, -104, 62, 10), "far 0, beside vacant 1: two slots, from its own")
+	_eq(_pod_plate(stations[4]), Rect2(65, -104, 62, 10), "far 2: vacant 3's slot; vacant 1's is 0's")
+	_eq(_pod_plate(stations[1]), Rect2(1, 42, 30, 10), "near 0, its neighbour taken: its own slot")
+	for far: OfficeStation in [stations[0], stations[4]]:
+		var plate := _plate_of(far)
+		var box := plate.get_global_transform() * Rect2(Vector2.ZERO, plate.size)
+		for station in stations:
+			if station.actor() != null:
+				var figure := station.get_global_transform() * _drawn_figure(station)
+				_check(not box.intersects(figure), "a widened plate %s covers no worker %s" % [box, figure])
+	stations[0].show_name("ab")
+	var short := _pod_plate(stations[0])
+	_eq(short.get_center().x, 16.0, "a short name stays centred on its own column")
+	_check(short.size.x < OfficeStation.PLATE_SIZE.x, "hugging its text")
+	stations[0].show_name(LONG_NAME)
+	stations[0].show_lens(true, "")
+	_eq(_pod_plate(stations[0]), Rect2(1, -114, 62, 10), "held, the widened plate moves out to the outermost row")
+	stations[0].show_lens(false, "")
+	_seat_far(stations, [0, 1, 2])
+	_eq(_pod_plate(stations[0]), Rect2(1, -104, 30, 10), "1 taken again: 0's plate gives its slot back")
+	_seat_far(stations, [1])
+	_eq(_pod_plate(stations[2]), Rect2(17, -104, 62, 10), "a lone seat: both neighbours' slots, centred on it")
+	_seat_far(stations, [3])
+	_eq(_pod_plate(stations[6]), Rect2(65, -104, 62, 10), "the last column: its left neighbour's slot")
+	_seat_far(stations, [1, 3])
+	_eq(_pod_plate(stations[2]), Rect2(17, -104, 62, 10), "vacant 2 goes to its left neighbour, 1")
+	_eq(_pod_plate(stations[6]), Rect2(97, -104, 30, 10), "and not to 3 as well")
+	for station in stations:
+		station.show_plates_always(false)
+		_check(not _plate_of(station).visible, "more seats: no plate at rest, %d %s" % [station.column, station.side])
 
 
-## Move the real pointer to `at` (viewport pixels) and let physics picking see it.
-func _point(at: Vector2) -> void:
-	var motion := InputEventMouseMotion.new()
-	motion.position = at
-	motion.global_position = at
-	Input.parse_input_event(motion)
-	Input.flush_buffered_events()
-	await physics_frame
-	await physics_frame
-
-
-## Every opaque texel `sprite` draws, as texel cells (half a unit each at
-## density 2) in global coordinates, or in `into`'s.
-func _texels(sprite: Sprite2D, into: Transform2D = Transform2D.IDENTITY) -> Dictionary[Vector2i, bool]:
-	var found: Dictionary[Vector2i, bool] = {}
-	var image := sprite.texture.get_image()
-	var used := image.get_used_rect()
-	var to_world := into * sprite.get_global_transform()
-	for y in range(used.position.y, used.end.y):
-		for x in range(used.position.x, used.end.x):
-			if image.get_pixel(x, y).a <= 0.0:
+## S3 SEATTAGS round 2 (R1): on a planned zone, every seat's plate at rest
+## (a map with few seats shows it with nothing hovered) keeps 2 units of floor
+## from its pod's tab label and from the zone's lower partition's opaque
+## pixels (OfficeFloorView.partition_sprites()), in every seating the never-meet case
+## walks, the plates widened over vacant seats as the floor widens them.
+func test_a_plate_at_rest_stands_clear_of_its_label_and_partition() -> void:
+	world = Node2D.new()
+	root.add_child(world)
+	var policy := FloorLayoutPolicy.new()
+	policy.actor_footprint = PixelPerson.footprint()
+	policy.actor_draw_rect = PixelPerson.drawing_rect(art.people)
+	var zone := _side_zone("tags/1", 1, [_side_room("tab-t", 1, 0, 8)])
+	var map := MapModel.of_zones("tags", [zone] as Array[ZoneModel])
+	var plan := OfficeFloorLayout.plan(map, null, policy, OfficeDecorPlanner.new(pen)).plan
+	_check(plan != null and plan.zones.size() == 1, "one zone planned")
+	if plan == null or plan.zones.size() != 1:
+		return
+	var floor_root := Node2D.new()
+	world.add_child(floor_root)
+	var view := OfficeFloorView.new()
+	view.setup(pen, floor_root)
+	view.reconcile(plan, map)
+	view.update_desks(map, "", false)
+	await process_frame
+	var pod: OfficeDeskView = view.desks["tab-t"]
+	var to_floor := floor_root.get_global_transform().affine_inverse()
+	var label := to_floor * pod.title.get_global_rect()
+	var ink: Array[Vector2] = []
+	for piece in view.partition_sprites(plan.zones[0].zone_key):
+		for cell: Vector2i in _texels(piece, to_floor):
+			ink.append((Vector2(cell) + Vector2(0.5, 0.5)) / 2.0)
+	_check(ink.size() > 100, "the zone's partition is drawn: %d texels" % ink.size())
+	var fars: Array[PackedInt32Array] = [[0, 1, 2, 3], [0, 2], [0, 3], [1, 2]]
+	var nears: Array[PackedInt32Array] = [[0, 1, 2, 3], [1, 3], [1], [0, 2, 3]]
+	for pattern in fars.size():
+		for station in pod.stations:
+			if station.column in (fars[pattern] if station.side == "far" else nears[pattern]):
+				station.furnish("claude", ArtContract.STATE_WORKING)
+				station.show_name(LONG_NAME)
+			else:
+				station.vacate()
+			station.show_plates_always(true)
+		OfficeFloorView.widen_plates(pod.stations)
+		for station in pod.stations:
+			var plate := _plate_of(station)
+			if not plate.visible:
 				continue
-			var middle := to_world * (sprite.offset + Vector2(x + 0.5, y + 0.5))
-			found[Vector2i(floori(middle.x * 2.0), floori(middle.y * 2.0))] = true
-	return found
-
-
-## Every opaque texel of the station's chair, as texel cells (see _texels()).
-func _chair_texels(station: OfficeStation, into: Transform2D = Transform2D.IDENTITY) -> Dictionary[Vector2i, bool]:
-	var chair: Sprite2D = station.get_node("Chair")
-	return _texels(chair, into)
-
-
-## Every opaque texel the station's worker draws in the track it plays, over
-## all of its frames and both layers, as texel cells (see _texels()).
-func _figure_texels(station: OfficeStation, into: Transform2D = Transform2D.IDENTITY) -> Dictionary[Vector2i, bool]:
-	var found: Dictionary[Vector2i, bool] = {}
-	var person := station.actor()
-	var people := person.people
-	var track := people.tracks[person.track]
-	for layer in PixelPeople.LAYERS:
-		var sprite: Sprite2D = person.get_node(PixelPeople.SPRITES[layer])
-		if sprite.texture == null:
-			continue
-		var image := sprite.texture.get_image()
-		for index in track.frame_count():
-			var frame := people.frame_rect(track.frame(index))
-			for y in frame.size.y:
-				for x in frame.size.x:
-					if image.get_pixel(frame.position.x + x, frame.position.y + y).a <= 0.0:
-						continue
-					var local := Vector2(x + 0.5, y + 0.5) / people.density - people.pivot
-					if sprite.flip_h:
-						local.x = -local.x
-					var middle := into * person.get_global_transform() * local
-					found[Vector2i(floori(middle.x * 2.0), floori(middle.y * 2.0))] = true
-	return found
-
-
-## Every opaque pixel the station's worker draws in the track it plays, over
-## all of its frames and both layers (mirrored where a layer is), in the
-## station's coordinates.
-func _drawn_figure(station: OfficeStation) -> Rect2:
-	var person := station.actor()
-	var people := person.people
-	var track := people.tracks[person.track]
-	var drawn := Rect2()
-	for layer in PixelPeople.LAYERS:
-		var sprite: Sprite2D = person.get_node(PixelPeople.SPRITES[layer])
-		# A layer the look leaves empty (no glasses, the hair under a hood) draws nothing.
-		if sprite.texture == null:
-			continue
-		var image := sprite.texture.get_image()
-		for index in track.frame_count():
-			var used := image.get_region(people.frame_rect(track.frame(index))).get_used_rect()
-			if used.size == Vector2i.ZERO:
-				continue
-			# Texels back to units.
-			var local := Rect2(
-				Vector2(used.position) / people.density - people.pivot, Vector2(used.size) / people.density
-			)
-			if sprite.flip_h:
-				local = Rect2(Vector2(-local.end.x, local.position.y), local.size)
-			var placed := Rect2(person.position + local.position, local.size)
-			drawn = placed if drawn.size == Vector2.ZERO else drawn.merge(placed)
-	return drawn
-
-
-## Where the plate's upper-case text is drawn, in the station's coordinates:
-## centred in the plate, from its top down to the font's baseline.
-func _plate_text(station: OfficeStation) -> Rect2:
-	var overlay: Node2D = station.get_node("Overlay")
-	var plate: Label = overlay.get_node("Plate")
-	var font := plate.get_theme_font("font")
-	var pixels := plate.get_theme_font_size("font_size")
-	var width := font.get_string_size(plate.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x
-	var top_left := plate.position + Vector2((plate.size.x - width) / 2.0, 0)
-	return _in_station(station, overlay, Rect2(top_left, Vector2(width, font.get_ascent(pixels))))
-
-
-## The opaque pixels of `sprite` in its own coordinates (before its transform):
-## what get_rect() is for the pixels that are drawn.
-func _opaque_local(sprite: Sprite2D) -> Rect2:
-	var used := Rect2(sprite.texture.get_image().get_used_rect())
-	used.position += sprite.offset
-	return used
-
-
-## A collision shape's rectangle, in global coordinates.
-func _shape_rect(node: Node) -> Rect2:
-	var shape: CollisionShape2D = node
-	var box: RectangleShape2D = shape.shape
-	return Rect2(shape.global_position - box.size / 2.0, box.size)
-
-
-## `bounds`, given in `node`'s own coordinates, in the station's.
-func _in_station(station: OfficeStation, node: CanvasItem, bounds: Rect2) -> Rect2:
-	return station.get_global_transform().affine_inverse() * node.get_global_transform() * bounds
+			var row := to_floor * (plate.get_global_transform() * Rect2(Vector2.ZERO, plate.size))
+			var where := "far %s near %s: %d %s %s" % [fars[pattern], nears[pattern], station.column, station.side, row]
+			_check(not row.grow(2.0).intersects(label), "%s: 2 clear of the tab label %s" % [where, label])
+			var near := ink.filter(func(at: Vector2) -> bool: return row.grow(2.0).has_point(at))
+			_eq(near, [], "%s: 2 clear of the partition's ink" % where)

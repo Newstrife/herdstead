@@ -74,8 +74,12 @@ func _after_case() -> void:
 ## Let go, every line and plate hides, the furnishing is as bright as before,
 ## the pods' floors plain again and the theme line the pack's.
 func test_holding_l_adds_the_wait_line_and_letting_go_restores_everything() -> void:
-	var office := await _live_office()
-	var one := _with(fixture, "api:p1", {"agent_status": "blocked"})
+	# S3 SEATTAGS round 2: a map one seat over FloorLayoutPolicy.FEW_SEATS (the floors
+	# fixture's 13 seats show every plate at rest now), padded with shells, so before L
+	# only the selected seat's plate shows and the fixture's ten agents are the agents.
+	var crowded := _sized(fixture, FloorLayoutPolicy.FEW_SEATS + 1, "api:p3")
+	var office := await _live_office(crowded)
+	var one := _with(crowded, "api:p1", {"agent_status": "blocked"})
 	_feed(office, one)
 	_feed(office, _with(one, "api:p4", {"agent_status": "done"}))
 	office.settle()
@@ -1036,9 +1040,16 @@ func test_a_seats_words_stand_on_a_paper_tag() -> void:
 	for station in _seats(office):
 		var lens_at: Vector2 = OfficeStation.LENS_AT[station.side]
 		var plate_at: Vector2 = OfficeStation.PLATE_AT[station.side]
+		# S3 SEATTAGS (2026-10-27): a plate next to a vacant seat on its side of the
+		# pod takes that seat's slot too (web:p1 here), so its row is the station's
+		# plate_row(); test_office_geometry pins that row's literals.
 		var rows: Dictionary[String, Rect2] = {
 			"Lens": Rect2(lens_at, OfficeStation.LENS_SIZE),
-			"Plate": Rect2(plate_at, OfficeStation.PLATE_SIZE),
+			"Plate": station.plate_row(),
+		}
+		var own: Dictionary[String, float] = {
+			"Lens": lens_at.x + OfficeStation.LENS_SIZE.x / 2.0,
+			"Plate": plate_at.x + OfficeStation.PLATE_SIZE.x / 2.0,
 		}
 		for row: String in rows:
 			var words: Label = station.get_node("Overlay/" + row)
@@ -1063,7 +1074,10 @@ func test_a_seats_words_stand_on_a_paper_tag() -> void:
 			var hugged := minf(rows[row].size.x, ceilf(wide) + 2.0 * OfficeDraw.TAG_PAD)
 			var drawn := Rect2(words.position, words.size)
 			_eq(drawn.size, Vector2(hugged, rows[row].size.y), name + ": hugs its text, the row's height")
-			_eq(drawn.get_center().x, rows[row].get_center().x, name + ": centred in its row")
+			# S3 SEATTAGS: centred on its own column, as far as its row lets it (a
+			# 30-wide row centres it there; a widened one keeps it inside).
+			var left := clampf(own[row] - hugged / 2.0, rows[row].position.x, rows[row].end.x - hugged)
+			_eq(drawn.position.x, left, name + ": centred on its column, inside its row")
 			_eq(drawn.position.y, rows[row].position.y, name + ": in its row")
 			_eq([words.modulate, words.self_modulate], [Color.WHITE, Color.WHITE], name + ": not dimmed")
 	_check(tagged > 4, "the held lens shows tagged words: %d" % tagged)
@@ -1075,6 +1089,150 @@ func test_a_seats_words_stand_on_a_paper_tag() -> void:
 	bare.free()
 	await _let_go()
 	_done(office)
+
+
+## S3 SEATTAGS (2026-10-27): a map with few occupied seats
+## (FloorLayoutPolicy.FEW_SEATS, agents and shells) shows every seat's plate
+## with nothing hovered, selected or held, and no vacant seat's; one more
+## occupied seat and only the selected seat's shows, while a real pointer over
+## a seat, a real click on one and `L` still show theirs; back to the threshold,
+## all of them again. Nothing is rebuilt: the same world, the same plates.
+func test_a_map_with_few_seats_shows_every_plate() -> void:
+	# S3 SEATTAGS round 2: the map is sized from the constant (12, then 16), not the fixture's 13.
+	var few := _sized(fixture, FloorLayoutPolicy.FEW_SEATS)
+	var more := _sized(fixture, FloorLayoutPolicy.FEW_SEATS + 1)
+	var office := await _live_office(few)
+	office.settle()
+	await _frames(2)
+	_check(OfficeFloorView.few_seats(office.frame.building_of(office.navigator.shown_key).map), "few seats")
+	var shown := 0
+	for station in _all_stations(office):
+		_eq(_plate(station).visible, not station.vacant, "few seats: a plate over every taken seat: " + station.name)
+		if not station.vacant and station.pane_key != office.navigator.active_key:
+			shown += 1
+	_check(shown >= 8, "plates shown that nothing selects: %d" % shown)
+	var world := office.world.get_instance_id()
+	var plates := _plate_ids(office)
+	_feed(office, more)
+	office.settle()
+	await _frames(2)
+	_check(not OfficeFloorView.few_seats(office.frame.building_of(office.navigator.shown_key).map), "one more: not few")
+	_eq(office.world.get_instance_id(), world, "the same world")
+	for station in _seats(office):
+		var picked := station.pane_key == office.navigator.active_key
+		_eq(_plate(station).visible, picked, "one more seat: only the selected plate: " + station.pane_key)
+	var other := _unselected_in_view(office)
+	_check(other != null, "a seat in view that is not selected")
+	if other == null:
+		_done(office)
+		return
+	await _pointer_to(other.target_rect().get_center() - office.camera.position)
+	_check(_plate(other).visible, "a real pointer over a seat shows its plate")
+	await _pointer_to(Vector2(2, 2))
+	_check(not _plate(other).visible, "and moving off hides it")
+	await _click_at(other.target_rect().get_center() - office.camera.position)
+	_eq(office.navigator.active_key, other.pane_key, "a real click selects the seat")
+	await _pointer_to(Vector2(2, 2))
+	_check(_plate(other).visible, "selected, its plate shows")
+	await _hold()
+	for station in _seats(office):
+		_check(_plate(station).visible, "held, every plate shows: " + station.pane_key)
+	await _let_go()
+	for station in _seats(office):
+		_eq(_plate(station).visible, station == other, "let go, only the selected plate: " + station.pane_key)
+	_feed(office, few)
+	office.settle()
+	await _frames(2)
+	for station in _all_stations(office):
+		_eq(_plate(station).visible, not station.vacant, "back to few: every taken seat's again: " + station.name)
+	_eq(office.world.get_instance_id(), world, "still the same world")
+	var kept := _plate_ids(office)
+	for key: String in kept:
+		_eq(kept[key], plates.get(key, -1), "the same plate node: " + key)
+	_done(office)
+
+
+## S3 SEATTAGS: each machine's map takes its own count. Local's (one seat more
+## than FloorLayoutPolicy.FEW_SEATS) shows only the selected seat's plate; a real
+## click on bee's chip shows bee's map (one seat, nothing selected) with its
+## plate; a click on Local's chip, Local's rule again.
+func test_each_machines_map_takes_its_own_count() -> void:
+	var office := await _two_machine_office(_sized(fixture, FloorLayoutPolicy.FEW_SEATS + 1))
+	var quiet := _bee_snapshot("working")
+	quiet.erase("focused_pane_id")
+	_feed_bee(office, quiet)
+	office.refresh()
+	await _frames(2)
+	_eq(office.navigator.shown_key, LOCAL, "Local's map is shown")
+	for station in _seats(office):
+		var picked := station.pane_key == office.navigator.active_key
+		_eq(_plate(station).visible, picked, "Local, one seat too many: only the selected plate: " + station.pane_key)
+	for machine: String in [BEE, LOCAL]:
+		var at := office.hud.bar.chip_for(machine).get_global_rect().get_center()
+		await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, true))
+		await _parsed(_mouse_button(at, MOUSE_BUTTON_LEFT, false))
+		await _frames(2)
+		_eq(office.navigator.shown_key, machine, "a click on its chip shows %s's map" % machine)
+		var few := machine == BEE
+		_eq(
+			OfficeFloorView.few_seats(office.frame.building_of(office.navigator.shown_key).map),
+			few,
+			"%s's map: few seats %s" % [machine, few]
+		)
+		_check(not _seats(office).is_empty(), "%s's map has seats" % machine)
+		for station in _seats(office):
+			var selected := (station.get_node("Overlay/Selection") as CanvasItem).visible
+			if few:
+				_check(not selected, "bee's seat is not selected: " + station.pane_key)
+			_eq(_plate(station).visible, few or selected, "%s: its plate: %s" % [machine, station.pane_key])
+	_done(office)
+
+
+## `snapshot` with exactly `count` panes: its last ones dropped, or copies of
+## its pane `like` (its first by default) added (new pane and terminal ids, in
+## the same tab).
+func _sized(snapshot: Dictionary, count: int, like := "") -> Dictionary:
+	var result: Dictionary = snapshot.duplicate(true)
+	var panes := _list(result, "panes")
+	var first: Dictionary = panes[0]
+	for pane: Dictionary in panes:
+		if pane.pane_id == like:
+			first = pane
+	while panes.size() > count:
+		panes.pop_back()
+	while panes.size() < count:
+		var extra := first.duplicate(true)
+		extra.pane_id = "%s-copy%d" % [first.pane_id, panes.size()]
+		extra.terminal_id = "term-copy%d" % panes.size()
+		panes.append(extra)
+	_eq(panes.size(), count, "a map of %d seats" % count)
+	return result
+
+
+## Every station on the shown map, vacant ones too, in tree order.
+func _all_stations(office: OfficeDouble) -> Array[OfficeStation]:
+	var found: Array[OfficeStation] = []
+	for node: Node in office.world.find_children("*", "", true, false):
+		if node is OfficeStation:
+			found.append(node as OfficeStation)
+	return found
+
+
+## Each taken seat's plate node, by pane key.
+func _plate_ids(office: OfficeDouble) -> Dictionary[String, int]:
+	var ids: Dictionary[String, int] = {}
+	for station in _seats(office):
+		ids[station.pane_key] = _plate(station).get_instance_id()
+	return ids
+
+
+## A taken seat whose click target is wholly in the world's room on screen and
+## that is not selected; null when there is none.
+func _unselected_in_view(office: OfficeDouble) -> OfficeStation:
+	for station in _seats(office):
+		if station.pane_key != office.navigator.active_key and _desk_in_view(office, station.pane_key):
+			return station
+	return null
 
 
 ## The WCAG contrast ratio of two opaque colours.

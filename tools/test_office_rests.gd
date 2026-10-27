@@ -51,7 +51,11 @@ func test_a_blocked_agent_stays_seated_with_a_hand_up_and_a_bubble() -> void:
 	# The plate names the seat only while it is hovered, selected or under the
 	# lens (it used to show always; a 30-wide plate row is transient now).
 	_eq(_plate(station).text, "main", "the plate still names the seat: the pane's name (its tab)")
-	_check(not _plate(station).visible, "and shows only on hover, selection or the lens")
+	# S3 SEATTAGS (2026-10-27): plates always show on a map with few occupied
+	# seats (api alone: four); the hover / selection / lens rule is a crowded
+	# map's (test_lens.gd, test_a_map_with_few_seats_shows_every_plate).
+	_check(OfficeFloorView.few_seats(office.frame.building_of(office.navigator.shown_key).map), "api alone: few seats")
+	_check(_plate(station).visible, "and, on a map with few seats, it shows at rest")
 	var bubble := station.chip()
 	_check(bubble.visible, "the bubble shows at once")
 	_eq(bubble.position, OfficeStation.CHIP_AT[station.side], "over this side's head")
