@@ -36,8 +36,9 @@ const VIEWS: Array[StringName] = [GRID, FRAMES, OPTIONS]
 const OPTIONS_TRACK := &"stand_idle"
 const DEFAULT_ZOOM := 3
 ## The showroom draws its controls at one screen pixel per pixel, so its text
-## is set larger than the office HUD's 10, which is sized for a 2-3x office.
-const FONT_SIZE := 15
+## is set larger than the office HUD's 10, which is sized for a 2-3x office:
+## the text cut's 10 doubled (a pixel font is drawn at whole multiples of its size).
+const FONT_SIZE := 20
 ## Gaps, in screen pixels: round the page, between cells, inside a cell.
 const MARGIN := 8
 const CELL_GAP := 6

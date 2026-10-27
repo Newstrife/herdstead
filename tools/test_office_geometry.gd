@@ -1783,7 +1783,9 @@ func test_the_compact_duration_is_bounded_and_fits_its_rows() -> void:
 	var wait: Label = station.chip().get_node("%Wait")
 	var lens: Label = station.get_node("Overlay/Lens")
 	var probe := Label.new()
-	pen.style_display(probe, OfficeChip.WAIT_PIXELS)
+	# F1 (2026-10-27): the compact durations wear the pack's figures face (Tiny5),
+	# the rest of the world's labels Fusion Pixel's 8px cut: measured in the former.
+	pen.style_figures(probe, OfficeChip.WAIT_PIXELS)
 	root.add_child(probe)
 	await process_frame
 	var chip_widest := 0.0

@@ -28,17 +28,17 @@ mouse_filter = 2
 [node name="Number" type="Label" parent="."]
 unique_name_in_owner = true
 offset_left = 7.0
-offset_top = -20.0
+offset_top = -22.0
 offset_right = 21.0
-offset_bottom = -12.0
+offset_bottom = -10.0
 mouse_filter = 2
 
 [node name="Title" type="Label" parent="."]
 unique_name_in_owner = true
 offset_left = 23.0
-offset_top = -20.0
+offset_top = -22.0
 offset_right = 121.0
-offset_bottom = -12.0
+offset_bottom = -10.0
 mouse_filter = 2
 
 [node name="Hover" type="Area2D" parent="."]

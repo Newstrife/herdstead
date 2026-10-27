@@ -32,20 +32,26 @@ const LABEL_COLORS: Dictionary[StringName, StringName] = {
 	&"LabelCream": ArtContract.CREAM,
 }
 ## Label variations that also change the size, and the palette key they take.
+## Every size is one of a cut's own (OfficeDraw.cut_for()), and each wears the
+## cut drawn at it (build()): the headings and the counters' numbers the
+## heading cut at 12, the small rows (the SPACES rail's numbers, the agent
+## list's chevrons, the counters' titles) the display cut at 8. A heading's
+## variation keeps the name of the size it had before the pixel faces
+## (Heading13, Heading16): the scenes name them.
 const LABEL_SIZES: Dictionary[StringName, int] = {
-	&"Heading13": 13,
-	&"Heading16": 16,
-	&"Heading16Paper": 16,
-	&"Heading16Slate": 16,
-	&"RowNumber": 9,
-	&"Heading13Blocked": 13,
+	&"Heading13": 12,
+	&"Heading16": 12,
+	&"Heading16Paper": 12,
+	&"Heading16Slate": 12,
+	&"RowNumber": 8,
+	&"Heading13Blocked": 12,
 	&"ListChevron": 8,
 	&"ListChevronCurrent": 8,
-	&"CounterTitle": 9,
-	&"CounterTitlePaper": 9,
-	&"CounterValue": 13,
-	&"CounterValuePaper": 13,
-	&"CounterTitleMuted": 9,
+	&"CounterTitle": 8,
+	&"CounterTitlePaper": 8,
+	&"CounterValue": 12,
+	&"CounterValuePaper": 12,
+	&"CounterTitleMuted": 8,
 }
 const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"Heading13": ArtContract.PAPER,
@@ -64,11 +70,9 @@ const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"CounterValue": ArtContract.INK,
 	&"CounterValuePaper": ArtContract.PAPER,
 }
-## The pack's display face (ArtPack.display_font, a pixel font on an 8-pixel
-## grid) for the fixed ASCII headings: the wordmark, and SPACES, NEWS and
-## NEXT. Sizes are multiples of 4 units, so every even content scale lands its
-## glyphs on whole screen pixels (at 2x a 4-unit step is 8 pixels). Without a
-## display face these fall back to the main font at the same size.
+## The fixed ASCII headings: the wordmark in the display cut at twice its 8,
+## and SPACES, NEWS and NEXT in the heading cut at its 12 (OfficeDraw.cut_for()).
+## A pack without the cut writes them in the text cut at its 10.
 const DISPLAY_SIZES: Dictionary[StringName, int] = {
 	&"Wordmark": 16,
 	&"DisplayHeading": 12,
@@ -128,8 +132,8 @@ const PREVIEW_SIZE := 7
 const PREVIEW_LINE_SPACING := -1
 ## Units taken off the top and bottom of a counter's title and number line
 ## boxes (FontVariation spacing_top, spacing_bottom); see _counters().
-const COUNTER_TITLE_TRIM := Vector2i(-2, -3)
-const COUNTER_VALUE_TRIM := Vector2i(-3, -3)
+const COUNTER_TITLE_TRIM := Vector2i(-3, -1)
+const COUNTER_VALUE_TRIM := Vector2i(-2, -1)
 ## The OVERVIEW's scroll bar, and the gap between it and the timelines, in
 ## units. overview.tscn's `%BarRoom` is their sum less the heads' separation.
 const OVERVIEW_BAR := 4
@@ -143,30 +147,26 @@ const DRAWER_BAR_GAP := 2
 const LIST_INDENT := 4
 
 
-## The whole HUD's look. OfficeDraw supplies the bundled face with CJK fallback;
-## headings use its heavier weight while metadata keeps the readable text cut.
+## The whole HUD's look. `font` is the pack's text cut over its fallbacks
+## (OfficeDraw.font): the body at its native 10. Every other size wears the
+## pack's cut drawn at it in front of the same fallbacks (_sized(),
+## OfficeDraw.face_for()): headings are the heading cut, not a bolder weight.
 static func build(art: ArtPack, font: Font) -> Theme:
 	var theme := Theme.new()
-	theme.default_font = font
-	theme.default_font_size = 10
+	theme.default_font = OfficeDraw.face_for(art, OfficeDraw.TEXT_PIXELS, font)
+	theme.default_font_size = OfficeDraw.TEXT_PIXELS
 	theme.set_color("font_color", "Label", art.color(ArtContract.PAPER))
-	var heading := FontVariation.new()
-	heading.base_font = font
-	var text_server := TextServerManager.get_primary_interface()
-	heading.variation_opentype = {text_server.name_to_tag("wght"): 700.0, text_server.name_to_tag("opsz"): 12.0}
 	for name in LABEL_COLORS:
-		_label(theme, name, 10, art.color(LABEL_COLORS[name]))
+		_label(theme, name, OfficeDraw.TEXT_PIXELS, art.color(LABEL_COLORS[name]))
+		# The face too, not only the size: the overview's time axis draws its
+		# marks with LabelSlate's font by name, and without one it drew Godot's own.
+		_sized(theme, art, font, name, OfficeDraw.TEXT_PIXELS)
 	for name in LABEL_HEADINGS:
 		_label(theme, name, LABEL_SIZES[name], art.color(LABEL_HEADINGS[name]))
-		if LABEL_SIZES[name] >= 13:
-			theme.set_font("font", name, heading)
-		# Godot sizes a row by the tallest font in the chain: a fallback never
-		# makes a row taller than the pack's face alone does.
-		theme.set_font("font", name, OfficeDraw.no_taller(theme.get_font("font", name), art.font, LABEL_SIZES[name]))
+		_sized(theme, art, font, name, LABEL_SIZES[name])
 	for name: StringName in DISPLAY_SIZES:
 		_label(theme, name, DISPLAY_SIZES[name], art.color(DISPLAY_COLORS[name]))
-		if art.display_font != null:
-			theme.set_font("font", name, art.display_font)
+		_sized(theme, art, font, name, DISPLAY_SIZES[name])
 	for name in FLAT_PANELS:
 		theme.set_type_variation(name, "Panel")
 		theme.set_stylebox("panel", name, _flat(art.color(FLAT_PANELS[name])))
@@ -188,14 +188,24 @@ static func build(art: ArtPack, font: Font) -> Theme:
 	_tooltips(theme, art)
 	_agent_list(theme, art)
 	_edge_arrows(theme, art)
-	_plate(theme, art)
+	_plate(theme, art, font)
 	_card(theme, art, font)
-	_section(theme, art)
+	_section(theme, art, font)
 	_monitor(theme, art, font)
 	_news(theme, art)
-	_overview(theme, art)
-	_strategic(theme, art, heading, font)
+	_overview(theme, art, font)
+	_strategic(theme, art, font)
 	return theme
+
+
+## `name` at `pixels` in the cut drawn at that size, in front of `font`'s
+## fallbacks, its row no taller than the cut's own (OfficeDraw.face_for(): the
+## one place a size picks its face). A size the pack has no cut for (no
+## heading cut) is written at the text cut's own size (OfficeDraw.size_for()).
+static func _sized(theme: Theme, art: ArtPack, font: Font, name: StringName, pixels: int) -> void:
+	var size := OfficeDraw.size_for(art, pixels)
+	theme.set_font_size("font_size", name, size)
+	theme.set_font("font", name, OfficeDraw.face_for(art, size, font))
 
 
 ## The strategic view (`S`, scenes/ui/strategic.tscn), drawn by
@@ -217,7 +227,7 @@ static func build(art: ArtPack, font: Font) -> Theme:
 ## a cell a corner's arm takes (a cell / corner_part), and `wait_from` the
 ## smallest cell that writes a wait in its square. The cell ladder is the
 ## scene's (%Plan).
-static func _strategic(theme: Theme, art: ArtPack, heading: Font, font: Font) -> void:
+static func _strategic(theme: Theme, art: ArtPack, font: Font) -> void:
 	theme.add_type("Strategic")
 	for name: StringName in SECTION_PANELS:
 		theme.set_color(name, "Strategic", art.color(SECTION_PANELS[name]))
@@ -238,29 +248,24 @@ static func _strategic(theme: Theme, art: ArtPack, heading: Font, font: Font) ->
 		&"gap": 8,
 		&"caption_height": 12,
 		&"section_caption": 9,
-		&"section_size": 8,
+		&"section_size": OfficeDraw.size_for(art, 8),
 		&"divider": 2,
 		&"ring": 2,
 		&"rule": 1,
 		&"dash": OfficePointer.DASH,
 		&"corner_part": 4,
 		&"wait_from": 24,
-		&"caption_size": 10,
-		&"wait_size": 9,
+		&"caption_size": OfficeDraw.TEXT_PIXELS,
+		&"wait_size": OfficeDraw.size_for(art, 8),
 	}
 	for name: StringName in measures:
 		theme.set_constant(name, "Strategic", measures[name])
-	theme.set_font("caption_font", "Strategic", heading)
-	# The sign's face, with the HUD font's own fallbacks for the glyphs it lacks
-	# (a workspace's label may be anything).
-	var section := heading
-	if art.display_font != null:
-		var small := FontVariation.new()
-		small.base_font = art.display_font
-		small.fallbacks = font.fallbacks
-		section = small
-	theme.set_font("section_font", "Strategic", section)
-	theme.set_font("wait_font", "Strategic", heading)
+	# A tab's caption in the text cut; a zone's in the sign's face, the display
+	# cut, and a wait in it too; each over the HUD font's own fallbacks for the
+	# glyphs it lacks (a workspace's label may be anything).
+	theme.set_font("caption_font", "Strategic", OfficeDraw.face_for(art, measures[&"caption_size"], font))
+	theme.set_font("section_font", "Strategic", OfficeDraw.face_for(art, measures[&"section_size"], font))
+	theme.set_font("wait_font", "Strategic", OfficeDraw.face_for(art, measures[&"wait_size"], font))
 
 
 ## The OVERVIEW (scenes/ui/overview*.tscn): rows that light `deep` under the
@@ -275,7 +280,7 @@ static func _strategic(theme: Theme, art: ArtPack, heading: Font, font: Font) ->
 ## meets their `now` rule; the table's scroll reserves that room whether the bar
 ## shows or not, and the heads' `%BarRoom` (overview.tscn) leaves the same, so
 ## the axis ends where the timelines do.
-static func _overview(theme: Theme, art: ArtPack) -> void:
+static func _overview(theme: Theme, art: ArtPack, font: Font) -> void:
 	for name: String in ["OverviewRow", "OverviewRowCurrent", "OverviewRowDim", "OverviewHead"]:
 		theme.set_type_variation(name, "Button")
 		theme.set_constant("outline_size", name, 0)
@@ -302,7 +307,7 @@ static func _overview(theme: Theme, art: ArtPack) -> void:
 	for name: String in tones:
 		for role: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 			theme.set_color(role, name, art.color(tones[name]))
-	theme.set_font_size("font_size", "OverviewHead", 9)
+	_sized(theme, art, font, &"OverviewHead", 8)
 	# A row's agent name stands clear of the badge drawn at its left (the badge
 	# is the label's child, which keeps a row to ten nodes).
 	var agents: Dictionary[StringName, StringName] = {
@@ -503,11 +508,11 @@ static func _answer(theme: Theme, art: ArtPack) -> void:
 
 
 ## The machine plate in the world (scenes/world/machine_plate.tscn): a band of the
-## pack's panel whose text keeps clear of its frame, a title in the world's
-## own 13-unit lettering rather than a HUD heading's heavier cut, and the line
+## pack's panel whose text keeps clear of its frame, a title in the heading
+## cut at its native 12, and the line
 ## that says why the map cannot be laid out (`PlateProblem`), in the blocked
 ## colour, which reads on the band's dark panel.
-static func _plate(theme: Theme, art: ArtPack) -> void:
+static func _plate(theme: Theme, art: ArtPack, font: Font) -> void:
 	theme.set_type_variation("PlateBand", "PanelContainer")
 	var band := StyleBoxEmpty.new()
 	band.content_margin_left = 8
@@ -515,7 +520,8 @@ static func _plate(theme: Theme, art: ArtPack) -> void:
 	band.content_margin_top = 4
 	band.content_margin_bottom = 1
 	theme.set_stylebox("panel", "PlateBand", band)
-	_label(theme, &"PlateTitle", 13, art.color(ArtContract.PAPER))
+	_label(theme, &"PlateTitle", 12, art.color(ArtContract.PAPER))
+	_sized(theme, art, font, &"PlateTitle", 12)
 	_label(theme, &"PlateProblem", 10, art.color(ArtContract.BLOCKED))
 
 
@@ -650,17 +656,23 @@ static func _counters(theme: Theme, art: ArtPack) -> void:
 			box.content_margin_top = 1
 			box.content_margin_bottom = 1
 			theme.set_stylebox(state, name, box)
-	# A title over a number is 33 units of line box (14 + 19, measured) in a
-	# 26-unit counter, and neither line has a descender or an accent: capitals,
-	# digits, `/`, `max 12m`. Trimming each face's line box, not overlapping
-	# the labels, keeps the pair inside the counter.
+	# A number over its title is 29 units of line box (16 + 1 + 12, measured)
+	# in a 26-unit counter, and neither line has a descender or an accent:
+	# capitals, digits, `/`, `max 12m`. Trimming each face's line box, not
+	# overlapping the labels, keeps the pair inside the counter. The heading
+	# cut at 12 inks its digits on rows 4..12 of 16, the display cut at 8 its
+	# capitals on 3..8 of 12; each line keeps two rows under its baseline (a
+	# taller fallback's cut takes rows from there too, OfficeDraw.no_taller(),
+	# and a descent cut below nothing would move the text), so the number is 13
+	# rows with two empty over its digits, the title 8 with none over its
+	# capitals: 13 + 1 + 8 = 22 in the middle of the counter, the digits and
+	# the capitals three rows apart and three rows of fill over and under them.
 	for name: StringName in [
 		&"CounterTitle", &"CounterTitlePaper", &"CounterTitleMuted", &"CounterValue", &"CounterValuePaper"
 	]:
-		# A copy of the face the variation already has, so the numbers keep the
-		# heading's weight: a FontVariation wrapped in another one loses its
-		# own variation axes (seen in the capture: regular-weight numbers).
-		# The trim is added to the face's own spacing: the rows a taller
+		# A copy of the face the variation already has, its own cut and
+		# fallbacks (a FontVariation wrapped in another one loses its own
+		# settings). The trim is added to the face's own spacing: the rows a taller
 		# fallback was cut by, above and below (build(), OfficeDraw.no_taller()),
 		# stay cut.
 		var face := theme.get_font("font", name)
@@ -861,7 +873,7 @@ static func _dark_scroll(theme: Theme, art: ArtPack, name: String, wide: int) ->
 ## per state a window can show, on a dark facade; the `+N` after the eighth
 ## window; and the plate's worktree-group accents, which follow structure and
 ## never state.
-static func _section(theme: Theme, art: ArtPack) -> void:
+static func _section(theme: Theme, art: ArtPack, font: Font) -> void:
 	for name: StringName in SECTION_PANELS:
 		theme.set_type_variation(name, "Panel")
 		theme.set_stylebox("panel", name, _flat(art.color(SECTION_PANELS[name])))
@@ -873,7 +885,8 @@ static func _section(theme: Theme, art: ArtPack) -> void:
 	var facade := _flat(art.color(ArtContract.DEEP))
 	facade.set_content_margin_all(1)
 	theme.set_stylebox("panel", "SectionFacade", facade)
-	_label(theme, &"WindowMore", 9, art.color(ArtContract.MUTED))
+	_label(theme, &"WindowMore", 8, art.color(ArtContract.MUTED))
+	_sized(theme, art, font, &"WindowMore", 8)
 
 
 ## The terminal monitor (scenes/ui/terminal_monitor.tscn): herdr's own screen on

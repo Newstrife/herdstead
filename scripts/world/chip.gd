@@ -29,7 +29,8 @@ const SIZE := Vector2(30, 16)
 ## The chip's left half, where the station draws the badge while the frame is
 ## drawn (a unit over the chip's left edge); the wait is written right of it.
 const BADGE_SLOT := 15.0
-## The wait's type size: the pack's display face at its native 8.
+## The wait's type size: the pack's figures face (OfficeDraw.figures, Tiny5)
+## at its native 8.
 const WAIT_PIXELS := 8
 ## Where the wait is written: the chip's right half (the scene's %Wait), 14
 ## wide and 12 tall for the face's 9. The widest form (`99m`, a 14-unit
@@ -54,7 +55,7 @@ func dress(pen: OfficeDraw) -> void:
 	var frame: NinePatchRect = %Frame
 	pen.dress_panel(frame, SIZE)
 	var wait: Label = %Wait
-	pen.style_display(wait, WAIT_PIXELS, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	pen.style_figures(wait, WAIT_PIXELS, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
 	# The box again once the face is on: a Label is 23 tall before it.
 	wait.position = WAIT_RECT.position
 	wait.size = WAIT_RECT.size

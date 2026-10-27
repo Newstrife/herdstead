@@ -36,6 +36,10 @@ FILTERS = ("nearest", "linear")
 ## brighter task-light wedge and a darker contact shadow than daylight does.
 TASK_LIGHTS = ("soft", "strong")
 CATEGORIES = ("tiles", "props", "ui")
+## The font slots a pack may leave out (`font` it may not): the small display
+## cut, the heading cut and the figures face (the compact durations), each
+## `{path, license}` like `font`.
+OPTIONAL_FONTS = ("display_font", "heading_font", "figures_font")
 ## Tiles laid edge to edge as ground or wall surface: a hole in one of them is a
 ## hole in the floor. Matched by prefix, so a new `floor.stone` is covered and a
 ## new cut-out (`wall.front_*`, `wall.side_*` and `wall.threshold` are painted
@@ -361,11 +365,12 @@ def validate(source: Path, pack: dict) -> Compiled:
     for key in ("path", "license"):
         # The OFL licence ships with the font; dropping it is not an option.
         source_path(source, pack["font"][key])
-    for key in ("path", "license"):
-        if "display_font" in pack:
-            require(isinstance(pack["display_font"], dict) and isinstance(pack["display_font"].get(key), str),
-                    f"display_font needs a {key}")
-            source_path(source, pack["display_font"][key])
+    for slot in OPTIONAL_FONTS:
+        for key in ("path", "license"):
+            if slot in pack:
+                require(isinstance(pack[slot], dict) and isinstance(pack[slot].get(key), str),
+                        f"{slot} needs a {key}")
+                source_path(source, pack[slot][key])
     return Compiled(images, factors, density, filter_name)
 
 
@@ -455,7 +460,7 @@ def build(source: Path, output: Path):
                 mirror_png(source_path(source, info["path"]), target)
             else:
                 save_if_pixels_moved(compiled.images[(category, name)], target)
-    fonts = [pack["font"]] + ([pack["display_font"]] if "display_font" in pack else [])
+    fonts = [pack["font"]] + [pack[slot] for slot in OPTIONAL_FONTS if slot in pack]
     for face in fonts:
         for relative in (face["path"], face["license"]):
             copy_if_changed(source_path(source, relative), output / relative)

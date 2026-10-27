@@ -88,11 +88,14 @@ func show_zone(zone: ZoneModel, limit := INF) -> void:
 	number.text = number_text(zone)
 	var title: Label = %Title
 	title.text = title_text(zone)
-	# As tall as the display face's line (9), once it applies: a Label sized
-	# before its font is set keeps the default face's height. A line taller
-	# than the room under the words' top (a fallback's glyphs: Linux's Noto
-	# Sans CJK makes a 13-tall line at 8) takes the rest from the padding above
-	# it, so the words stay on the board.
+	# As tall as the display face's line (12), once it applies: a Label sized
+	# before its font is set keeps the default face's height. The scene puts
+	# the line's top 2 units under the board's (the frame's outline and shade):
+	# the face's capitals ink rows 3..8 of its line, so they stand in the
+	# middle of the board's 12 rows of paper, three rows over them and three
+	# under. A line taller than the room under the words' top (a fallback's
+	# glyphs) takes the rest from the padding above it, so the words stay on
+	# the board.
 	var board: NinePatchRect = %Panel
 	var bottom := board.position.y + board.size.y * board.scale.y
 	for label: Label in [number, title] as Array[Label]:

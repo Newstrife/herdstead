@@ -963,20 +963,23 @@ func test_the_zone_sign_is_as_wide_as_what_it_says() -> void:
 
 ## A workspace's label may be anything. The sign writes it in the pen's own
 ## display face (OfficeDraw.display: the pixel font over the system fallbacks,
-## the one the plates and the chips wear), so the glyphs the pixel font lacks
-## are filled and `数据` is not two missing-glyph boxes. One fallback list, the
-## pen's: the sign makes no font of its own. A label with such glyphs leaves
-## the panel as tall as it was, and its text inside the panel.
+## the one the plates and the chips wear). F1 (2026-10-27): the HUD and the
+## world wear Fusion Pixel at native sizes; Nunito Sans and Tiny5 are gone, and
+## the 8px cut draws `数据` itself; a glyph no cut has (an emoji) still comes
+## from the fallbacks. One fallback list, the pen's: the sign makes no font of
+## its own. A label with such glyphs leaves the panel as tall as it was, and
+## its text inside the panel.
 func test_the_zone_sign_writes_a_cjk_label_in_the_pens_display_face() -> void:
 	var board: OfficeZoneSign = OfficeFloorView.ZONE_SIGN_SCENE.instantiate()
 	board.dress(_pen())
 	# In the tree: a Label reports its line's height only there.
 	root.add_child(board)
 	var pixel := _pen().art.display_font
-	_check(pixel != null and not pixel.has_char("数".unicode_at(0)), "the pixel face alone has no 数")
+	_check(pixel != null and pixel.has_char("数".unicode_at(0)), "the pixel face draws 数 itself")
+	_check(not pixel.has_char("🚀".unicode_at(0)), "and has no emoji: that one falls back")
 	var panel: NinePatchRect = board.get_node("%Panel")
 	var tall: Array[float] = []
-	for label: String in ["DATA", "数据", "数据 PIPELINE"]:
+	for label: String in ["DATA", "数据", "数据 PIPELINE", "数据 🚀"]:
 		var zone := _zoned("machine/" + label, 5, [])
 		zone.label = label
 		# Twice, a frame apart, as the office's reconciles write it: a Label
@@ -997,20 +1000,23 @@ func test_the_zone_sign_writes_a_cjk_label_in_the_pens_display_face() -> void:
 		var title: Label = board.get_node("%Title")
 		_eq(title.text, label, label + ": written as it is")
 		tall.append(board.drawn_rect().size.y)
-	_eq(tall, [16.0, 16.0, 16.0] as Array[float], "the panel is 16 tall whatever the label")
+	_eq(tall, [16.0, 16.0, 16.0, 16.0] as Array[float], "the panel is 16 tall whatever the label")
 	board.free()
 
 
 ## A fallback's glyphs can make the line taller than the room under the words
-## (on Linux, Noto Sans CJK's line at 8 is 13 tall where the board leaves 12,
-## and a CJK label hung a pixel below it). The line takes what it lacks from
+## (on Linux, Noto Sans CJK's line at 8 is 13 tall, and with Tiny5's line a CJK
+## label once hung a pixel below the board). The line takes what it lacks from
 ## the padding above it and stays on the board; a line that fits stays where
-## the scene puts it. A face five rows taller than the pixel face stands in
-## for such a line on any machine.
+## the scene puts it. F1 (2026-10-27): the 8px cut's line is 12, and the scene
+## puts its top at -22, two units under the board's (its capitals, rows 3..8 of
+## the line, then stand in the middle of the board's paper): 14 rows of room
+## under it, two over it. A face three rows taller than the pixel face (it was
+## five over Tiny5's 9) stands in for a line taller than the room on any machine.
 func test_a_taller_line_stays_on_the_zone_signs_board() -> void:
 	var pixel := _pen().art.display_font
 	var tops: Array[float] = []
-	for extra: int in [0, 5]:
+	for extra: int in [0, 3]:
 		var own := OfficeDraw.new(_pen().art)
 		var face := FontVariation.new()
 		face.base_font = pixel
@@ -1039,7 +1045,7 @@ func test_a_taller_line_stays_on_the_zone_signs_board() -> void:
 		_eq(board.drawn_rect().size.y, 16.0, "+%d: the board is 16 tall" % extra)
 		tops.append(title.position.y)
 		board.free()
-	_eq(tops[0], -20.0, "a line that fits starts where the scene puts it")
+	_eq(tops[0], -22.0, "a line that fits starts where the scene puts it")
 	_check(tops[1] < tops[0], "a taller one starts higher: %s" % [tops])
 
 

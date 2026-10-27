@@ -180,7 +180,7 @@ func setup(drawing: OfficeDraw, at_table: OfficeTable, at_column: int, seat_side
 	# The box again once the face is on: a Label is 23 tall before it.
 	plate.size = PLATE_SIZE
 	var lens: Label = $Overlay/Lens
-	pen.style_display(lens, 8, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	pen.style_figures(lens, 8, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
 	lens.size = LENS_SIZE
 	var mark := art.selection_mark()
 	var selection: Sprite2D = $Overlay/Selection

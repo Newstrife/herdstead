@@ -340,7 +340,7 @@ func legend(area: Rect2, left: float) -> void:
 	# Wrapped before it is sized: a line is only as wide as the panel.
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.text = "\n".join(lines)
-	pen.style(text, 9, ArtContract.INK)
+	pen.style(text, 8, ArtContract.INK)
 	text.position = bounds.position + Vector2(8, 6)
 	text.size = bounds.size - Vector2(16, 12)
 	add_child(text)
