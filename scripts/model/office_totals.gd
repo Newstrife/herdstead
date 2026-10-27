@@ -2,8 +2,8 @@ class_name OfficeTotals
 extends RefCounted
 ## What the top bar's right end says about the fleet, made once per refresh
 ## from the frame (OfficeTotals.of()): how many machines answer, how many panes
-## the live ones carry (`13 panes`), and each machine for the status line's
-## hover (machines_tip()). Who needs you is the portrait strip's
+## the live ones carry (`1 machine · 13 panes`, count_words()), and each machine
+## for the status line's hover (machines_tip()). Who needs you is the portrait strip's
 ## (PortraitBarModel).
 ##
 ## Only a machine whose snapshot is current counts (BuildingModel.stale): a lost
@@ -55,6 +55,16 @@ static func of(frame: OfficeFrame, machines: Array[MachineRow]) -> OfficeTotals:
 		totals.machines_live += 1
 		totals.panes += building.panes
 	return totals
+
+
+## The top bar's count (B2's words): `1 machine · 13 panes`,
+## `2 machines · 1 pane`; `machine_count` is every machine in the fleet,
+## `pane_count` what the live ones carry.
+static func count_words(machine_count: int, pane_count: int) -> String:
+	return (
+		"%d machine%s · %d pane%s"
+		% [machine_count, "" if machine_count == 1 else "s", pane_count, "" if pane_count == 1 else "s"]
+	)
 
 
 ## The status line's hover at `now` (unix seconds): each machine, how it

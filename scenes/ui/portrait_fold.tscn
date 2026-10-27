@@ -9,7 +9,10 @@ clip_contents = true
 focus_mode = 0
 theme_type_variation = &"PortraitFoldIdle"
 script = ExtResource("1")
+fold_width = 40.0
 tally_width = 24.0
+card_height = 28.0
+tile_height = 48.0
 
 [node name="Lines" type="VBoxContainer" parent="."]
 unique_name_in_owner = true

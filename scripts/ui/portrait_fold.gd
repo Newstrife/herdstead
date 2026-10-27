@@ -8,7 +8,8 @@ extends Button
 ## shows that state alone.
 ##
 ## There is one per group, permanent, in the scene; data only changes its text,
-## width, look and visibility.
+## width, look and visibility. On a tall bar it is as tall as a tile, the count
+## still over the word in its middle (set_tall()).
 
 ## A fold's tooltip names at most this many agents, then `+N more`.
 const TIP_LINES := 12
@@ -22,15 +23,16 @@ const LOOKS: Dictionary[PortraitBarModel.Group, StringName] = {
 
 ## Which group this fold stands for. Set in the scene.
 @export var group := PortraitBarModel.Group.BLOCKED
-## The width of the tally form. Set in the scene.
+## The width of the fold form and of the tally form. Set in the scene.
+@export var fold_width := 0.0
 @export var tally_width := 0.0
+## Its height beside the cards of a short bar and the tiles of a tall one. Set in the scene.
+@export var card_height := 0.0
+@export var tile_height := 0.0
 
 var _folded: Array[PortraitBarModel.Card] = []
 var _tally := false
 var _on := false
-## The fold form's width, as the scene sets it (custom_minimum_size), kept
-## from before the tally form first changes it; −1 until asked.
-var _fold_width := -1.0
 
 
 func _ready() -> void:
@@ -48,9 +50,13 @@ func show_fold(folded: Array[PortraitBarModel.Card], tally: bool) -> void:
 	var word: Label = %Word
 	count.text = "+%d" % folded.size()
 	word.visible = not tally
-	var full := _full_width()
-	custom_minimum_size.x = tally_width if tally else full
+	custom_minimum_size.x = needed_width(tally)
 	visible = not folded.is_empty()
+
+
+## As tall as a tile (`on`), or as a card.
+func set_tall(on: bool) -> void:
+	custom_minimum_size.y = tile_height if on else card_height
 
 
 ## The OVERVIEW shows this group's state alone: the fold reads pressed.
@@ -78,13 +84,7 @@ func folded_cards() -> Array[PortraitBarModel.Card]:
 
 ## The width this fold needs as a fold or as a tally, from the scene's sizes.
 func needed_width(tally: bool) -> float:
-	return tally_width if tally else _full_width()
-
-
-func _full_width() -> float:
-	if _fold_width < 0.0:
-		_fold_width = custom_minimum_size.x
-	return _fold_width
+	return tally_width if tally else fold_width
 
 
 func _restyle() -> void:

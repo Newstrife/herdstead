@@ -195,11 +195,12 @@ func _bar_text(office: OfficeDouble) -> String:
 ## What the top bar says the old counter `id` said (S3 BAR-a, 2026-10-27: the
 ## portrait strip replaces the counters): `&"machines"` as `live/all` from the
 ## status line's hover (a LIVE line per machine answering), `&"panes"` the
-## number `13 panes` says.
+## number `1 machine · 13 panes` says of the panes (S3 TILES, 2026-10-28: the
+## count says the machines first, as B2 does).
 func _counter(office: OfficeDouble, id: StringName) -> String:
 	var bar := office.hud.bar
 	if id == &"panes":
-		return (bar.get_node("%Panes") as Button).text.trim_suffix(" panes")
+		return (bar.get_node("%Panes") as Button).text.get_slice(" · ", 1).get_slice(" ", 0)
 	var status: Control = bar.get_node("%StatusLine")
 	var lines := (
 		bar.get_tooltip(bar.get_global_transform().affine_inverse() * status.get_global_rect().get_center()).split("\n")

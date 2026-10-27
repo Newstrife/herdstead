@@ -174,6 +174,10 @@ blocked first in the order `N` walks them (the leftmost is whom `N` picks, with 
 a time means "at least"), then the done (UNREAD) oldest first, then the working and the idle in place order. A card is
 the seat's person, the pane's name, and its space after a tag in the colour of its worktree group's carpet; its frame
 is its state's colour, and the selected pane's card has a white ring. A dropped machine's agents have no card.
+On a window at least 400 units high (the tall top bar) each card is a **tile**: the person's head and shoulders in a
+window framed in the state's colour, a small mark in its corner (`!` blocked, an envelope for done, a green dot
+working, a white dot idle), and the name and the place under it. On a lower window the cards are horizontal, the
+face beside the words, with no mark.
 
 - When the agents do not fit, the strip folds them by a fixed ladder: the working and the idle into a fold
   (`+12` over `working`), then the done and the blocked into faces alone, then the done into a fold, then tallies
@@ -182,9 +186,10 @@ is its state's colour, and the selected pane's card has a white ring. A dropped 
 - Click a card's face or name: select that agent (its map, its desk on screen), as a row of the agent list does.
 - Click a card's place (the colour tag and the space under its name): pan to that space; nothing is selected.
 - Click a fold or a tally: open OVERVIEW on that state; while it is open, the same click sets or clears that chip.
-- **`13 panes`**, right of the strip, opens or closes OVERVIEW.
+- **`1 machine · 13 panes`** (every machine, and the panes the online ones carry), right of the strip, opens or closes
+  OVERVIEW.
 - **CHIME OFF / CHIME ON** after it switches alert tones (see [Alerts](#alerts-when-the-window-is-in-the-background)).
-  Below 640 units `13 panes` and the switch give way to the strip.
+  Below 640 units the count and the switch give way to the strip.
 
 The top-right corner shows the pack's name and the light: `STUDIO · DAY  [T]` or `STUDIO · NIGHT  [T]` (see
 [Day and night](#themes-and-art)), and how the office runs (`LIVE / READ ONLY`, `1 OFFLINE / OPERATOR` in the blocked
@@ -443,7 +448,7 @@ says so); machine entries are not clickable.
 **EVENTS** is the bottom panel's third tab: the same events, newest on top, up to 200 rows, one line each. Clicking a row
 selects its pane and keeps the page.
 
-**OVERVIEW** opens from the top bar's `13 panes`, a fold, or `O`, over the world and both side columns. One row per pane: state, how
+**OVERVIEW** opens from the top bar's `1 machine · 13 panes`, a fold, or `O`, over the world and both side columns. One row per pane: state, how
 long this segment has lasted, total blocked time this run, how many times it got stuck, and a timeline since opening
 (hatching = not observed). Columns: SPACE / TAB, STATE, FOR, BLOCKED, TIMES. Click a column head to sort, chips to filter,
 a row to select that pane; the bottom panel works as usual (you can answer from it). `O`, `Esc` or `X  Esc` close it; in
