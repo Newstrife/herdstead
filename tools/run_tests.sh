@@ -81,8 +81,10 @@ MIN_CASES_OFFICE_SERVICE=16
 # the furniture's clearance on the map now. 25 -> 29: the near row sits at the
 # desk (the sitter over the near plane, the short legs behind the end chairs,
 # the near paper and the near lamp in sight beside whoever sits there).
-# 31 -> 32: the idle mug beside the laptop (D2, 2026-10-27).
-MIN_CASES_OFFICE_GEOMETRY=32
+# 31 -> 32: the idle mug beside the laptop (D2, 2026-10-27). 32 -> 33: a long
+# name takes a vacant neighbour's slot (S3 SEATTAGS, 2026-10-27). 33 -> 34:
+# a plate at rest stands clear of its pod's tab label and partition (round 2).
+MIN_CASES_OFFICE_GEOMETRY=34
 MIN_CASES_OFFICE_FRAMES=5
 MIN_CASES_OFFICE_QUIET=8
 MIN_CASES_DAY_LIGHT=8
@@ -123,7 +125,9 @@ MIN_CASES_TOP_BAR=27
 MIN_CASES_PORTRAIT_BAR=12
 MIN_CASES_STATE_LOG=22
 MIN_CASES_NEWS_EVENTS=16
-MIN_CASES_LENS=22
+# LENS 22 -> 24: plates always show on a map with few occupied seats, per
+# machine map (S3 SEATTAGS, 2026-10-27).
+MIN_CASES_LENS=24
 # What every surface calls a pane (DisplayName), live and as a table.
 MIN_CASES_NAMES=8
 MIN_CASES_STRATEGIC=28

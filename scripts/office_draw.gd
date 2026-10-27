@@ -25,6 +25,13 @@ const FIGURES_PIXELS := 8
 const CAPITALS := "ABCXYZ09"
 ## How far a seat's tag (back_label()) reaches past its text on either side, in units.
 const TAG_PAD := 1.0
+## A seat's name plate's row, in units (plate_cut()): the display face's 12
+## less two rows its glyphs never ink, so a near plate stands 2 clear of its
+## pod's tab label and of a zone's lower partition (S3 SEATTAGS round 2).
+const PLATE_HEIGHT := 10.0
+## What plate_cut() measures a face's ink by: capitals, digits, the letters
+## that reach down, and the brackets a pane's name may hold.
+const PLATE_INKS := "ABCXYZ09bdfghjklpqy[]|"
 
 var art: ArtPack
 ## The pack's text cut (ArtPack.font, a pixel font at its native 10) over its
@@ -56,6 +63,9 @@ var figures: Font
 ## TAB_LABEL_PIXELS (tab_cut()), so a label's box ends where its band says
 ## and its capitals stand at the band's foot.
 var tab_face: Font
+## `display` for the seats' name plates: its line cut to PLATE_HEIGHT
+## (plate_cut()), the rows it gives up being rows no glyph inks.
+var plate_face: Font
 ## `font` at TEXT_PIXELS, its row no taller than the text cut's own.
 var _body: Font
 ## The `paper` tag behind a seat's plate and lens line (back_label()), shared,
@@ -98,6 +108,7 @@ func _init(pack: ArtPack) -> void:
 		small.fallbacks = [system]
 		chain = small
 	tab_face = tab_cut(chain, art.display_font if art.display_font != null else art.font)
+	plate_face = plate_cut(display, art.display_font if art.display_font != null else art.font)
 
 
 ## The pack's own cut drawn at `pixels`, or null when it has none for that
@@ -172,6 +183,37 @@ static func tab_cut(chain: Font, own: Font) -> Font:
 	alone.spacing_top = cut.spacing_top
 	alone.spacing_bottom = cut.spacing_bottom
 	return no_taller(cut, alone, TAB_LABEL_PIXELS)
+
+
+## `face` (`display`) for the seats' name plates: its line at DISPLAY_PIXELS
+## cut to PLATE_HEIGHT from the rows of `own` (the face without its fallbacks)
+## that none of PLATE_INKS inks, one at a time from whichever side has more of
+## them left, so the ink keeps as many empty rows over it as under it. The
+## display face at 8 (12 rows, ink from 6 over the baseline to 1 under it)
+## gives up two of its three empty rows over the capitals and keeps one either
+## side. No taller for the fallbacks either (no_taller()).
+static func plate_cut(face: Font, own: Font) -> Font:
+	var surplus := maxi(0, ceili(own.get_height(DISPLAY_PIXELS)) - int(PLATE_HEIGHT))
+	var inked := ink_rows(own, PLATE_INKS, DISPLAY_PIXELS)
+	var empty_above := maxi(0, ceili(own.get_ascent(DISPLAY_PIXELS)) + inked.x)
+	var empty_below := maxi(0, ceili(own.get_descent(DISPLAY_PIXELS)) - inked.y - 1)
+	var above := 0
+	var below := 0
+	for _row in surplus:
+		if empty_above - above >= empty_below - below:
+			above += 1
+		else:
+			below += 1
+	var cut: FontVariation = face.duplicate() if face is FontVariation else FontVariation.new()
+	if face is not FontVariation:
+		cut.base_font = face
+	cut.spacing_top -= above
+	cut.spacing_bottom -= below
+	var alone := FontVariation.new()
+	alone.base_font = own
+	alone.spacing_top = -above
+	alone.spacing_bottom = -below
+	return no_taller(cut, alone, DISPLAY_PIXELS)
 
 
 ## The first and last rows `text` inks in `own` at `pixels`, relative to the
@@ -272,6 +314,13 @@ func style(
 	target.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
+## A seat's name plate: the display face at DISPLAY_PIXELS cut to its row
+## (`plate_face`, plate_cut()), the size and colour as style() gives them.
+func style_plate(target: Label, color_key: StringName = ArtContract.INK) -> void:
+	style(target, DISPLAY_PIXELS, color_key, HORIZONTAL_ALIGNMENT_CENTER)
+	target.add_theme_font_override("font", plate_face)
+
+
 ## The same, in the display face (`display`): the world's small labels.
 func style_display(
 	target: Label,
@@ -320,11 +369,12 @@ func _paper_tag() -> StyleBoxFlat:
 	return _tag
 
 
-## Lay `target` in its `row` hugging its text: centred in the row, as tall as
-## the row, as wide as its text and TAG_PAD either side (none for no text), at
-## most the row's width (a longer text is cut as the Label cuts it). Only what
-## changed is written; the caller asks when the text or the row changes.
-func hug(target: Label, row: Rect2) -> void:
+## Lay `target` in its `row` hugging its text: centred in the row (or on x =
+## `centre`, kept inside the row), as tall as the row, as wide as its text and
+## TAG_PAD either side (none for no text), at most the row's width (a longer
+## text is cut as the Label cuts it). Only what changed is written; the caller
+## asks when the text or the row changes.
+func hug(target: Label, row: Rect2, centre := NAN) -> void:
 	var width := 0.0
 	var tagged := _tag_for(target)
 	if target.get_theme_stylebox("normal") != tagged:
@@ -334,7 +384,8 @@ func hug(target: Label, row: Rect2) -> void:
 		var pixels := target.get_theme_font_size("font_size")
 		var wide := face.get_string_size(target.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x
 		width = minf(row.size.x, ceilf(wide) + 2.0 * TAG_PAD)
-	var at := Vector2(row.position.x + (row.size.x - width) / 2.0, row.position.y)
+	var middle := row.get_center().x if is_nan(centre) else centre
+	var at := Vector2(clampf(middle - width / 2.0, row.position.x, row.end.x - width), row.position.y)
 	if target.position != at:
 		target.position = at
 	if target.size != Vector2(width, row.size.y):

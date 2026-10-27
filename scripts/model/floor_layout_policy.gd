@@ -16,6 +16,15 @@ extends RefCounted
 ## (OfficeZoneLayout.pod_row_cells()).
 
 const GRID := 32
+## A map with at most this many occupied seats (agents and shells: every pane
+## on it, MapModel.pane_count()) shows every seat's name plate at all times;
+## above it, a plate shows only while its seat is hovered or selected or the
+## lens is held (OfficeFloorView.few_seats(), S3 SEATTAGS, the user's Q-U2):
+## thirty-unit plates over fifty seats crowd each other and the chips. 16,
+## not the first 12 (S3 SEATTAGS round 2): B2 tags every seat of a 14-pane map,
+## and the floors fixture's 13 seats read clear with every plate shown. What
+## the map shows, not where anything stands, so it is in no plan's signature.
+const FEW_SEATS := 16
 var version := 4
 var width_cells := 32
 var wall_cells := 2

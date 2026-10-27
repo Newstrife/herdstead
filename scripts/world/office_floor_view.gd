@@ -201,7 +201,64 @@ func update_desks(model: MapModel, active_key: String, frozen: bool) -> void:
 				actor.pause()
 		if room_index < tables.size():
 			tables[room_index].set_selected(table_selected)
+	_show_plates(model)
 	presentation.after(self, frozen)
+
+
+## Whether `model`'s map has few occupied seats: at most
+## FloorLayoutPolicy.FEW_SEATS of its seats hold a pane (an agent's or a
+## shell's: both carry a plate). On such a map every seat's plate shows at all
+## times (OfficeStation.show_plates_always()).
+static func few_seats(model: MapModel) -> bool:
+	return model.pane_count() <= FloorLayoutPolicy.FEW_SEATS
+
+
+## Tell every seat on the floor, once its desks are furnished for `model`,
+## whether its plate shows at all times (few_seats()) and which neighbours'
+## slots its plate may take (widen_plates()). Each station does something only
+## when its answer changed: nothing is rebuilt.
+func _show_plates(model: MapModel) -> void:
+	var always := few_seats(model)
+	for tab: String in desks:
+		for station in desks[tab].stations:
+			station.show_plates_always(always)
+		widen_plates(desks[tab].stations)
+
+
+## Give each seat of one pod (`stations`, every slot of its table, vacant ones
+## included) the vacant neighbours' slots its plate may take
+## (OfficeStation.widen_plate()): on the same side of the pod, a vacant slot
+## goes to the seat on its left when that one holds a pane, else to the one on
+## its right. So no slot is ever given twice and no plate meets another, and a
+## long name grows rightwards first, its start over its own worker.
+static func widen_plates(stations: Array[OfficeStation]) -> void:
+	var slots: Dictionary[Vector2i, OfficeStation] = {}
+	for station in stations:
+		slots[_slot_of(station)] = station
+	for station in stations:
+		var at := _slot_of(station)
+		var right := not station.vacant and _vacant_at(slots, at + Vector2i.RIGHT)
+		var left := (
+			not station.vacant
+			and _vacant_at(slots, at + Vector2i.LEFT)
+			and not _taken_at(slots, at + 2 * Vector2i.LEFT)
+		)
+		station.widen_plate(left, right)
+
+
+## A station's slot in its pod: its column, and its side (0 far, 1 near).
+static func _slot_of(station: OfficeStation) -> Vector2i:
+	return Vector2i(station.column, 0 if station.side == "far" else 1)
+
+
+## There is a vacant seat at `at`.
+static func _vacant_at(slots: Dictionary[Vector2i, OfficeStation], at: Vector2i) -> bool:
+	return slots.has(at) and slots[at].vacant
+
+
+## A pane is seated at `at`.
+static func _taken_at(slots: Dictionary[Vector2i, OfficeStation], at: Vector2i) -> bool:
+	return slots.has(at) and not slots[at].vacant
 
 
 ## The lens (OfficeLens) is `held`: each seat's line says `texts[pane key]`

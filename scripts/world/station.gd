@@ -13,8 +13,10 @@ extends Node2D
 ##
 ## Rows, 30 units wide and centred on the column, stacked away from the pod:
 ## the tag row (the badge, or the chip), the lens row (only while `L` is held)
-## and the plate row (the pane's name, only while the seat is hovered, selected
-## or `L` is held). Far workers face the viewer, so theirs rise above the head;
+## and the plate row (the pane's name: always on a map with few occupied seats,
+## show_plates_always(); otherwise only while the seat is hovered, selected or
+## `L` is held; a long name reaches into a vacant neighbour's slot,
+## widen_plate()). Far workers face the viewer, so theirs rise above the head;
 ## near workers show their back and sit over the desk's near plane, so theirs
 ## hang below the chair.
 ##
@@ -62,7 +64,8 @@ const PERSON_SCENE := preload("res://scenes/people/pixel_person.tscn")
 ## over the seat and a blocked worker's raised hand -36 (pod -72 on the far
 ## side, -28 on the near one); the near chair is opaque down to seat + 6
 ## (pod 14). Every row is 30 wide, so two neighbours' rows (32 apart) keep 2
-## units between them.
+## units between them; a widened plate (PLATE_REACH) only ever over a vacant
+## neighbour's slot, which draws no row, and still 2 short of the next one's.
 ##
 ## The tag row is 16 tall: the badge (opaque 15 wide, 16 tall over its foot)
 ## stands on BADGE_AT, centred, at pod [-88, -72) far and [16, 32) near. Its
@@ -84,16 +87,29 @@ const CHIP_BADGE_SHIFT := Vector2(-8.5, 0)
 ## (OfficeAttention.compact_duration(): 18 wide at most).
 const LENS_AT := {"far": Vector2(-15, -66), "near": Vector2(-15, 32)}
 const LENS_SIZE := Vector2(30, 12)
-## The plate, 30 by 12: the pane's name (DisplayName) as it is, in the display
-## face at 8, cut with a forced ellipsis when it is wider (the seat's tooltip,
-## the card and the list say the whole name). Its text has its own channel,
+## The plate, 30 by 10: the pane's name (DisplayName) as it is, in the display
+## face at 8 cut to its row (OfficeDraw.style_plate(): two of the face's rows
+## no glyph inks given up), cut with a forced ellipsis when it is wider (the seat's tooltip,
+## the card and the list say the whole name). Next to a vacant seat on the same
+## side of the pod its row takes that seat's slot too (widen_plate(): one column
+## over, PLATE_REACH, so at most two slots, 62 wide), the tag still hugging its
+## text and centred on its own column as far as the row lets it, so a long
+## name keeps its start over its own worker. Its text has its own channel,
 ## show_name(): a new name never seats the worker again. While the lens is not
-## held its row is empty, so the plate takes the lens row's slot, next to the
-## tag row (LENS_AT: pod [-102, -90) far, [40, 52) near); while the lens is held
-## it moves out to the outermost row, PLATE_AT: pod [-114, -102) far and
-## [52, 64) near.
-const PLATE_SIZE := Vector2(30, 12)
+## held the plate has its own slot, PLATE_REST, where the lens row would be:
+## pod [-104, -94) far, 2 clear of a selected pod's frame top bar ([-92, -90))
+## and 6 of the tag row; [42, 52) near, 2 clear of the pod's tab label ([32, 40))
+## and of a zone's lower partition (drawn from pod 54 when the pod stands in the
+## zone's last row). Its rows are always shown on a map with few seats, so they
+## keep the same 2 units the seat rows keep (S3 SEATTAGS round 2). While the
+## lens is held it moves out to the outermost row, PLATE_AT: pod [-114, -104) far
+## (2 over the lens row) and [52, 62) near.
+const PLATE_SIZE := Vector2(30, OfficeDraw.PLATE_HEIGHT)
+const PLATE_REST := {"far": Vector2(-15, -68), "near": Vector2(-15, 34)}
 const PLATE_AT := {"far": Vector2(-15, -78), "near": Vector2(-15, 44)}
+## How far a widened plate's row reaches into a vacant neighbour's slot: the
+## column pitch, so the slot's 30 and the 2 between the two.
+const PLATE_REACH := float(OfficeTable.MODULE)
 ## The seat mark (ui `selection_seat`, 32 by 48 over its foot) frames the seated
 ## figure, a raised hand included: pod [-72, -24) far, [-32, 16) near. The near
 ## one starts where the far seat's click rectangle ends and takes in the chair
@@ -102,8 +118,9 @@ const PLATE_AT := {"far": Vector2(-15, -78), "near": Vector2(-15, 44)}
 ## two marks of one column share pod [-32, -24): the near worker's raised hand
 ## (-28) is above the far mark's foot, and only one seat is ever selected.
 const SELECTION_AT := {"far": Vector2(0, 10), "near": Vector2(0, 6)}
-## The lens row and the plate row are transient: they show only while `L` is
-## held or the seat is hovered or selected, and are exempt from the pod's
+## The lens row and the plate row are transient: the lens row shows only while
+## `L` is held, the plate row also while the seat is hovered or selected or
+## always on a map with few occupied seats; both are exempt from the pod's
 ## render_rect (the stationary drawing).
 ##
 ## The click target of each side, as scenes/world/station.tscn places it, 30
@@ -154,10 +171,16 @@ var _seat_shapes: Dictionary[String, Shape2D] = {}
 ## Which of this seat's rectangles the pointer is over now (the seat's own or
 ## the chip's), by shape node: the plate shows while any is.
 var _hovered: Dictionary[Node, bool] = {}
-## The seat is selected (select()), and the lens is held (show_lens()): the
-## plate shows while either is.
+## The seat is selected (select()), the lens is held (show_lens()), and the
+## shown map has few occupied seats (show_plates_always()): the plate shows
+## while any is.
 var _selected := false
 var _lens_held := false
+var _always := false
+## Which neighbours' slots, on this side of the pod, the plate's row may take
+## (widen_plate()): the column to the left, and the one to the right.
+var _wide_left := false
+var _wide_right := false
 ## The semantic animation the last furnish() asked the worker to play.
 var _animation := &""
 
@@ -173,7 +196,7 @@ func setup(drawing: OfficeDraw, at_table: OfficeTable, at_column: int, seat_side
 	pen = drawing
 	art = drawing.art
 	var plate: Label = $Overlay/Plate
-	pen.style_display(plate, 8, ArtContract.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	pen.style_plate(plate)
 	# A name is any length: the plate keeps its box and cuts it with an ellipsis.
 	plate.clip_text = true
 	plate.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS_FORCE
@@ -379,23 +402,61 @@ func select(selected: bool) -> void:
 	_show_plate()
 
 
-## Whether the plate shows now: a seat somebody's pane has, hovered, selected
-## or under the held lens.
+## Whether the plate shows now: a seat somebody's pane has, on a map with few
+## occupied seats, or hovered, selected or under the held lens.
 func plate_shown() -> bool:
-	return not vacant and (not _hovered.is_empty() or _selected or _lens_held)
+	return not vacant and (_always or not _hovered.is_empty() or _selected or _lens_held)
 
 
-## Where the plate hangs over the seat: the lens row's slot, or while the lens
-## is held (and the lens line has that row) the outermost row.
+## The shown map has few occupied seats (`always`; OfficeFloorView.few_seats()),
+## so the plate shows with nothing hovered, selected or held; or it has more,
+## and the plate keeps to those. The floor says so on every refresh; only a
+## change does anything, and only the plate's visibility.
+func show_plates_always(always: bool) -> void:
+	if _always == always:
+		return
+	_always = always
+	_show_plate()
+
+
+## Whether the plate's row may take the slot of the seat one column `left`, and
+## of the one to the `right`, on this side of the pod: the floor says so on
+## every refresh (only a vacant slot it gives this seat, never one another
+## plate may take); only a change lays the plate again.
+func widen_plate(left: bool, right: bool) -> void:
+	if _wide_left == left and _wide_right == right:
+		return
+	_wide_left = left
+	_wide_right = right
+	_lay_plate()
+
+
+## The plate's row now: its own slot (_plate_at(), PLATE_SIZE), and the slots
+## widen_plate() gave it, at most PLATE_REACH either way and two slots in all:
+## with both neighbours' slots, the two slots' width centred on its column.
+func plate_row() -> Rect2:
+	var row := Rect2(_plate_at(), PLATE_SIZE)
+	if _wide_left and _wide_right:
+		return row.grow_individual(PLATE_REACH / 2.0, 0, PLATE_REACH / 2.0, 0)
+	if _wide_left:
+		return row.grow_side(SIDE_LEFT, PLATE_REACH)
+	if _wide_right:
+		return row.grow_side(SIDE_RIGHT, PLATE_REACH)
+	return row
+
+
+## Where the plate hangs over the seat: its own slot at rest, or while the lens
+## is held (and the lens line has the row next to the tag row) the outermost row.
 func _plate_at() -> Vector2:
-	return PLATE_AT[side] if _lens_held else LENS_AT[side]
+	return PLATE_AT[side] if _lens_held else PLATE_REST[side]
 
 
-## The plate's tag in its row (_plate_at(), PLATE_SIZE), hugging its text (OfficeDraw.hug()).
+## The plate's tag in its row (plate_row()), hugging its text (OfficeDraw.hug())
+## and centred on its own column as far as the row lets it.
 func _lay_plate() -> void:
 	var plate: Label = $Overlay/Plate
 	if pen != null:
-		pen.hug(plate, Rect2(_plate_at(), PLATE_SIZE))
+		pen.hug(plate, plate_row(), _plate_at().x + PLATE_SIZE.x / 2.0)
 
 
 ## The lens line's tag in its row (LENS_AT, LENS_SIZE), hugging its text.
