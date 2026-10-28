@@ -1184,6 +1184,11 @@ func test_art_textures_as_built() -> void:
 		region != null and region.atlas == load(PixelPeople.ROOT + "front.png"),
 		"so is a pixel people sheet: a strip is a region of the imported sheet itself"
 	)
+	var portrait := art.portraits.part_texture(PixelPortraits.HEAD, art.portraits.look_of("codex", "")) as AtlasTexture
+	_check(
+		portrait != null and portrait.atlas == load(PixelPortraits.ROOT + PixelPortraits.SHEET),
+		"so is the portraits' sheet: a cell is a region of the imported sheet itself"
+	)
 	# Every texture the shipped pack draws, and whether its import gave it
 	# mipmaps. The pack's own art, its table and the pixel people are nearest
 	# families never minified (the smallest zoom is 2, a density-2 texel one
@@ -1203,6 +1208,8 @@ func test_art_textures_as_built() -> void:
 		drawn["table/" + id] = art.table.module_texture(id)
 	for sheet in art.people.files:
 		drawn["people/" + sheet] = art.people.texture(sheet)
+	for sheet in art.portraits.files:
+		drawn["portraits/" + sheet] = art.portraits.texture(sheet)
 	for where: String in drawn:
 		var texture := drawn[where]
 		_check(
@@ -1324,7 +1331,7 @@ func test_imports_follow_their_family() -> void:
 			)
 		)
 	_check(counted[false] > 0 and counted[true] > 0, "both rules are exercised: %s" % counted)
-	for family: String in [MANIFEST, PixelPeople.MANIFEST]:
+	for family: String in [MANIFEST, PixelPeople.MANIFEST, PixelPortraits.MANIFEST]:
 		_eq(
 			ArtFamily.read_filter(ArtFamily.read_json(family)),
 			CanvasItem.TEXTURE_FILTER_NEAREST,

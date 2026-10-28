@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "density": 2,
+  "filter": "nearest",
+  "canvas": [
+    40,
+    40
+  ],
+  "pivot": [
+    20,
+    40
+  ],
+  "columns": 9,
+  "layers": {
+    "top": {
+      "shape": null,
+      "colour": "top",
+      "fixed": [
+        "ink"
+      ]
+    },
+    "head": {
+      "shape": null,
+      "colour": "skin",
+      "fixed": [
+        "ink"
+      ]
+    },
+    "face": {
+      "shape": "expression",
+      "colour": "skin",
+      "fixed": [
+        "ink",
+        "eye",
+        "catchlight",
+        "mouth"
+      ]
+    },
+    "brows": {
+      "shape": "expression",
+      "colour": "hair_colour",
+      "fixed": [
+        "ink"
+      ]
+    },
+    "marks": {
+      "shape": "marks",
+      "colour": "skin",
+      "fixed": []
+    },
+    "neckwear": {
+      "shape": "neckwear",
+      "colour": null,
+      "fixed": [
+        "ink",
+        "frame",
+        "gear",
+        "gear_light"
+      ]
+    },
+    "glasses": {
+      "shape": "glasses",
+      "colour": null,
+      "fixed": [
+        "ink",
+        "frame",
+        "lens"
+      ]
+    },
+    "hair": {
+      "shape": "hair_style",
+      "colour": "hair_colour",
+      "fixed": [
+        "ink"
+      ]
+    },
+    "headwear": {
+      "shape": "headwear",
+      "colour": "headwear_colour",
+      "fixed": [
+        "ink"
+      ]
+    }
+  },
+  "extras": {
+    "expression": {
+      "options": [
+        "smile",
+        "smirk",
+        "focus"
+      ],
+      "none": false,
+      "default": "smile",
+      "pool": [
+        "smile",
+        "smirk",
+        "focus"
+      ]
+    },
+    "marks": {
+      "options": [
+        "freckles"
+      ],
+      "none": true,
+      "default": "none",
+      "pool": [
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "freckles"
+      ]
+    },
+    "neckwear": {
+      "options": [
+        "headphones"
+      ],
+      "none": true,
+      "default": "none",
+      "pool": [
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "headphones"
+      ]
+    }
+  },
+  "cells": {
+    "top_slate": 0,
+    "top_cream": 1,
+    "top_terra": 2,
+    "top_teal": 3,
+    "top_lilac": 4,
+    "head_porcelain": 5,
+    "head_fair": 6,
+    "head_tan": 7,
+    "head_brown": 8,
+    "head_deep": 9,
+    "face_smile_porcelain": 10,
+    "face_smile_fair": 11,
+    "face_smile_tan": 12,
+    "face_smile_brown": 13,
+    "face_smile_deep": 14,
+    "face_smirk_porcelain": 15,
+    "face_smirk_fair": 16,
+    "face_smirk_tan": 17,
+    "face_smirk_brown": 18,
+    "face_smirk_deep": 19,
+    "face_focus_porcelain": 20,
+    "face_focus_fair": 21,
+    "face_focus_tan": 22,
+    "face_focus_brown": 23,
+    "face_focus_deep": 24,
+    "brows_smile_brown": 25,
+    "brows_smile_auburn": 26,
+    "brows_smile_umber": 27,
+    "brows_smile_black": 28,
+    "brows_smile_blonde": 29,
+    "brows_smile_grey": 30,
+    "brows_smirk_brown": 31,
+    "brows_smirk_auburn": 32,
+    "brows_smirk_umber": 33,
+    "brows_smirk_black": 34,
+    "brows_smirk_blonde": 35,
+    "brows_smirk_grey": 36,
+    "brows_focus_brown": 37,
+    "brows_focus_auburn": 38,
+    "brows_focus_umber": 39,
+    "brows_focus_black": 40,
+    "brows_focus_blonde": 41,
+    "brows_focus_grey": 42,
+    "marks_freckles_porcelain": 43,
+    "marks_freckles_fair": 44,
+    "marks_freckles_tan": 45,
+    "marks_freckles_brown": 46,
+    "marks_freckles_deep": 47,
+    "neckwear_headphones": 48,
+    "glasses_round": 49,
+    "glasses_square": 50,
+    "hair_short_brown": 51,
+    "hair_short_auburn": 52,
+    "hair_short_umber": 53,
+    "hair_short_black": 54,
+    "hair_short_blonde": 55,
+    "hair_short_grey": 56,
+    "hair_curl_brown": 57,
+    "hair_curl_auburn": 58,
+    "hair_curl_umber": 59,
+    "hair_curl_black": 60,
+    "hair_curl_blonde": 61,
+    "hair_curl_grey": 62,
+    "hair_long_brown": 63,
+    "hair_long_auburn": 64,
+    "hair_long_umber": 65,
+    "hair_long_black": 66,
+    "hair_long_blonde": 67,
+    "hair_long_grey": 68,
+    "headwear_cap_slate": 69,
+    "headwear_cap_cream": 70,
+    "headwear_cap_terra": 71,
+    "headwear_cap_teal": 72,
+    "headwear_cap_lilac": 73,
+    "headwear_cap_sea": 74,
+    "headwear_hood_slate": 75,
+    "headwear_hood_cream": 76,
+    "headwear_hood_terra": 77,
+    "headwear_hood_teal": 78,
+    "headwear_hood_lilac": 79,
+    "headwear_hood_sea": 80
+  },
+  "files": [
+    "portraits.png"
+  ],
+  "mock_files": []
+}
