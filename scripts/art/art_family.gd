@@ -2,10 +2,10 @@ class_name ArtFamily
 extends Resource
 ## One family of textures, and the single owner of its pixel density.
 ##
-## Three families are drawn side by side: a theme's own pack, the pixel people
-## every theme shares, and a pack's shared table. Each is built at its own
-## density and sampled on its own terms, so a texture is never scaled by one
-## family's density and sampled with another's filter.
+## Four families are drawn side by side: a theme's own pack, the pixel people
+## and their portraits every theme shares, and a pack's shared table. Each is
+## built at its own density and sampled on its own terms, so a texture is never
+## scaled by one family's density and sampled with another's filter.
 ##
 ## `density` means one thing only: how many pixels per density-1 unit the built
 ## PNGs hold. Textures are handed out exactly as built and every node is scaled

@@ -583,7 +583,8 @@ make setup           # python3 -m venv .venv + tools/requirements-dev.txt
 .venv/bin/python tools/build_assets.py      # rebuilds every pack.json under art/
 .venv/bin/python tools/build_table_assets.py
 .venv/bin/python tools/build_pixel_people.py
-make test-art        # the three Python contract tests
+.venv/bin/python tools/build_portraits.py
+make test-art        # the four Python contract tests
 
 # The contract tests can run against any pack source (default art/daylight).
 .venv/bin/python tools/test_assets.py --source /path/to/pack -v
@@ -594,7 +595,7 @@ make check-packs     # validate every pack under assets/ against scripts/art/art
 make run
 ```
 
-`make art` is those three builders plus `tools/check_build_clean.py`, the same chain CI runs: it requires the rebuild to
+`make art` is those four builders plus `tools/check_build_clean.py`, the same chain CI runs: it requires the rebuild to
 match the commit exactly (`assets/`), so it passes only after the new PNGs are committed.
 
 - `art/daylight/` is the only hand-edited source; `assets/<id>/` is a build product, and the build never writes back. Remove an entry from `pack.json` and `make art` prunes the orphan PNG (with its `.import`),
@@ -613,6 +614,9 @@ match the commit exactly (`assets/`), so it passes only after the new PNGs are c
 
 Pixel people have their own tools: `make people-templates OUT=/abs/new-dir` exports the painter's canvases, guide layers
 and key-colour legend; `make people-skins` cuts or checks part skins; `make people` opens the pixel people showroom.
+Portraits too: `make portrait-parts` checks the painted parts, prints a reference to paint on (`REF=<part> OUT=<dir>`)
+or cuts a part from a pixelized picture (`CUT=<png> PART=<part> SHAPE=<option>`, `DROP=1`), and
+`make portrait-sheet OUT=<empty dir>` writes a review contact sheet (docs/ASSET_SPEC.md, "Portraits").
 
 **A whole new skin.**
 
@@ -839,9 +843,12 @@ Screenshots are for looking at; there is no golden comparison. CI does not expor
 art/daylight/            hand-edited source pack: PNGs, pack.json, table/ (the pod family), fonts/
 art/pixel_people/        people.json, the pixel people contract (canvas, pivot, facings, layers, tracks,
                          key colours, slots, looks), optional hand-drawn strips and skins/<facing>/
+art/portraits/           portraits.json, the portraits contract (canvas, the nine layers bound to the people's
+                         look slots, the extras, the face box), optional painted parts/
 art/agent_badges/        agent logo sources and ATTRIBUTIONS.md
 assets/<id>/             runtime packs built from art/ (daylight); never edited here
 assets/pixel_people/     people_manifest.json and one packed sheet per facing
+assets/portraits/        portraits_manifest.json and the one packed sheet of portrait cells
 assets/agent_badges/     the 23 agent logos (Avatar Studio only) and ATTRIBUTIONS.md
 data/agent_catalog.json  herdr agent IDs, display names, badge sources, each provider's default clothes
 scenes/office.tscn       main scene, connects to herdr
