@@ -214,23 +214,5 @@
   "files": [
     "portraits.png"
   ],
-  "mock_files": [
-    "parts/brows_focus.png",
-    "parts/brows_smile.png",
-    "parts/brows_smirk.png",
-    "parts/face_focus.png",
-    "parts/face_smile.png",
-    "parts/face_smirk.png",
-    "parts/glasses_round.png",
-    "parts/glasses_square.png",
-    "parts/hair_curl.png",
-    "parts/hair_long.png",
-    "parts/hair_short.png",
-    "parts/head.png",
-    "parts/headwear_cap.png",
-    "parts/headwear_hood.png",
-    "parts/marks_freckles.png",
-    "parts/neckwear_headphones.png",
-    "parts/top.png"
-  ]
+  "mock_files": []
 }
