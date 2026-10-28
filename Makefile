@@ -24,7 +24,7 @@ RUN_TESTS = GODOT=$(GODOT) PYTHON=$(PYTHON) bash tools/run_tests.sh
 PACKS := $(notdir $(patsubst %/manifest.json,%,$(wildcard assets/*/manifest.json)))
 
 .DEFAULT_GOAL := help
-.PHONY: help setup import imported run preview preview-fixtures people people-templates people-skins wall-templates table-templates pixel-sources test test-art test-tools test-harness test-suite test-shard test-list check check-quick check-scripts check-packs smoke docs-check lint lint-changed fmt art capture walk-strips perf pack export clean
+.PHONY: help setup import imported run preview preview-fixtures people people-templates people-skins portrait-parts portrait-sheet wall-templates table-templates pixel-sources test test-art test-tools test-harness test-suite test-shard test-list check check-quick check-scripts check-packs smoke docs-check lint lint-changed fmt art capture walk-strips perf pack export clean
 
 help:  ## List these targets
 	@grep -hE '^[a-z][a-z-]*:.*##' $(MAKEFILE_LIST) \
@@ -56,10 +56,11 @@ preview-fixtures:  ## List the snapshot names available to make preview
 test:  ## Every Godot test: script check, client, machines, incremental office
 	SUITES= CASE= TIER= SHARD= $(RUN_TESTS)
 
-test-art:  ## The three Python art contract tests (packs, table, pixel people)
+test-art:  ## The four Python art contract tests (packs, table, pixel people, portraits)
 	$(PYTHON) tools/test_assets.py -v
 	$(PYTHON) tools/test_table_assets.py -v
 	$(PYTHON) tools/test_pixel_people.py -v
+	$(PYTHON) tools/test_portraits.py -v
 
 test-tools:  ## Developer CLI contracts: suite selection, offline preview, isolated fakes, logs and changed-file lint
 	$(PYTHON) tools/test_dev_tools.py -v
@@ -123,6 +124,7 @@ art:  ## Rebuild assets/ from art/ and prove it matches the commit
 	$(PYTHON) tools/build_assets.py
 	$(PYTHON) tools/build_table_assets.py
 	$(PYTHON) tools/build_pixel_people.py
+	$(PYTHON) tools/build_portraits.py
 	$(PYTHON) tools/check_build_clean.py assets
 
 people:  ## Open the pixel people showroom: every agent, or every frame of one look (see scripts/people_showroom.gd for flags)
@@ -134,6 +136,14 @@ people-templates:  ## Export pixel-people artist canvases, guide layers, sheets 
 
 people-skins:  ## Check the pixel people's part skins, or cut new ones from a pixelized frame (CUT=<png> PARTS=head,torso, FACING=front, DROP=1, WEAR=hair_short)
 	$(PYTHON) tools/people_skins.py $(if $(CUT),cut "$(abspath $(CUT))" --facing $(or $(FACING),front) --parts $(PARTS) --out art/pixel_people/skins/$(or $(FACING),front)$(if $(DROP), --drop-outside)$(if $(WEAR), --wear $(WEAR)),--check)
+
+portrait-parts: OUT = build/portrait-reference
+portrait-parts:  ## Check the portrait parts, print a reference to paint on (REF=<part> OUT=<new dir>, WITH=hair_long), or cut a part from a pixelized picture (CUT=<png> PART=<part> SHAPE=<option> WITH=face_smile DROP=1)
+	$(PYTHON) tools/portrait_parts.py $(if $(CUT),cut "$(abspath $(CUT))" --part $(PART)$(if $(SHAPE), --shape $(SHAPE))$(if $(WITH), --with $(WITH))$(if $(DROP), --drop-drift),$(if $(REF),reference --part $(REF) --out "$(abspath $(OUT))"$(if $(WITH), --with $(WITH)),--check))
+
+portrait-sheet: OUT = build/portrait-sheet
+portrait-sheet:  ## A review contact sheet of the portraits: sheet2's people, every part, 24 sample panes (OUT= an empty directory)
+	$(PYTHON) tools/portrait_parts.py sheet --out "$(abspath $(OUT))"
 
 wall-templates: OUT = build/wall-templates
 wall-templates:  ## Export matching wall corners, junctions and ends (OUT= an empty directory)

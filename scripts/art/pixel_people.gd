@@ -248,7 +248,7 @@ func strip_name(layer: StringName, look: AvatarLook) -> String:
 		if shape == AvatarLook.NONE or not slot.shapes.has(shape):
 			return ""
 		name += "_" + str(shape)
-	if layer == HAIR and _hides_hair(look):
+	if layer == HAIR and hides_hair(look):
 		return ""
 	for slot_id in slots:
 		var slot := slots[slot_id]
@@ -393,7 +393,9 @@ func animation_library() -> AnimationLibrary:
 	return _library
 
 
-func _hides_hair(look: AvatarLook) -> bool:
+## Whether `look` wears something that hides the hair layer (a hood); the
+## portraits ask too, so their hair hides under the same hood.
+func hides_hair(look: AvatarLook) -> bool:
 	for slot_id in slots:
 		var slot := slots[slot_id]
 		if slot.layer == HEADWEAR and not slot.is_colour() and slot.hides_hair.has(look.slot(slot_id)):

@@ -319,6 +319,7 @@ static func problems(pack: ArtPack) -> PackedStringArray:
 	if pack.state(STATE_DONE) != null and pack.state(STATE_DONE).badge != &"unread":
 		found.append("states: done means unread, not task success")
 	found.append_array(_people_problems(pack.people))
+	found.append_array(_portrait_problems(pack.portraits))
 	found.append_array(_table_problems(pack.table))
 	found.append_array(_file_problems(pack))
 	return found
@@ -423,6 +424,46 @@ static func _people_problems(people: PixelPeople) -> PackedStringArray:
 	return found
 
 
+## What the HUD asks of the portraits: a cell for every look a pane can wear,
+## that is every option of every look slot or extra a layer is bound to, in
+## every swatch of its colour slot (`none` draws nothing and needs no cell).
+static func _portrait_problems(portraits: PixelPortraits) -> PackedStringArray:
+	var found := PackedStringArray()
+	if portraits == null:
+		found.append("portraits: the shared portraits did not load")
+		return found
+	for name in portrait_cells(portraits):
+		if not portraits.cells.has(name):
+			found.append("portraits: no cell %s, which a look can show" % name)
+	return found
+
+
+## Every cell a portrait can show, layer by layer: "<layer>[_<shape>][_<swatch>]".
+static func portrait_cells(portraits: PixelPortraits) -> PackedStringArray:
+	var found := PackedStringArray()
+	for layer in PixelPortraits.LAYERS:
+		if not portraits.layers.has(layer):
+			continue
+		var entry := portraits.layers[layer]
+		var names := PackedStringArray([str(layer)])
+		if not entry.shape.is_empty():
+			names = PackedStringArray()
+			var shapes: Array[StringName] = []
+			if portraits.extras.has(entry.shape):
+				shapes = portraits.extras[entry.shape].options
+			elif portraits.people.slots.has(entry.shape):
+				shapes = portraits.people.slots[entry.shape].shapes
+			for shape in shapes:
+				names.append("%s_%s" % [layer, shape])
+		for name in names:
+			if entry.colour.is_empty():
+				found.append(name)
+				continue
+			for swatch in portraits.people.slots[entry.colour].swatches:
+				found.append("%s_%s" % [name, swatch])
+	return found
+
+
 static func _table_problems(table: TablePack) -> PackedStringArray:
 	var found := PackedStringArray()
 	if table == null or table.modules.is_empty():
@@ -471,6 +512,10 @@ static func _file_problems(pack: ArtPack) -> PackedStringArray:
 		for strip in pack.people.files:
 			if not pack.people.has_file(strip):
 				found.append("files: no pixel people strip " + strip)
+	if pack.portraits != null:
+		for sheet in pack.portraits.files:
+			if not pack.portraits.has_file(sheet):
+				found.append("files: no portrait sheet " + sheet)
 	return found
 
 

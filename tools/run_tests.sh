@@ -126,6 +126,10 @@ MIN_CASES_EDGE_ARROWS=20
 MIN_CASES_BOTTOM_PANEL=32
 MIN_CASES_FRAME_LOOP=9
 MIN_CASES_PIXEL_PEOPLE=53
+# The portraits family (S3 PORTRAIT P1, 2026-10-28): the manifest against the
+# people, every cell as imported, the seat's person and the extras' picks,
+# which cell each layer shows, the contract.
+MIN_CASES_PORTRAITS=11
 MIN_CASES_AVATAR_STUDIO=13
 MIN_CASES_SAVED_LOOKS=16
 MIN_CASES_COMMANDS=37
@@ -187,8 +191,8 @@ MIN_CASES_PICK_FOLLOWS_WRITE=20
 # wall-clock time with a fake herdr.
 QUICK_SUITES="test_art test_office_incremental test_office_layout test_office_map test_office_service
 test_office_navigator test_office_geometry test_office_frames test_office_quiet test_day_light
-test_office_reconcile test_office_walking test_office_rests test_lens test_pixel_people test_desk_signal
-test_names"
+test_office_reconcile test_office_walking test_office_rests test_lens test_pixel_people test_portraits
+test_desk_signal test_names"
 SUITES="${SUITES:-}"
 CASE="${CASE:-}"
 SHARD="${SHARD:-}"
@@ -461,6 +465,7 @@ run_suites() {
 		--socket="$WORK/frame-loop-nowhere.sock" --work="$WORK"
 	# Manifests and saved looks live under WORK, never in the user's save directory.
 	run_scene_suite test_pixel_people "PIXEL PEOPLE TESTS" "$MIN_CASES_PIXEL_PEOPLE" -- --work="$WORK"
+	run_scene_suite test_portraits "PORTRAITS TESTS" "$MIN_CASES_PORTRAITS" -- --work="$WORK"
 	run_scene_suite test_avatar_studio "AVATAR STUDIO TESTS" "$MIN_CASES_AVATAR_STUDIO" -- --work="$WORK"
 	run_scene_suite test_saved_looks "SAVED LOOKS TESTS" "$MIN_CASES_SAVED_LOOKS" -- --work="$WORK"
 	# Real-input write suites keep their existing 300-second bounds and private pairs.

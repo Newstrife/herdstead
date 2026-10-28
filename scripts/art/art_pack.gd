@@ -8,8 +8,8 @@ extends ArtFamily
 ## Python builders, and loose packs (`--pack=/abs/path`, the fixtures) have to
 ## come from JSON anyway, so nothing here is authored in the Godot editor.
 ##
-## The pack, the shared pixel people and the shared table are three families
-## (see ArtFamily); this one is the pack's own art.
+## The pack, the shared pixel people, the shared portraits and the shared table
+## are four families (see ArtFamily); this one is the pack's own art.
 
 ## Dim applied when herdr is unreachable, for packs that do not name their own.
 const STALE_DEFAULT := Color(0.65, 0.65, 0.65)
@@ -63,6 +63,9 @@ var task_lights := TASK_LIGHTS_SOFT
 ## showroom or looks out of the agent card. Never null in a loaded pack; it
 ## shares this pack's agent_catalog, so a look is resolved against one catalog.
 var people: PixelPeople
+## The portraits every theme shares: the seat's person, head and shoulders, for
+## the HUD. Never null in a loaded pack; it resolves looks through `people`.
+var portraits: PixelPortraits
 ## This pack's shared table. Never null in a loaded pack; a pack that ships no
 ## table manifest gets an empty one, and cannot furnish a floor.
 var table: TablePack
@@ -480,15 +483,18 @@ func _read_options(manifest: Dictionary) -> String:
 	return ""
 
 
-## The two companion families and the agent catalog. The pixel people are
-## shared res:// art every theme draws, and resolve looks against this pack's
-## catalog; the shared table belongs to this pack.
+## The three companion families and the agent catalog. The pixel people and
+## their portraits are shared res:// art every theme draws, and resolve looks
+## against this pack's catalog; the shared table belongs to this pack.
 func _read_families() -> String:
 	agent_catalog = AgentCatalog.new()
 	people = PixelPeople.from_manifest(PixelPeople.MANIFEST)
 	if people == null:
 		return "the shared pixel people did not load"
 	people.agent_catalog = agent_catalog
+	portraits = PixelPortraits.from_manifest(PixelPortraits.MANIFEST, people)
+	if portraits == null:
+		return "the shared portraits did not load"
 	var table_manifest := base_path.path_join("table/manifest.json")
 	if not FileAccess.file_exists(table_manifest):
 		# Legal, and refused by ArtContract: a pack with no table can draw props

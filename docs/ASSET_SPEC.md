@@ -137,6 +137,7 @@ atlas is `atlas_size × d` with `32·d` cells. From schema 2 on, `manifest.json`
 | A theme pack's own images (tile atlas, props, UI) | `assets/<id>/` | density 2, NEAREST | `false` |
 | A theme pack's pod family (the shared table) | `assets/<id>/table/` | density 2, NEAREST | `false` |
 | Pixel people | `assets/pixel_people/` | density 2, NEAREST | `false` |
+| Portraits | `assets/portraits/` | density 2, NEAREST | `false` |
 | Agent logos (Avatar Studio shows them minified by `size/64`) | `assets/agent_badges/` | LINEAR_WITH_MIPMAPS | `true` |
 
 - **The project default (`[importer_defaults]` in `project.godot`) is `false`**, right for every nearest family.
@@ -150,7 +151,7 @@ atlas is `atlas_size × d` with `32·d` cells. From schema 2 on, `manifest.json`
 - `test_imports_follow_their_family` (`tools/test_art.gd`) checks **every** PNG under `res://assets`: the nearest
   `*manifest.json` above it decides by its `filter`; logos (no manifest) count as minified; a PNG in no family
   fails. It also asserts the project default. `test_art_textures_as_built` checks the textures the office draws
-  (pack, table and people without mipmaps, every logo with).
+  (pack, table, people and portraits without mipmaps, every logo with).
 
 ### Style rules by `filter`
 
@@ -893,6 +894,115 @@ line, grey over undrawn facings, a faint ghost of the white model, and brim line
 its layer, the fixed colours); `files.tsv` (each strip's size, frame, pivot, drawn columns, allowed colours, white
 model or painted); the skin canvases, guides and `skins.tsv` (see "Skins"); and a README (`<out>/README.txt`, every
 rule the builder checks). The output directory must be empty; painted work is never overwritten.
+
+## Portraits
+
+The family (`portraits`) that draws the seat's person head and shoulders for the HUD (the top bar's tiles and the
+agent card, from S3 PORTRAIT P2 / P3 on). A sibling of the pixel people, not a part of them: **true pixel art**,
+density 2 (the people's), nearest, never minified, recoloured at build time with **the people's own key colours and
+swatches**, so a pane's portrait is its seat's person by construction. A portrait is a still: it shows no pose and
+no state (the HUD's frame, the tile's corner mark and the card's badge say the state).
+
+Pipeline: `art/portraits/portraits.json` (+ painted parts in `art/portraits/parts/`) → `tools/build_portraits.py`
+(`make art`, after the people) → `assets/portraits/portraits.png` + `portraits_manifest.json` →
+`PixelPortraits.from_manifest()`, read once per `ArtPack` after the people (`art.portraits`, bound to `art.people`).
+`ArtContract` asks for a cell for every look (`make check-packs`). The product manifest is not named
+`manifest.json`, so it is never taken for a theme.
+
+### Contract (`portraits.json`, the only hand-written source)
+
+| Field | Current value / rule |
+|---|---|
+| `schema_version` / `density` / `filter` | `1` / `2` / `nearest` |
+| `canvas` / `pivot` | `[40, 40]` units (80×80 texels) / `[20, 40]`: the bottom centre (**x is half the width**, the people's rule) |
+| `people` | `"../pixel_people/people.json"`: keys, fixed colours, slots and swatches come from there only (no second option list, no second ramp) |
+| `layers` | exactly the nine below, bottom to top, each `{"shape", "colour", "fixed"}`: the look slot or extra that picks its drawing (or null), the people colour slot that picks its swatch (or null), and the fixed colours it may hold (`eye` / `catchlight` only on `face`) |
+| `extras` | the portrait's own choices, `{"options", "none", "default", "pool"}` each: `expression` (`smile smirk focus`, default `smile`), `marks` (`freckles`, `none` ×5 in the pool), `neckwear` (`headphones`, `none` ×5) |
+| `fixed` | at most three portrait-only colours, each ≥ 12 apart (RGB Manhattan) from every key and fixed colour: `mouth`, `gear`, `gear_light` |
+| `face_box` | `[11, 14, 29, 25]` units, x0 and y0 inclusive, x1 and y1 exclusive: every `face` and `brows` texel lies inside |
+| `head_rows` | `[7, 33]`: the bald head's crown and chin rows; checked loosely (a note, `PORTRAIT_HEAD_ROWS`, never a refusal) |
+
+**The face box is HUD geometry, not art direction**: it keeps the eyes, brows and mouth ≥ 3 units from every edge of
+the 40×40 clip (the frame and the selection rings are drawn over the portrait), inside the face-only tile's crop
+(columns 9..31) and clear of the tile's corner mark (0..8 × 0..8). Move it only with the HUD's measurements.
+
+| Layer | Shape | Colour | Fixed | Sources |
+|---|---|---|---|---|
+| `top` | — | `top` | ink | `top.png` (shoulders, collar) |
+| `head` | — | `skin` | ink | `head.png` (bald head, ears, neck, nose shading; a blank face) |
+| `face` | `expression` | `skin` | ink, eye, catchlight, mouth | `face_<expression>.png` |
+| `brows` | `expression` | `hair_colour` | ink | `brows_<expression>.png` |
+| `marks` | `marks` | `skin` | — | `marks_freckles.png` (dark skin on the cheeks) |
+| `neckwear` | `neckwear` | — | ink, frame, gear, gear_light | `neckwear_headphones.png` |
+| `glasses` | `glasses` | — | ink, frame, lens | `glasses_round.png`, `glasses_square.png` |
+| `hair` | `hair_style` | `hair_colour` | ink | `hair_<short\|curl\|long>.png` (every visible hair texel, over the head and shoulders) |
+| `headwear` | `headwear` | `headwear_colour` | ink | `headwear_cap.png`, `headwear_hood.png` (a hood hides the hair layer: the people's `hides_hair`) |
+
+### Cells and the sheet
+
+Each source is recoloured into one 80×80 **cell** per swatch of its colour slot, named
+`<layer>[_<shape>][_<swatch>]` (`head_tan`, `face_smirk_tan`, `brows_smirk_blonde`, `glasses_round`,
+`headwear_cap_sea`). The count is `T + S + E·S + E·Hc + S + 1 + G + Hs·Hc + W·Wc` = 5 + 5 + 15 + 18 + 5 + 1 + 2 + 18 + 12
+= **81** (tops, skins, expressions × skins, expressions × hair colours, freckles × skins, headphones, glasses, hair
+styles × hair colours, hats × hat colours). They ship packed row-major in one sheet, `portraits.png`, 9×9 cells
+(720×720 texels, 2.07 MB lossless), no gutter: a portrait's nine layers draw from one texture in one draw call.
+
+`portraits_manifest.json` holds `schema_version`, `density`, `filter`, `canvas`, `pivot`, `columns`, `layers`,
+`extras`, `cells` (name → index), `files`, `mock_files`. `PixelPortraits.from_manifest(path, people)` is its only
+reader and answers `push_error` and null for: an unknown field, schema, density or filter; a canvas other than 40×40
+or a pivot off the centre; a layer the runtime does not have, or one missing; a shape that is no look shape slot and
+no extra; a colour that is no people colour slot; extras other than the three, or one whose default or pool names an
+undrawn option; a sheet other than `portraits.png`, one that is not whole cells wide `columns` times, or a cell index
+outside it. `look_of(provider, pane_key)` resolves the person with the seat's own call
+(`people.look_for(provider, …, pane_key)`) and picks each extra with `PixelPeople.pick(provider, pane_key,
+"portrait.<extra>")` (the default with no pane): `VARIATION_SCHEME` is unchanged, so nobody's look moves.
+`part_texture(layer, look)` is the cell's `AtlasTexture` (made once), null for `none`, an undrawn option, and the
+hair under a hood.
+
+### Parts: placeholders, the builder's checks, the cutter
+
+A part that is not in `art/portraits/parts/` is **drawn by the builder** from the contract in key colours (a bald
+oval head, a shoulder band, a hair cap per style, a cap and a hood, a line mouth per expression…) and listed in
+`mock_files`, as the people's placeholders are; the placeholders pass every check below, so the HUD can be built on
+them. The orchestrator merges a portrait HUD only once `mock_files` is empty (or with the user's go).
+
+Every source, painted or drawn: exactly 80×80, alpha 0 or 255, every opaque texel a colour its layer allows
+(`PORTRAITS_BUILD_FAILED:` naming the file, the texel and the colour); a PNG the contract does not name is refused.
+Across parts (each failure names both files and the texel): **a cap covers every hair style above its brim** (in
+each column the cap draws, every hair texel above the cap's lowest row there is under a cap texel); **a hood covers
+the bald head's crown** (every head texel above `face_box`'s top row); **glasses never cover an `eye` or
+`catchlight`** texel of any expression; every `face` / `brows` texel lies inside `face_box`; **marks lie on the
+skin** (a head texel of a skin key). The eye's contrast against each skin's mid tone is printed
+(`PORTRAIT_EYE_CONTRAST`), never refused. A re-run with nothing changed writes nothing.
+
+Painted parts come from the painter through `tools/portrait_parts.py` (`make portrait-parts`): the base (head +
+top) is painted first and approved; every other part is painted **on** the base, and cut out by what the picture
+changed. `reference --part <part> --out DIR [--with hair_long]` writes the base (with `--with` parts over it) in key
+colours on a neutral ground, x8, with a 2×2 ink **registration tick** in each top corner (the shoulders already run
+edge to edge on the bottom row, so a picture's opaque box is always the whole canvas, whatever its hair or hat
+reaches), a guide image (a 1-unit grid, `face_box`, the corner mark) and the `PIXELIZE:` arguments
+(`--size 80x80 --pivot 40,80 --fit 80x80 --stretch --key 9a9a9a --people … --roles … [--colours …] --only …`).
+`cut <png> --part <part> [--shape <option>] [--with …] [--drop-drift]`:
+
+1. **Registration**: 80×80, hard alpha, and every texel opaque in the base (the ticks included) opaque in the
+   picture: a part adds, it never erases.
+2. **The part** is every texel where the picture differs from the base in a colour the part allows; ink in it is the
+   part's (an outline it painted), ink identical to the base stays the base's.
+3. **Drift** (a changed texel in a colour the part does not hold: a repainted cheek or collar) is refused, or with
+   `--drop-drift` dropped and printed one per line (`PORTRAIT_DRIFT:`).
+4. **An expression is two parts**: its texels in the hair's keys are `brows_<shape>`, the rest `face_<shape>`.
+5. **The base** (`--part base`, its ticks present and dropped): skin keys and the ink touching them (8-way) are
+   `head`, top keys and the ink touching only them `top`; ink touching both is the head's; ink touching neither
+   belongs to the ink it touches (the head first); any other colour is refused.
+6. A part is written only when every rule and the builder's single-part checks passed, never over an existing file
+   (delete it first); the builder checks again with the cross-part rules. `--check` checks every part.
+
+`make portrait-sheet OUT=<empty dir>` writes a review contact sheet (never an asset): the twelve people of the
+approved style sheet as looks, every part and swatch on the default look, and 24 sample panes of claude, each in a
+42×42-unit window of the HUD's `cream` with a state's frame and the corner mark's box, at 4 px per unit.
+
+The sheet's `.import` has `mipmaps/generate=false` and is lossless (`compress/mode=0`); see "Import policy by asset
+family".
 
 ## Fonts, sources and licensing
 
