@@ -250,14 +250,16 @@ func test_an_arrow_stands_inside_the_world_on_the_edge_toward_its_desk() -> void
 
 ## Below `edge_arrows_compact_from` (the 480x320 minimum) an arrow leaves its
 ## zone's number to the tooltip: glyph, badge and count. In every window the
-## arrows stand in the world and never under the bar, the drawer, the staff
-## panel or NEWS; a full arrow covers at most a quarter of the world's width,
+## arrows stand in the world and never under the bar, the bottom panel or
+## NEWS; a full arrow covers at most a quarter of the world's width,
 ## and at the minimum nothing stands over the plate's name. The blocked agent
 ## it points at has its card in the bar, and a click on the card's place pans
 ## there. (S3 BAR-b, 2026-10-27: the SPACES rail it once stood beside is gone;
 ## the scene's width moved from 360 to 440 so the minimum, now 420 wide, keeps
 ## its compact arrows.)
-func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_bar_or_the_drawer() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer is gone, so it is no longer
+## among the panels an arrow must stay clear of (was ..._never_under_the_bar_or_the_drawer).
+func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_bar_or_the_panel() -> void:
 	var office := await _live_office()
 	var wanted := {Vector2(480, 320): true, Vector2(640, 320): false, Vector2(960, 480): false}
 	for screen: Vector2 in wanted:
@@ -276,7 +278,7 @@ func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_bar_or_the_dra
 		_eq(_arrow_texts(office), ["↓ 1" if wanted[screen] else "↓ 1A 1"], "%s: the arrow's words" % screen)
 		_check(arrow.tooltip_text.begins_with("1A HUD-LANE"), "%s: the tooltip names the zone" % screen)
 		_check(room.encloses(rect), "%s: inside the world %s: %s" % [screen, room, rect])
-		for panel: Control in [office.hud.bar, office.hud.right_column, office.hud.staff, office.hud.news]:
+		for panel: Control in [office.hud.bar, office.hud.staff, office.hud.news]:
 			_check(not office.hud.placed(panel).intersects(rect), "%s: not under %s" % [screen, panel.name])
 		var line: Control = arrow.get_node("%Line")
 		# A Control never shrinks below its minimum: words that do not fit push
@@ -312,8 +314,11 @@ func test_arrows_go_compact_on_a_narrow_world_and_never_under_the_bar_or_the_dra
 
 
 ## The arrows keep what they were last handed: a change of the world's room (a
-## window, the drawer) places the same arrows again at once, compact or full,
-## with no refresh and no new node, and the OVERVIEW hides them.
+## window, the bottom panel opening on a short screen) places the same arrows
+## again at once, compact or full, with no refresh and no new node, and the
+## OVERVIEW hides them.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the room change that is not the window's was
+## the drawer opening (narrower, compact at once); now it is the panel opening for HISTORY (shorter).
 func test_the_hud_keeps_the_arrow_nodes_as_the_world_resizes() -> void:
 	var hud := await _hud()
 	var nodes := hud.edge_arrows.find_children("*", "OfficeEdgeArrow", true, false)
@@ -340,21 +345,24 @@ func test_the_hud_keeps_the_arrow_nodes_as_the_world_resizes() -> void:
 		_check(
 			hud.world_rect().encloses(arrow.get_global_rect()), "inside the 800x480 world: %s" % arrow.get_global_rect()
 		)
-	# 560x320: 420 wide with the drawer closed, 296 with it open.
+	# 560x320: 536 wide, the panel folded to its two rows; opened for HISTORY it is 103 tall.
 	hud.fit(Vector2(560, 320))
 	await _frames(2)
-	_check(not hud.edge_arrows_compact(), "560x320, the drawer closed: full")
-	hud.open_drawer()
+	_check(not hud.edge_arrows_compact(), "560x320, the panel folded: full")
+	var tall := hud.world_rect()
+	hud.show_page(OfficeBottomPanel.Page.HISTORY)
 	await _frames(1)
-	_check(hud.edge_arrows_compact(), "the drawer opened narrows the world: compact at once")
+	_check(hud.world_rect().size.y < tall.size.y, "the panel opened for HISTORY takes the world's bottom")
+	_check(not hud.edge_arrows_compact(), "as wide as it was: still full")
 	for arrow in hud.edge_arrows.shown():
 		_check(
 			hud.world_rect().encloses(arrow.get_global_rect()),
-			"inside the narrower world: %s" % arrow.get_global_rect()
+			"inside the shorter world at once: %s" % arrow.get_global_rect()
 		)
-	hud.close_drawer()
+	hud.show_page(OfficeBottomPanel.Page.AGENT)
 	await _frames(1)
-	_check(not hud.edge_arrows_compact(), "closed again: full, the same five")
+	_eq(hud.world_rect(), tall, "folded again: the world as it was")
+	_check(not hud.edge_arrows_compact(), "full, the same five")
 	_eq(hud.edge_arrows.shown().size(), 5, "all five")
 	hud.open_overview()
 	_check(not hud.edge_arrows.visible, "the OVERVIEW hides them")
@@ -368,24 +376,24 @@ func test_the_hud_keeps_the_arrow_nodes_as_the_world_resizes() -> void:
 ## edge shows as many as it has room for (its run between the corners' rows,
 ## the theme's inset and gap, the arrows' own sizes, compact or not), longest
 ## wait first, and folds the rest into a `+N` note on that edge whose tooltip
-## names each of them. At the 480x320 minimum, there with the drawer open, and
-## at 2x with the drawer open, on each of the four edges, with a full pool and
+## names each of them. At the 480x320 minimum, at 800x480 (the 776-wide world
+## 960x480 had with the drawer open) and at 2x, 960x480, on each of the four
+## edges, with a full pool and
 ## with more zones than the pool holds: every arrow inside the world, the side
 ## edges' clear of the corners' rows, and arrows and notes counting every zone.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer open is gone, and with it the
+## world narrower than the minimum's ("480x320, the drawer open", 296 wide); 800x480 leaves 960x480's drawer-open
+## width, and 960x480 is the default window. (The minimum with the panel opened, 103 tall, has no room for a side
+## arrow at all: only the note, which is EdgeArrowModel.fit()'s "room for none shows none", and not this case's.)
 func test_a_crowded_edge_folds_what_it_has_no_room_for() -> void:
 	var hud := await _hud()
-	# Each window, and whether its drawer is open.
 	var screens: Dictionary[String, Vector2] = {
 		"480x320": Vector2(480, 320),
-		"480x320, the drawer open": Vector2(480, 320),
-		"960x480, the drawer open": Vector2(960, 480),
+		"800x480": Vector2(800, 480),
+		"960x480": Vector2(960, 480),
 	}
 	for screen: String in screens:
 		hud.fit(screens[screen])
-		if screen.ends_with("open"):
-			hud.open_drawer()
-		else:
-			hud.close_drawer()
 		await _frames(2)
 		var view := Rect2(Vector2.ZERO, hud.world_rect().size)
 		for edge: EdgeArrowModel.Edge in EdgeArrowModel.GLYPHS:
@@ -518,39 +526,40 @@ func test_a_click_on_the_first_of_a_crowd_of_arrows_pans_to_its_desk() -> void:
 	_done(office)
 
 
-## What the arrows were handed is kept whole: zones folded for a narrow world
-## get their arrows back the moment it widens, and are folded again when it
-## narrows or goes compact, with no new list from the office and no new node.
+## What the arrows were handed is kept whole: zones folded for a small world
+## get their arrows back the moment it grows, and are folded again when it
+## shrinks or goes compact, with no new list from the office and no new node.
 ## (S3 BAR-b, 2026-10-27: the SPACES rail is gone; the world starts 16 in and
-## first plans take its width. With the drawer closed no window is narrow
-## enough to fold eight arrows any more (the 480x320 minimum is 420 wide, all
-## eight compact), so the drawer open narrows it, as the rail once did.)
-func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
+## first plans take its width.)
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: with the drawer gone no window at or above
+## the minimum is narrow enough to fold eight arrows on the bottom edge (the drawer open was what narrowed it), so the
+## eight stand on the right edge of a world the bottom panel makes short: opened for HISTORY at 480x320 it leaves
+## 103 of its height (was test_arrows_folded_for_a_narrow_world_come_back_as_it_widens; counts from the print).
+func test_arrows_folded_for_a_short_world_come_back_as_it_grows() -> void:
 	var hud := await _hud()
 	var nodes := hud.edge_arrows.find_children("*", "OfficeEdgeArrow", true, false)
 	hud.fit(Vector2(480, 320))
 	await _frames(2)
 	var view := Rect2(Vector2.ZERO, hud.world_rect().size)
-	hud.show_edge_arrows(EdgeArrowModel.of(view, _beyond(view, EdgeArrowModel.Edge.BOTTOM, 8)))
+	hud.show_edge_arrows(EdgeArrowModel.of(view, _beyond(view, EdgeArrowModel.Edge.RIGHT, 8)))
 	await _frames(2)
 	var least := _standing(hud, "480x320")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
-	# world runs to the right edge.
-	_eq(
-		[hud.world_rect().size.x, least.ways.size(), least.folded],
-		[456.0, 8, 0],
-		"the minimum: 456 wide, eight compact"
-	)
-	hud.open_drawer()
+	print("EDGE_SHORT: 480x320 %s: %s" % [hud.world_rect().size, least.said()])
+	_eq(hud.world_rect().size, Vector2(456, 202), "the minimum, the panel folded: 456x202")
+	_check(hud.edge_arrows_compact(), "compact")
+	_eq([least.ways.size(), least.folded], [4, 4], "the minimum: four compact arrows, four in the note")
+	hud.show_page(OfficeBottomPanel.Page.HISTORY)
 	await _frames(2)
-	var narrow := _standing(hud, "480x320, the drawer open")
-	_check(narrow.ways.size() < 8 and narrow.folded > 0, "a 296-wide world folds some: " + narrow.said())
-	_eq(narrow.ways.size() + narrow.folded, 8, "counting all eight")
-	hud.close_drawer()
-	hud.fit(Vector2(960, 480))
+	var short := _standing(hud, "480x320, the panel opened")
+	print("EDGE_SHORT: 480x320 opened %s: %s" % [hud.world_rect().size, short.said()])
+	_eq(hud.world_rect().size, Vector2(456, 103), "the panel opened for HISTORY: 103 tall")
+	_eq([short.ways.size(), short.folded], [0, 8], "a 103-tall world folds them all into the note: " + short.said())
+	hud.show_page(OfficeBottomPanel.Page.AGENT)
+	hud.fit(Vector2(960, 640))
 	await _frames(2)
-	var wide := _standing(hud, "960x480")
-	_eq([wide.ways.size(), wide.folded], [8, 0], "a 936-wide world has room for all eight: every zone its own arrow")
+	var wide := _standing(hud, "960x640")
+	print("EDGE_SHORT: 960x640 %s: %s" % [hud.world_rect().size, wide.said()])
+	_eq([wide.ways.size(), wide.folded], [8, 0], "a tall world has room for all eight: every zone its own arrow")
 	_eq(wide.ways, ["z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7"], "in the order handed, longest wait first")
 	_check(
 		hud.edge_arrows.shown().all(
@@ -558,30 +567,27 @@ func test_arrows_folded_for_a_narrow_world_come_back_as_it_widens() -> void:
 		),
 		"each a way there, in full"
 	)
-	# 640x320: 616 wide, full arrows; with the drawer open 456, compact, as the minimum is
-	# (S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
-	# compact form starts below 460, D-ARROWS, where
-	# it started below 440 and the 456-wide world here showed full arrows, folded).
+	# 640x320: 616 wide, full arrows, 202 tall; opened, 103 tall and full.
 	hud.fit(Vector2(640, 320))
 	await _frames(2)
 	_check(not hud.edge_arrows_compact(), "640x320: 616 wide, full arrows")
 	var full := _standing(hud, "640x320")
 	_eq(full.ways.size() + full.folded, 8, "640x320: all eight counted")
-	hud.open_drawer()
+	hud.show_page(OfficeBottomPanel.Page.HISTORY)
 	await _frames(2)
-	_check(hud.edge_arrows_compact(), "640x320, the drawer open: 456 wide, compact")
-	var closed := _standing(hud, "640x320, the drawer open")
-	_eq([closed.ways.size(), closed.folded], [8, 0], "640x320, the drawer open: all eight compact, as at the minimum")
+	var opened := _standing(hud, "640x320, the panel opened")
+	print("EDGE_SHORT: 640x320 opened %s: %s" % [hud.world_rect().size, opened.said()])
+	_eq(opened.ways.size() + opened.folded, 8, "640x320, the panel opened: all eight counted")
+	_check(opened.folded > 0, "full arrows in a 103-tall world fold some: " + opened.said())
 	hud.fit(Vector2(480, 320))
 	await _frames(2)
 	_check(hud.edge_arrows_compact(), "narrower still: compact")
 	var again := _standing(hud, "480x320 again")
 	_eq(again.ways.size() + again.folded, 8, "all eight counted")
-	_check(again.ways.size() < closed.ways.size(), "with fewer arrows of their own: " + again.said())
 	_eq(
 		[again.ways, again.folded],
-		[narrow.ways, narrow.folded],
-		"back at 480x320 with the drawer open: folded as at first"
+		[short.ways, short.folded],
+		"back at 480x320 with the panel opened: folded as at first"
 	)
 	_eq(hud.edge_arrows.find_children("*", "OfficeEdgeArrow", true, false), nodes, "the same eight nodes throughout")
 	hud.free()

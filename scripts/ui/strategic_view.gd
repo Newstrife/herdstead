@@ -14,7 +14,7 @@ extends HdPanel
 ##
 ## It covers only the world rect (OfficeHud.show_strategic() places it there),
 ## over the hidden world and under the OVERVIEW, the world tooltip and the
-## monitor: the top bar, the drawer, the staff panel and NEWS stay usable beside it.
+## monitor: the top bar and the bottom panel (NEWS in it) stay usable beside it.
 ## On the pack's panel, like the OVERVIEW, so its ink reads in every pack (the
 ## bare backdrop was near ink in the retired dusk pack). A view mode, not a layer: while it is
 ## open the world's nameplates, badges and chips are hidden with the world,
@@ -32,11 +32,11 @@ var _stale_tint := Color.WHITE
 
 func _ready() -> void:
 	plan().picked.connect(func(key: String) -> void: picked.emit(key))
-	# The drawer's thin bar, shown only when the schematic is taller than its
+	# The bottom panel's pages' thin bar, shown only when the schematic is taller than its
 	# room, never focused: the arrow keys are nobody's while the view is open.
 	var scroll: ScrollContainer = %Scroll
 	var bar := scroll.get_v_scroll_bar()
-	bar.theme_type_variation = &"DrawerScroll"
+	bar.theme_type_variation = &"PageScroll"
 	bar.focus_mode = Control.FOCUS_NONE
 
 

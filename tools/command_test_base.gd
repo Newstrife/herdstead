@@ -318,34 +318,46 @@ func _pick_local(office: OfficeDouble, pane_id: String, open := true) -> void:
 		await _open_panel(office)
 
 
-## Pick pane `key` with a real click on its row in the agent list, the drawer
-## opened first (setup: S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no
-## drawer tab,
-## no closed tab to click); with `open`, then open the staff panel with Enter.
-## The way to another agent while answer mode's panel stands over the world's
-## middle, where a desk under it takes no click; it picks as a desk click does.
-func _pick_in_list(office: OfficeDouble, key: String, open := true) -> void:
-	if not office.hud.drawer_open():
-		office.hud.open_drawer()
-		await _frames(2)
-	var row := office.hud.agent_list.row_for(key)
-	_check(row != null and row.is_visible_in_tree(), "the agent list shows a row for " + key)
-	if row == null:
+## Pick pane `key` with a real click on its portrait card's face in the top
+## bar; with `open`, then open the bottom panel with Enter. The way to another
+## agent while answer mode's panel stands over the world's middle, where a desk
+## under it takes no click; it picks as a desk click does (BAR-Q2: select only).
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire;
+## this clicked the pane's row in the agent list's drawer, which is gone.
+func _pick_on_card(office: OfficeDouble, key: String, open := true) -> void:
+	var card := office.hud.bar.card_for(key)
+	_check(card != null and card.is_visible_in_tree(), "the top bar shows a portrait card for " + key)
+	if card == null:
 		return
-	# Where the row shows: its middle, or its right end past the panel over it.
-	var rect := row.get_global_rect()
-	var at := rect.get_center()
-	var panel := office.hud.staff.get_global_rect()
-	if panel.has_point(at):
-		at.x = rect.end.x - 4.0
-	_check(not panel.has_point(at), "the row for %s shows beside the panel" % key)
+	var at := (card.get_node("%Face") as Control).get_global_rect().get_center()
+	_check(not office.hud.staff.get_global_rect().has_point(at), "the card for %s shows clear of the panel" % key)
 	for down: bool in [true, false]:
 		_button(at, MOUSE_BUTTON_LEFT, down)
 		await process_frame
 	await _frames(2)
-	_eq(office.hud.inspector.shown_pane_key(), key, "the row picked " + key)
+	_eq(office.hud.inspector.shown_pane_key(), key, "the card picked " + key)
 	if open:
 		await _open_panel(office)
+
+
+## A real click on the bottom panel's tab for `page`, then the frames it takes.
+func _click_tab(office: OfficeDouble, page: OfficeBottomPanel.Page) -> void:
+	var tabs := office.hud.staff.tabs
+	for down: bool in [true, false]:
+		_button(tabs.get_global_rect().position + tabs.get_tab_rect(page).get_center(), MOUSE_BUTTON_LEFT, down)
+		await process_frame
+	await _frames(2)
+
+
+## The bottom panel's EVENTS row for pane `key`'s newest event; null when the
+## log has none or the page has no row for it (S3 PANEL-a2, 2026-10-28: the
+## log's rows stand where the agent list's rows were pointed at and clicked).
+func _event_row(office: OfficeDouble, key: String) -> EventRow:
+	var events := office.fleet.state_log().events()
+	for index in range(events.size() - 1, -1, -1):
+		if events[index].pane_key == key:
+			return office.hud.event_list.row_for(events[index].id)
+	return null
 
 
 ## The staff panel is one line until it is opened: Enter opens it, as a viewer
@@ -742,7 +754,8 @@ func _panels_apart(office: OfficeDouble, what: String) -> void:
 	var screen: Control = hud.get_node("Screen")
 	var room := Rect2(Vector2.ZERO, screen.size).grow(0.5)
 	var shown: Array[Control] = []
-	for panel: Control in [hud.bar, hud.get_node("%ListHolder"), hud.staff]:
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer's list (`%ListHolder`) is gone with it.
+	for panel: Control in [hud.bar, hud.staff]:
 		if panel.is_visible_in_tree():
 			shown.append(panel)
 	# The edge arrows stand over the world: each is a panel of its own here.

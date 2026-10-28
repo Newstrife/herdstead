@@ -34,7 +34,7 @@ const LABEL_COLORS: Dictionary[StringName, StringName] = {
 ## Label variations that also change the size, and the palette key they take.
 ## Every size is one of a cut's own (OfficeDraw.cut_for()), and each wears the
 ## cut drawn at it (build()): the headings the heading cut at 12, the small
-## rows (the agent list's chevrons, the portrait cards' and folds' words) the
+## rows (the portrait cards' and folds' words) the
 ## display cut at 8. A heading's
 ## variation keeps the name of the size it had before the pixel faces
 ## (Heading13, Heading16): the scenes name them.
@@ -44,8 +44,6 @@ const LABEL_SIZES: Dictionary[StringName, int] = {
 	&"Heading16Paper": 12,
 	&"Heading16Slate": 12,
 	&"Heading13Blocked": 12,
-	&"ListChevron": 8,
-	&"ListChevronCurrent": 8,
 	&"PortraitName": 8,
 	&"PortraitPlace": 8,
 	&"PortraitWait": 8,
@@ -57,8 +55,6 @@ const LABEL_HEADINGS: Dictionary[StringName, StringName] = {
 	&"Heading16Paper": ArtContract.PAPER,
 	&"Heading16Slate": ArtContract.MUTED,
 	&"Heading13Blocked": ArtContract.BLOCKED,
-	&"ListChevron": ArtContract.MUTED,
-	&"ListChevronCurrent": ArtContract.PAPER,
 	# The top bar's portrait cards: the name in paper over its space in muted,
 	# a blocked agent's wait in the blocked colour; a fold's number in paper
 	# over its word in muted (PortraitPlace).
@@ -127,13 +123,11 @@ const PREVIEW_LINE_SPACING := -1
 ## units. overview.tscn's `%BarRoom` is their sum less the heads' separation.
 const OVERVIEW_BAR := 4
 const OVERVIEW_BAR_GAP := 4
-## The drawer's scroll bar and its gap, in units: together the 4 units its
-## pages' Frame no longer pads on the right (agent_list.tscn, event_list.tscn),
-## so the rows are as wide as they were before the drawer had a bar.
-const DRAWER_BAR := 2
-const DRAWER_BAR_GAP := 2
-## Units the agent list indents a line per depth.
-const LIST_INDENT := 4
+## The bottom panel's pages' scroll bar and its gap, in units: together the 4
+## units their Frame does not pad on the right (event_list.tscn,
+## history_list.tscn), so a row's right edge never moves.
+const PAGE_BAR := 2
+const PAGE_BAR_GAP := 2
 
 
 ## The whole HUD's look. `font` is the pack's text cut over its fallbacks
@@ -177,7 +171,7 @@ static func build(art: ArtPack, font: Font) -> Theme:
 	_bar_line(theme, art, font)
 	_machine_chips(theme, art, font)
 	_tooltips(theme, art)
-	_agent_list(theme, art)
+	_pages(theme, art)
 	_edge_arrows(theme, art)
 	_plate(theme, art, font)
 	_card(theme, art, font)
@@ -260,7 +254,7 @@ static func _strategic(theme: Theme, art: ArtPack, font: Font) -> void:
 
 
 ## The OVERVIEW (scenes/ui/overview*.tscn): rows that light `deep` under the
-## pointer like the agent list's, the selected row `slate`, an offline row
+## pointer like the HISTORY and EVENTS rows, the selected row `slate`, an offline row
 ## faint; column heads on a `deep` band with a slate rule under it; and the
 ## `Timeline` type every timeline, the axis and the legend draw with: one
 ## palette colour per state, `deep` hatched in slate where nobody watched, the
@@ -347,10 +341,9 @@ static func _overview(theme: Theme, art: ArtPack, font: Font) -> void:
 ## The NEWS line in the bottom panel's top row (scenes/ui/news.tscn): a flat
 ## `deep` band, like the top bar's ground, whose items are words on it with no
 ## box of their own (the pointer lightens them; one that cannot be clicked is
-## muted); the drawer's AGENTS tab and the bottom panel's AGENT / HISTORY /
-## EVENTS tabs (TabBar, `PanelTabs`), the page shown `slate` like the Flat /
-## Tree switch's pressed half, the other `deep`. While the agent list holds
-## the keyboard, its tab's word is in the blocked colour.
+## muted); the bottom panel's AGENT / HISTORY / EVENTS tabs (TabBar,
+## `PanelTabs`), the page shown `slate` like the OVERVIEW's pressed switch, the
+## other `deep`.
 static func _news(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("NewsBar", "PanelContainer")
 	var band := _flat(art.color(ArtContract.DEEP))
@@ -368,7 +361,7 @@ static func _news(theme: Theme, art: ArtPack) -> void:
 	theme.set_color("font_pressed_color", "NewsItem", art.color(ArtContract.CREAM))
 	theme.set_color("font_disabled_color", "NewsItem", art.color(ArtContract.MUTED))
 	theme.set_constant("outline_size", "NewsItem", 0)
-	for name: String in ["DrawerTabs", "DrawerTabsHeld", "PanelTabs"]:
+	for name: String in ["PanelTabs"]:
 		theme.set_type_variation(name, "TabBar")
 		var fills: Dictionary[String, StringName] = {
 			"tab_selected": ArtContract.SLATE,
@@ -393,8 +386,6 @@ static func _news(theme: Theme, art: ArtPack) -> void:
 		theme.set_constant("outline_size", name, 0)
 		theme.set_constant("h_separation", name, 2)
 		theme.set_font_size("font_size", name, 10)
-	theme.set_color("font_selected_color", "DrawerTabs", art.color(ArtContract.PAPER))
-	theme.set_color("font_selected_color", "DrawerTabsHeld", art.color(ArtContract.BLOCKED))
 	theme.set_color("font_selected_color", "PanelTabs", art.color(ArtContract.PAPER))
 
 
@@ -555,11 +546,10 @@ static func _buttons(theme: Theme, art: ArtPack) -> void:
 	theme.set_color("font_color", "Button", art.color(ArtContract.PAPER))
 
 
-## The bar's Attention button (AttentionEntry), and the flat buttons and
-## pickers the Avatar Studio borrows (AttentionAction, AttentionFilter); the
-## native PopupMenu, which the agent list's row menu is, in the HUD palette.
+## The flat buttons and pickers the Avatar Studio borrows (AttentionAction,
+## AttentionFilter); the native PopupMenu (an OptionButton's) in the HUD palette.
 static func _attention(theme: Theme, art: ArtPack) -> void:
-	for name: String in ["AttentionAction", "AttentionEntry", "AttentionFilter"]:
+	for name: String in ["AttentionAction", "AttentionFilter"]:
 		theme.set_type_variation(name, "OptionButton" if name == "AttentionFilter" else "Button")
 		for state: String in BUTTON_STATES:
 			var box := _dark_button(art, state)
@@ -572,7 +562,7 @@ static func _attention(theme: Theme, art: ArtPack) -> void:
 				box.border_color = art.color(ArtContract.PAPER)
 			theme.set_stylebox(state, name, box)
 		_dark_button_text(theme, art, name)
-	# Native popups (an OptionButton's, the row menu) share the HUD palette.
+	# Native popups (an OptionButton's) share the HUD palette.
 	var menu := _flat(art.color(ArtContract.DEEP))
 	menu.set_border_width_all(1)
 	menu.border_color = art.color(ArtContract.SLATE)
@@ -799,46 +789,26 @@ static func _tooltips(theme: Theme, art: ArtPack) -> void:
 	theme.set_constant("outline_size", "TooltipLabel", 0)
 
 
-## The agent list (scenes/ui/agent_list*.tscn): rows that light `deep` under
-## the pointer, the selected row `slate` like the top bar's current machine chip, group
-## headers on a `deep` band with a slate rule under it, the Flat / Tree switch,
-## the rows' `…` and the filter box, a dark field like the card's reply box.
-## The drawer's two pages (this list and EVENTS) scroll with a thin bar
-## (`DrawerScroll`, the OVERVIEW's look at DRAWER_BAR wide) a gap
-## (`DrawerRowsGap`) right of their rows; their scrolls reserve that room
-## whether the bar shows or not, so a row's right edge never moves, and the
-## room is the pages' right padding, not the rows'.
-static func _agent_list(theme: Theme, art: ArtPack) -> void:
+## The bottom panel's HISTORY and EVENTS rows (HistoryRow, EventRow): a row
+## lights `deep` under the pointer, the selected row is `slate` like the top
+## bar's current machine chip. The OVERVIEW's sort and filter switches
+## (ListSegment). The pages scroll with a thin bar (`PageScroll`, the
+## OVERVIEW's look at PAGE_BAR wide) a gap (`PageRowsGap`) right of their rows;
+## their scrolls reserve that room whether the bar shows or not, so a row's
+## right edge never moves, and the room is the pages' right padding, not the
+## rows'. The strategic view's scroll wears the same bar.
+static func _pages(theme: Theme, art: ArtPack) -> void:
 	theme.set_type_variation("ListRow", "Button")
 	theme.set_type_variation("ListRowCurrent", "Button")
-	theme.set_type_variation("ListGroup", "Button")
-	theme.set_type_variation("ListMore", "Button")
-	# A row lights `deep` under the pointer; the selected row is `slate`, like
-	# the top bar's current machine chip.
 	for state: String in BUTTON_STATES:
 		var hover := state == "hover" or state == "pressed"
 		var lit: StyleBox = _flat(art.color(ArtContract.DEEP)) if hover else StyleBoxEmpty.new()
 		theme.set_stylebox(state, "ListRow", lit)
 		theme.set_stylebox(state, "ListRowCurrent", _flat(art.color(ArtContract.SLATE)))
-		var band := _flat(art.color(ArtContract.DEEP))
-		band.border_width_bottom = 1
-		band.border_color = art.color(ArtContract.SLATE)
-		theme.set_stylebox(state, "ListGroup", band)
-		# The `…` only shows on the selected row, which is slate: deep under the pointer.
-		var more: StyleBox = _flat(art.color(ArtContract.DEEP)) if hover else StyleBoxEmpty.new()
-		theme.set_stylebox(state, "ListMore", more)
-	for name: String in ["ListRow", "ListRowCurrent", "ListGroup", "ListMore"]:
+	for name: String in ["ListRow", "ListRowCurrent"]:
 		theme.set_constant("outline_size", name, 0)
 		for role: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 			theme.set_color(role, name, art.color(ArtContract.PAPER))
-	# One indent per depth: an empty panel whose margin is the indent, so a row
-	# needs a single node for it whatever its depth.
-	for depth in AgentListModel.MAX_DEPTH + 1:
-		var name := StringName("ListIndent%d" % depth)
-		theme.set_type_variation(name, "PanelContainer")
-		var indent := StyleBoxEmpty.new()
-		indent.content_margin_left = LIST_INDENT * depth
-		theme.set_stylebox("panel", name, indent)
 	theme.set_type_variation("ListSegment", "Button")
 	for state: String in BUTTON_STATES + ["hover_pressed"]:
 		var on := state == "pressed" or state == "hover_pressed"
@@ -856,14 +826,10 @@ static func _agent_list(theme: Theme, art: ArtPack) -> void:
 		theme.set_color(role, "ListSegment", art.color(ArtContract.MUTED))
 	for role: String in ["font_pressed_color", "font_hover_pressed_color"]:
 		theme.set_color(role, "ListSegment", art.color(ArtContract.PAPER))
-	theme.set_type_variation("ListFilter", "LineEdit")
-	_dark_field(theme, art, "ListFilter", 3)
-	theme.set_color("clear_button_color", "ListFilter", art.color(ArtContract.MUTED))
-	theme.set_color("clear_button_color_pressed", "ListFilter", art.color(ArtContract.PAPER))
-	# The drawer's two pages draw the OVERVIEW's bar, narrower.
-	_dark_scroll(theme, art, "DrawerScroll", DRAWER_BAR)
-	theme.set_type_variation("DrawerRowsGap", "MarginContainer")
-	theme.set_constant("margin_right", "DrawerRowsGap", DRAWER_BAR_GAP)
+	# The pages draw the OVERVIEW's bar, narrower.
+	_dark_scroll(theme, art, "PageScroll", PAGE_BAR)
+	theme.set_type_variation("PageRowsGap", "MarginContainer")
+	theme.set_constant("margin_right", "PageRowsGap", PAGE_BAR_GAP)
 
 
 static func _label(theme: Theme, name: StringName, pixels: int, color: Color) -> void:

@@ -429,25 +429,13 @@ func _playing(office: OfficeDouble) -> Array:
 	return seen.keys()
 
 
-## The state the desk's badge for `pane_id` on `machine` pulses for. The agent
-## list's row for that pane pulses too; it is not the desk's.
+## The state the desk's badge for `pane_id` on `machine` pulses for.
 func _badge_state(machine: String, pane_id: String) -> String:
 	var found: Array = []
 	for badge: StatusBadge in get_nodes_in_group(StatusBadge.GROUP):
-		if _in_agent_list(badge):
-			continue
 		if badge.machine == machine and badge.pane_id == pane_id:
 			found.append(str(badge.state))
 	return found[0] if found.size() == 1 else "%d badges" % found.size()
-
-
-func _in_agent_list(node: Node) -> bool:
-	var at := node.get_parent()
-	while at != null:
-		if at is AgentList:
-			return true
-		at = at.get_parent()
-	return false
 
 
 ## The viewport point a click on the desk drawn for `key` lands on: where that
@@ -701,8 +689,11 @@ func _under_arrow(office: OfficeScene, at: Vector2) -> bool:
 ## click took. Nothing is pressed when it is already; fails after as many
 ## presses as there are zones.
 func _visit_zone(office: OfficeScene, key: String) -> void:
-	if office.hud.agent_list.has_keyboard():
-		_fail("the agent list holds the keyboard: the page keys would not reach the office")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire; the precondition was "the agent
+	# list holds the keyboard", now any text field.
+	var focus := office.get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit:
+		_fail("a text field holds the keyboard: the page keys would not reach the office")
 		return
 	var order := office.frame.zone_order
 	if not order.has(key):
@@ -1002,6 +993,32 @@ func _feed_bee(office: OfficeDouble, snapshot: Dictionary) -> void:
 	client.online = true
 	client._apply_snapshot(snapshot.duplicate(true))
 	office.fleet.liveness_changed.emit()
+
+
+## `snapshot` reaches bee as its stream delivers one, live: the state log
+## hears a change in it as an event (_feed_bee() reconnects bee first, a
+## baseline the log keeps no pane event of). Drawn at once.
+func _bee_live(office: OfficeDouble, snapshot: Dictionary) -> void:
+	_bee(office)._apply_snapshot(snapshot.duplicate(true))
+	office.refresh()
+
+
+## The bottom panel's EVENTS row for pane `key`'s newest event; null when the
+## log has none or the page has no row for it (S3 PANEL-a2, 2026-10-28: the
+## log's rows stand where the agent list's rows were pointed at and clicked).
+func _event_row(office: OfficeScene, key: String) -> EventRow:
+	var events := office.fleet.state_log().events()
+	for index in range(events.size() - 1, -1, -1):
+		if events[index].pane_key == key:
+			return office.hud.event_list.row_for(events[index].id)
+	return null
+
+
+## A real click on the bottom panel's tab for `page`, then the frames it takes.
+func _click_tab(office: OfficeScene, page: OfficeBottomPanel.Page) -> void:
+	var tabs := office.hud.staff.tabs
+	await _click_at(tabs.get_global_rect().position + tabs.get_tab_rect(page).get_center())
+	await _frames(2)
 
 
 ## bee's one workspace, `hive`, with one agent in `status`.

@@ -4,9 +4,9 @@ extends "res://tools/office_test_base.gd"
 ## StateLog.wait_of(), in the in-world compact form), shows every seat's name
 ## plate, hides the blocked chip's parts, washes every pod's floor in its most
 ## urgent state on the FLOORS windows' scale and dims the furnishing; letting
-## go puts everything back. Hovering a NEWS item, a list
-## row, an EVENTS row or an edge arrow points at the desk it names (a dashed frame
-## of its own) or, on another machine or for an arrow, at that zone's SPACES row, and never
+## go puts everything back. Hovering a NEWS item, an EVENTS or HISTORY row or
+## an edge arrow points at the desk it names (a dashed frame of its own) or, on
+## another machine or for an arrow, at that zone's blocked cards, and never
 ## selects, pans, reads or writes. Keys and the pointer go through real input.
 ## Run through run_tests.sh.
 ##
@@ -443,11 +443,14 @@ func test_the_picked_tables_frame_darkens_on_its_wash() -> void:
 	_done(office)
 
 
-## The lens never turns on under the OVERVIEW, the terminal monitor or while
-## a text field has the keyboard (`L` is typing there). A press that began in
-## the list's filter stays spoiled after a click elsewhere takes the focus: the
+## The lens never turns on under the OVERVIEW or the terminal monitor. A press
+## that began under the monitor stays spoiled after a click closes it: the
 ## lens waits for `L` to be let go and pressed again.
-func test_no_lens_under_the_overview_the_monitor_or_a_text_field() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the list's filter, the text field this case
+## held `L` in, is gone, and a read-only office has no text field; "L in a text field is typing, not the lens" is
+## pinned by SPACES' test_the_branch_box_lets_the_page_keys_through_and_lets_go_outside, and the spoiled press is
+## kept here with the monitor's gate (was test_no_lens_under_the_overview_the_monitor_or_a_text_field).
+func test_no_lens_under_the_overview_or_the_monitor_and_a_spoiled_press_waits() -> void:
 	var office := await _live_office()
 	await _office_key(office, KEY_O)
 	_check(office.hud.overview_open(), "O opens the overview")
@@ -467,20 +470,14 @@ func test_no_lens_under_the_overview_the_monitor_or_a_text_field() -> void:
 	await _press(close)
 	await _frames(2)
 	_check(not office.hud.monitor_open(), "its close button closes the monitor")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(2)
-	var filter: LineEdit = office.hud.agent_list.get_node("%Filter")
-	await _press(filter)
-	_check(filter.has_focus(), "a click puts the keyboard in the filter")
+	await _office_key(office, KEY_M)
+	_check(office.hud.monitor_open(), "M opens the monitor again")
 	await _hold()
-	_check(not office.lens.held, "L in the filter is typing, not the lens")
-	var collapse: Control = office.hud.get_node("%Collapse")
-	await _press(collapse)
+	_check(not office.lens.held, "L under the monitor is not the lens")
+	await _press(close)
 	await _frames(2)
-	_check(not filter.has_focus(), "a click elsewhere takes the keyboard from the filter")
-	_check(not office.lens.held, "the press that began in the filter stays spoiled")
+	_check(not office.hud.monitor_open(), "a click on its close button closes it, L still down")
+	_check(not office.lens.held, "the press that began under the monitor stays spoiled")
 	await _let_go()
 	await _hold()
 	_check(office.lens.held, "a fresh press is the lens")
@@ -622,20 +619,19 @@ func test_hovering_a_news_item_points_at_its_desk_without_selecting() -> void:
 	_done(office)
 
 
-## A list row for a pane on another machine outlines that pane's card in the
-## top bar (a 1-unit paper ring, PortraitPointed) and draws nothing in the
+## An EVENTS row for a pane on another machine outlines that pane's card in
+## the top bar (a 1-unit paper ring, PortraitPointed) and draws nothing in the
 ## world; leaving puts the card back. A row for a pane in another zone of the
 ## shown map points at its desk, as for any desk of the map. (S3 BAR-b,
 ## 2026-10-27: it outlined the zone's SPACES row, whose in-view marks are gone.)
-func test_hovering_a_row_for_another_machine_outlines_its_card() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the rows were the agent list's; they are the
+## EVENTS page's now, which point the same way (was test_hovering_a_row_for_another_machine_outlines_its_card).
+func test_hovering_an_events_row_for_another_machine_outlines_its_card() -> void:
 	var office := await _two_machine_office()
 	var key := HerdrFleet.pane_key(BEE, "hive:p1")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(3)
-	var row := office.hud.agent_list.row_for(key)
-	_check(row != null and row.is_visible_in_tree(), "hive:p1 has a row in the open list")
+	await _fresh_waits(office)
+	var row := _event_row(office, key)
+	_check(row != null and row.is_visible_in_tree(), "hive:p1 has a row on the EVENTS page")
 	if row == null:
 		_done(office)
 		return
@@ -652,7 +648,11 @@ func test_hovering_a_row_for_another_machine_outlines_its_card() -> void:
 	_eq(office.navigator.shown_key, LOCAL, "no map change")
 	await _hover(office.hud.world_rect().position + Vector2(4, 4))
 	_eq(_outlined(office), [], "leaving restores it")
-	var web := office.hud.agent_list.row_for(_pk("web:p1"))
+	var web := _event_row(office, _pk("web:p1"))
+	_check(web != null and web.is_visible_in_tree(), "web:p1 has a row on the EVENTS page")
+	if web == null:
+		_done(office)
+		return
 	await _hover(web.get_global_rect().get_center())
 	_check(office.floor_view.pointer.visible, "a row for web:p1, another zone of this map: its desk is pointed at")
 	_eq(office.floor_view.pointer.key, _pk("web:p1"), "that desk")
@@ -853,23 +853,19 @@ func test_arrows_changing_pool_places_say_the_zone_under_the_pointer_once() -> v
 ## nothing else; one arrow to the next says the next zone and never "none"
 ## between; and off everything, nothing is pointed at. (S3 BAR-b, 2026-10-27:
 ## the outlines were the zones' SPACES rows.)
-func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the rows were the agent list's, beside the
+## open drawer; they are the EVENTS page's now (was test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark).
+func test_leaving_an_arrow_for_an_events_row_keeps_the_rows_mark() -> void:
 	var office := await _two_machine_office()
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	# web's blocked desk is on screen beside the open drawer now: data:p1 waits
-	# off screen below, beside infra:p1, for the two arrows.
-	_feed(office, _with(fixture, "data:p1", {"agent_status": "blocked"}))
-	await _frames(2)
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(3)
+	# web's blocked desk is on screen: data:p1 waits off screen below, beside
+	# infra:p1, for the two arrows.
+	await _fresh_waits(office, _with(fixture, "data:p1", {"agent_status": "blocked"}))
 	var key := HerdrFleet.pane_key(BEE, "hive:p1")
-	var row := office.hud.agent_list.row_for(key)
-	var near := office.hud.agent_list.row_for(_pk("web:p1"))
-	# The arrows as they stand beside the open drawer.
+	var row := _event_row(office, key)
+	var near := _event_row(office, _pk("web:p1"))
 	var arrows := office.hud.edge_arrows.shown()
-	_check(row != null and row.is_visible_in_tree(), "hive:p1 has a row in the open list")
+	_check(row != null and row.is_visible_in_tree(), "hive:p1 has a row on the EVENTS page")
 	_check(near != null and near.is_visible_in_tree(), "and web:p1, on the shown map")
 	_check(not arrows.is_empty(), "blocked desks wait off screen: edge arrows")
 	if row == null or near == null or arrows.is_empty():
@@ -931,6 +927,18 @@ func test_leaving_an_arrow_for_a_list_row_keeps_the_rows_mark() -> void:
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+## Fresh waits for web:p1 (Local, from `local`) and bee's hive:p1, each a
+## blocked stretch that begins now, so each has an EVENTS row near the top;
+## then the EVENTS page by a real click on its tab.
+func _fresh_waits(office: OfficeDouble, local: Dictionary = fixture) -> void:
+	_feed(office, _with(local, "web:p1", {"agent_status": "idle"}))
+	_feed(office, local)
+	_bee_live(office, _bee_snapshot("idle"))
+	_bee_live(office, _bee_snapshot("blocked"))
+	await _frames(2)
+	await _press_tab(office, OfficeBottomPanel.Page.EVENTS)
 
 
 ## An edge arrow for zone `zone`, one blocked desk below the view's middle.

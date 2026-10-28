@@ -693,7 +693,9 @@ func test_an_unknown_answer_is_still_said_when_coming_back() -> void:
 	await _open_answer(office)
 	await _click_control(_key_button(office, "Key1"))
 	await _until(func() -> bool: return _last_write(office) == "SENT", "the key is out")
-	await _pick_in_list(office, HerdrFleet.pane_key(BEE, "alpha:p1"))
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: picked by its portrait card;
+	# alpha:p1 (working) has none at 800x480 (it folds into the bar's working fold), blocked bravo:p1 has one.
+	await _pick_on_card(office, HerdrFleet.pane_key(BEE, "bravo:p1"))
 	_check(not card.answering(), "another desk: answer mode is over")
 	var deadline := Time.get_ticks_msec() + int((HerdrCommands.INPUT_TIMEOUT + 3.0) * 1000)
 	while _last_write(office) != "UNKNOWN" and Time.get_ticks_msec() < deadline:
@@ -725,13 +727,18 @@ func test_a_draft_stays_with_its_pane() -> void:
 	await _click_control(box)
 	await _type("hello there")
 	_eq(box.text, "hello there", "typed")
-	await _pick_in_list(office, HerdrFleet.pane_key(BEE, "alpha:p1"))
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: picked by its portrait card;
+	# alpha:p1 (working) has none at 800x480 (it folds into the bar's working fold), blocked bravo:p1 has one.
+	await _pick_on_card(office, HerdrFleet.pane_key(BEE, "bravo:p1"))
 	_check(not card.answering() and not box.has_focus(), "another desk: no answer mode, no box focus")
 	_eq(box.text, "", "its box is empty")
 	await _tap(KEY_ENTER)
 	await _wait(0.3)
 	_eq(box.text, "", "Enter there shows no draft of another pane")
 	_eq(_all_inputs(), 0, "and sends nothing")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: bravo:p1 is blocked, so that Enter opened its
+	# answer mode (alpha:p1, working, had none); Escape leaves it, so its modal does not cover alpha:p3's desk.
+	await _tap(KEY_ESCAPE)
 	await _pick_bee(office, "alpha:p3")
 	_eq(box.text, "hello there", "back: the draft is back")
 	var binding := card.binding()
@@ -803,39 +810,44 @@ func test_the_reply_box_and_the_office_keep_their_keys() -> void:
 			office.hud.holds_keyboard()
 		],
 		[night, picked, shown, false],
-		"no light, no next, no floor, no agent list"
+		"no light, no next, no floor, no OVERVIEW or strategic view"
 	)
 	_eq(_all_inputs(), 0, "and no answer")
 	await _tap(KEY_ESCAPE)
 	_check(not card.answering(), "out of answer mode")
 	await _tap(KEY_T)
 	_check(office.night != night, "T is the office's again")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: `A` shows the HISTORY page where it gave the
+	# list the keyboard; the case still checks that `A` is the office's again out of answer mode.
 	await _tap(KEY_A)
-	_check(office.hud.holds_keyboard(), "so is A")
+	_eq(office.hud.page(), OfficeBottomPanel.Page.HISTORY, "so is A: the HISTORY page")
 	await _tap(KEY_A)
-	_check(not office.hud.holds_keyboard(), "and A again")
+	_eq(office.hud.page(), OfficeBottomPanel.Page.AGENT, "and A again: the card")
 	_eq(_all_inputs(), 0, "nothing was sent")
 
 
-## Answer mode ends, and the reply box lets go, when the agent list takes the
-## keyboard (`A`) and when another terminal takes the pane; a key button held
-## down across that rebind sends nothing at its release: nothing reaches the
+## Answer mode ends, and the reply box lets go, when `A` shows the HISTORY
+## page and when another terminal takes the pane; a key button held down
+## across that rebind sends nothing at its release: nothing reaches the
 ## boundary for it, not even a refused ticket.
-func test_answer_mode_ends_on_attention_and_on_a_new_terminal() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: `A` shows the HISTORY page where it gave the
+## agent list the keyboard (was test_answer_mode_ends_on_attention_and_on_a_new_terminal); answer mode still ends.
+func test_answer_mode_ends_on_the_history_page_and_on_a_new_terminal() -> void:
 	var office := await _blocked_bee()
 	var card := _card(office)
 	var box := _reply_box(office)
 	await _open_answer(office)
 	await _tap(KEY_A)
-	_check(office.hud.holds_keyboard(), "A gives the agent list the keyboard from answer mode")
+	_eq(office.hud.page(), OfficeBottomPanel.Page.HISTORY, "A shows the HISTORY page from answer mode")
 	_check(not card.answering(), "which ends answer mode")
 	await _tap(KEY_A)
-	_check(not office.hud.holds_keyboard() and not card.answering(), "letting go does not bring answer mode back")
+	_check(
+		office.hud.page() == OfficeBottomPanel.Page.AGENT and not card.answering(), "the card again, not answer mode"
+	)
 	await _tap(KEY_1)
 	await _wait(0.3)
 	_eq(_all_inputs(), 0, "a 1 after it is no answer")
-	# The list lets go of the keyboard to nobody: the chip opens answer mode
-	# again.
+	# Nobody holds the keyboard now: the chip opens answer mode again.
 	await _click_control(_control(office, "AnswerButton"))
 	await _until(card.answering, "answer mode again, from the chip")
 	await _click_control(box)
@@ -914,7 +926,9 @@ func test_a_line_that_went_is_no_draft_on_return() -> void:
 	_ctl("control-b", "next", {"action": "delay", "method": "agent.prompt", "seconds": 1.5})
 	await _click_control(_key_button(office, "SendLine"))
 	await _until(func() -> bool: return _last_write(office) == "SENT", "the line is out")
-	await _pick_in_list(office, HerdrFleet.pane_key(BEE, "alpha:p1"))
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: picked by its portrait card;
+	# alpha:p1 (working) has none at 800x480 (it folds into the bar's working fold), blocked bravo:p1 has one.
+	await _pick_on_card(office, HerdrFleet.pane_key(BEE, "bravo:p1"))
 	await _until(func() -> bool: return _last_write(office) == "ACCEPTED", "herdr took it, the card elsewhere")
 	await _pick_bee(office, "alpha:p3")
 	await _frames(3)
@@ -987,7 +1001,9 @@ func test_back_before_an_answer_ends_still_hears_how_it_ended() -> void:
 	await _open_answer(office)
 	await _click_control(_key_button(office, "Key1"))
 	await _until(func() -> bool: return _last_write(office) == "SENT", "the key is out")
-	await _pick_in_list(office, HerdrFleet.pane_key(BEE, "alpha:p1"))
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: picked by its portrait card;
+	# alpha:p1 (working) has none at 800x480 (it folds into the bar's working fold), blocked bravo:p1 has one.
+	await _pick_on_card(office, HerdrFleet.pane_key(BEE, "bravo:p1"))
 	await _pick_bee(office, "alpha:p3")
 	var deadline := Time.get_ticks_msec() + int((HerdrCommands.INPUT_TIMEOUT + 3.0) * 1000)
 	while _last_write(office) != "UNKNOWN" and Time.get_ticks_msec() < deadline:
@@ -1290,11 +1306,12 @@ func test_same_text_a_to_b_is_sent_and_the_card_says_it_can_change() -> void:
 ## At the smallest screen the HUD fits (480x320) the card is the staff panel's
 ## line along the bottom, and answer mode takes its full height: Enter opens it
 ## up (the question has to be read and shown first), a second Enter opens
-## answer mode, a 448x272 modal with the refusal whole along its foot, while the drawer's list
-## (opened by a real click on its tab) stays open. No visible control leaves
-## the panel, nothing overlaps along any row or column, and the preview keeps
-## its 12 rows. Escape leaves answer mode and leaves the panel open; a second
-## Escape folds it.
+## answer mode, a 448x272 modal with the refusal whole along its foot. No
+## visible control leaves the panel, nothing overlaps along any row or column,
+## and the preview keeps its 12 rows. Escape leaves answer mode and leaves the
+## panel open; a second Escape folds it.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer's list no longer stands beside
+## the panel, so its clauses go (their subject is gone) and the world above the modal is the whole width again.
 func test_answer_mode_fits_the_smallest_screen() -> void:
 	_fakes()
 	_ctl("control-b", "set_snapshot", {"snapshot": _changed(_raw(), "alpha:p3", {"agent_status": "blocked"})})
@@ -1302,22 +1319,14 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	var office := await _office_with(false, true, true, Vector2(480, 320))
 	await _pick_bee(office, "alpha:p3", false)
 	var card := _card(office)
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
 	await _frames(3)
-	var list := office.hud.agent_list
-	var scroll: ScrollContainer = list.get_node("%Scroll")
-	_check(office.hud.card_compact() and list.is_visible_in_tree(), "picked: a compact line, the list beside")
+	_check(office.hud.card_compact(), "picked: a compact line")
 	_panels_apart(office, "compact")
-	# Six rows: the Waiting and Unread headers and four agents under them.
-	_check(scroll.size.y >= 6 * 18, "the list shows at least six rows: %.0f units" % scroll.size.y)
 	await _tap(KEY_ENTER)
 	await _until(
 		func() -> bool: return card.preview_text() == QUESTION and card.answer_offered(), "the question is shown"
 	)
 	await _frames(3)
-	_check(list.is_visible_in_tree() and office.hud.drawer_open(), "the opened panel leaves the list open")
 	_check(_control(office, "AnswerButton").is_visible_in_tree(), "the Answer chip shows")
 	_fits(card, "outside answer mode")
 	_panels_apart(office, "opened up")
@@ -1333,7 +1342,7 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	var top: Control = office.hud.staff.get_node("%TopRow")
 	_check(not top.is_visible_in_tree() and not office.hud.news.is_visible_in_tree(), "its tabs and NEWS hidden")
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
-	_eq(office.hud.world_rect().size, Vector2(296, 103), "the world above it keeps a desk's room, the drawer open")
+	_eq(office.hud.world_rect().size, Vector2(456, 103), "the world above it keeps a desk's room")
 	_eq(office.hud.world_rect().position.x, 16.0, "16 in from the left, where the rail stood")
 	_fits(card, "answer mode")
 	_panels_apart(office, "answer mode")
@@ -1355,7 +1364,7 @@ func test_answer_mode_fits_the_smallest_screen() -> void:
 	_panels_apart(office, "answer mode left")
 	await _tap(KEY_ESCAPE)
 	await _frames(2)
-	_check(office.hud.card_compact() and list.is_visible_in_tree(), "a second Escape folds the panel back")
+	_check(office.hud.card_compact(), "a second Escape folds the panel back")
 	_panels_apart(office, "folded back")
 	_eq(_all_inputs(), 0, "nothing was sent")
 
@@ -1467,7 +1476,9 @@ func test_answer_mode_is_a_modal_over_the_dim() -> void:
 	_fits(card, "the modal")
 	_eq(hud.world_rect(), room, "the world keeps the room the opened panel left it")
 	var picked := card.shown_pane_key()
-	await _pick_in_list(office, HerdrFleet.pane_key(BEE, "alpha:p1"), false)
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: picked by its portrait card;
+	# alpha:p1 (working) has none at 800x480 (it folds into the bar's working fold), blocked bravo:p1 has one.
+	await _pick_on_card(office, HerdrFleet.pane_key(BEE, "bravo:p1"), false)
 	await _frames(3)
 	_check(card.shown_pane_key() != picked, "a click through the dim picked another agent")
 	_check(not card.answering(), "which left answer mode")

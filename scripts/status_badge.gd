@@ -24,8 +24,8 @@ var state := &""
 ## over it: writing a bare lift into `offset` once dropped every badge by the
 ## pivot's whole height.
 var rest_offset := Vector2.ZERO
-## The label beside this badge saying how long its agent has been waiting (an
-## agent list row's tail); the attention clock writes it on the same beat as
+## The label beside this badge saying how long its agent has been waiting; the
+## attention clock writes it on the same beat as
 ## the inspector's. An edge arrow's icon stands for a whole zone, which nobody
 ## is waiting on, so not every badge has one, and every writer checks.
 var wait: Label

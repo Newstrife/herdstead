@@ -226,7 +226,7 @@ func _pointed() -> String:
 
 ## Whether what the mouse is really on is one of these arrows, and not a
 ## control that covers the arrow there and takes the mouse itself (the staff
-## panel floating in answer mode, the drawer, any other part of the HUD). The
+## panel floating in answer mode, any other part of the HUD). The
 ## viewport is asked afresh (Viewport.update_mouse_cursor_state(): the engine's
 ## own look at what is under the mouse, where everything stands now), and only
 ## this is asked of it: which arrow it is comes from the rectangles.

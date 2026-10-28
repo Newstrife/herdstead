@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 # PNGs of what the project looks like right now: the showroom,
 # the pixel people showroom at 2x and 4x, the live office against a fake herdr
-# at zoom 2 and zoom 4 (and with the drawer open, `--drawer=open`, every run
-# starting with it closed), the agent list in its flat and tree views
-# at 2x, 4x and the 480x320 minimum, and with three machines (one of them
-# dropped, one with worktree mezzanines), the NEWS line and the bottom panel's
+# at zoom 2 and zoom 4, the NEWS line and the bottom panel's
 # EVENTS page after a run of state changes (`--panel=events`, office-events-*
 # at 2x and the minimum), an agent starting in a shell as herdr's snapshot
 # shows it (office-starting-*, 2x, 4x and the minimum) and one that blocks before its
 # launch is over (office-blocked-start-*), the bottom panel's
-# HISTORY page after that run (`--panel=history`, panel-history-*), the drawer's AGENTS page and the
-# panel's EVENTS page with few rows (no scroll bar) and with more than they hold (the thin bar:
-# drawer-few-agents-* / drawer-scroll-agents-*, panel-few-events-* / panel-scroll-events-*, 2x, 4x and
+# HISTORY page after that run (`--panel=history`, panel-history-*), the
+# panel's EVENTS page with few rows (no scroll bar) and with more than it holds (the thin bar:
+# panel-few-events-* / panel-scroll-events-*, 2x, 4x and
 # the minimum), the agent card as an operator with
 # scripted terminal text (working and blocked) at zoom 2 and 4, its answer mode
 # (tools/capture_card.gd, by real input: picked (the bottom panel docked, two rows at the minimum),
@@ -40,7 +37,7 @@
 # a smaller picture.
 # CI uploads them on every PR, so a visual change carries its own picture.
 #
-# The office and agent list pictures run `--read-only`: a screenshot never
+# The office pictures run `--read-only`: a screenshot never
 # carries terminal text. Only the card pictures run as an operator, and what
 # their preview shows is text this script hands the fake, never a terminal's;
 # the answer-mode pictures write to that fake, and to nothing else.
@@ -120,10 +117,7 @@ WORK="$(mktemp -d /tmp/herdstead-capture.XXXXXX)"
 SERVER_PID=""
 # The second fake herdr of the spaces-* pictures: a machine that drops.
 BEE_PID=""
-# The agent list's two extra machines (see below).
-LANES_PID=""
-FAR_PID=""
-# The fake herdr serving the 80-pane stress map (the drawer's scroll bar).
+# The fake herdr serving the 80-pane stress map (the strategic view's squares).
 STRESS_PID=""
 # The Godot step running now and its watchdog; empty between steps.
 GODOT_PID=""
@@ -146,7 +140,7 @@ cleanup() {
 		kill_step "$GODOT_PID"
 		wait "$GODOT_PID" 2>/dev/null
 	fi
-	for pid in "$SERVER_PID" "$BEE_PID" "$LANES_PID" "$FAR_PID" "$STRESS_PID"; do
+	for pid in "$SERVER_PID" "$BEE_PID" "$STRESS_PID"; do
 		if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
 			kill "$pid" 2>/dev/null
 			wait "$pid" 2>/dev/null
@@ -260,7 +254,7 @@ godot_attempt() {
 }
 
 mkdir -p "$OUT"
-SHOTS="preview-daylight.png office-zoom2.png office-zoom4.png office-drawer-open-zoom2.png"
+SHOTS="preview-daylight.png office-zoom2.png office-zoom4.png"
 # The same office at night (`--light=night`, DayLight), 2x, 4x and the 480x320 minimum.
 SHOTS="$SHOTS office-night-zoom2.png office-night-zoom4.png office-night-min.png"
 # NEWS and the bottom panel's EVENTS page after a run of status changes, 2x and the 480x320 minimum.
@@ -269,20 +263,12 @@ SHOTS="$SHOTS office-events-zoom2.png office-events-min.png"
 SHOTS="$SHOTS office-starting-zoom2.png office-starting-zoom4.png office-starting-min.png"
 # A start that asks at once: hand up, chip with its wait, the blocked badge, 2x, 4x and the minimum.
 SHOTS="$SHOTS office-blocked-start-zoom2.png office-blocked-start-zoom4.png office-blocked-start-min.png"
-# The bottom panel's HISTORY page after that run of changes, and the drawer's
-# AGENTS and the panel's EVENTS pages with few rows and with more than they
-# hold: 2x, 4x and the minimum.
+# The bottom panel's HISTORY page after that run of changes, and its EVENTS
+# page with few rows and with more than it holds: 2x, 4x and the minimum.
 for scale in zoom2 zoom4 min; do
 	SHOTS="$SHOTS panel-history-$scale.png"
-	SHOTS="$SHOTS drawer-few-agents-$scale.png drawer-scroll-agents-$scale.png"
 	SHOTS="$SHOTS panel-few-events-$scale.png panel-scroll-events-$scale.png"
 done
-# The agent list: flat (raised with --attention) and tree, per pack and scale.
-LIST_TAGS="daylight-zoom2 daylight-zoom4 daylight-min"
-for tag in $LIST_TAGS; do
-	SHOTS="$SHOTS list-flat-$tag.png list-tree-$tag.png"
-done
-SHOTS="$SHOTS list-machines-flat-zoom2.png list-machines-tree-zoom2.png list-machines-tree-zoom4.png"
 SHOTS="$SHOTS card-working-zoom2.png card-working-zoom4.png card-blocked-zoom2.png card-blocked-zoom4.png"
 # Answer mode and the START AGENT block: every state of tools/capture_card.gd, per pack and scale.
 CARD_TAGS="daylight-zoom2 daylight-zoom4 daylight-min"
@@ -418,11 +404,6 @@ for view in "zoom2 2" "zoom4 4 --resolution 1920x1280" "min 2 --resolution 960x6
 		--wait="$DWELL" --capture="$OUT/office-night-$shot.png"
 done
 [ "$CAPTURE_SET" = ci ] && finish
-# The agent list's drawer open (every run starts with it closed to its tab):
-# the world gives the column its room, the map keeps the plan it has for the tab.
-godot_run --path "$ROOT" -- --socket="$WORK/herdr.sock" --read-only \
-	--pack=res://assets/daylight/manifest.json --zoom=2 --drawer=open \
-	--wait="$DWELL" --capture="$OUT/office-drawer-open-zoom2.png"
 # A run of status changes on Local, pushed once the office has subscribed (a
 # change before its first snapshot would be its baseline, not news), so NEWS
 # and EVENTS have something to say. Staged again for every attempt of a picture.
@@ -604,7 +585,7 @@ for scale in zoom2 zoom4 min; do
 done
 ctl reset '{"fixture": "snapshot_floors"}'
 
-echo "== the bottom panel's HISTORY, and the drawer's and EVENTS' pages with few rows and with many"
+echo "== the bottom panel's HISTORY, and its EVENTS page with few rows and with many"
 # `--panel=history` starts on the bottom panel's HISTORY page: the lines the
 # run of changes above leaves (api:p1 and web:p2 stopped waiting).
 for scale in zoom2 zoom4 min; do
@@ -621,8 +602,8 @@ for scale in zoom2 zoom4 min; do
 	wait "$EVENTS_PID" 2>/dev/null
 	EVENTS_PID=""
 done
-# Few rows: the basic fixture's four panes on AGENTS; on EVENTS only Local
-# coming online. No bar shows, and the rows keep its room.
+# Few rows: on EVENTS only Local coming online. No bar shows, and the rows
+# keep its room.
 ctl reset '{"fixture": "snapshot_basic"}'
 for scale in zoom2 zoom4 min; do
 	zoom="${scale#zoom}"
@@ -633,16 +614,13 @@ for scale in zoom2 zoom4 min; do
 	fi
 	# shellcheck disable=SC2086
 	godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --drawer=open \
-		--wait="$DWELL" --capture="$OUT/drawer-few-agents-$scale.png"
-	# shellcheck disable=SC2086
-	godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
 		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --panel=events \
 		--wait="$DWELL" --capture="$OUT/panel-few-events-$scale.png"
 done
 ctl reset '{"fixture": "snapshot_floors"}'
-# More than they hold: the 80-pane stress map on AGENTS (its own fake), and a
-# run of eighteen changes on EVENTS. The thin bar shows at the pages' right.
+# More than it holds: a run of eighteen changes on EVENTS. The thin bar shows
+# at the page's right. The 80-pane stress map (its own fake) is for the
+# strategic view after it.
 "$PYTHON" "$ROOT/tools/gen_stress_fixture.py" --output "$WORK/stress" >/dev/null || exit 2
 "$PYTHON" "$ROOT/tools/fake_herdr.py" \
 	--socket="$WORK/stress.sock" --control="$WORK/stress-ctl.sock" \
@@ -665,10 +643,6 @@ for scale in zoom2 zoom4 min; do
 		zoom=2
 	fi
 	# shellcheck disable=SC2086
-	godot_run --path "$ROOT" $window -- --socket="$WORK/stress.sock" --read-only \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --drawer=open \
-		--wait="$DWELL" --capture="$OUT/drawer-scroll-agents-$scale.png"
-	# shellcheck disable=SC2086
 	CAPTURE_PREPARE=stage_events godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
 		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --panel=events \
 		--wait=9 --capture="$OUT/panel-scroll-events-$scale.png"
@@ -689,97 +663,6 @@ STRESS_PID=""
 EVENT_CHANGES=("api:p1 blocked" "web:p2 working" "api:p4 done" "infra:p3 blocked" "api:p1 working")
 EVENT_GAP=0.7
 ctl reset '{"fixture": "snapshot_floors"}'
-
-echo "== the agent list, flat and tree, against the same fake herdr"
-# The minimum is a 960x640 window at 2x: the 480x320 screen, as is 4x in the
-# 1920x1280 window. The bottom panel is docked on the tall screens and two
-# rows at the minimum. The flat shots hold the keyboard (--attention), the tree shots not;
-# every list shot opens the drawer, which every run starts closed.
-for pack in daylight; do
-	for scale in zoom2 zoom4 min; do
-		zoom="${scale#zoom}"
-		window="$(window_for "$zoom")"
-		if [ "$scale" = "min" ]; then
-			window="--resolution 960x640"
-			zoom=2
-		fi
-		# shellcheck disable=SC2086
-		godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-			--pack=res://assets/$pack/manifest.json --zoom="$zoom" --attention \
-			--wait="$DWELL" --capture="$OUT/list-flat-$pack-$scale.png"
-		# shellcheck disable=SC2086
-		godot_run --path "$ROOT" $window -- --socket="$WORK/herdr.sock" --read-only \
-			--pack=res://assets/$pack/manifest.json --zoom="$zoom" --list=tree --drawer=open \
-			--wait="$DWELL" --capture="$OUT/list-tree-$pack-$scale.png"
-	done
-done
-
-echo "== the agent list with three machines: one with worktree mezzanines, one dropped"
-# Two more fakes: "lanes" serves the worktrees fixture and stays up; "far"
-# serves the floors fixture and is stopped a second after it has answered its
-# first snapshot (asked on its control socket, so a slow start cannot beat it),
-# so the pictures show a machine that was live and dropped: grey, frozen,
-# counted as nobody.
-start_machine() {
-	"$PYTHON" "$ROOT/tools/fake_herdr.py" \
-		--socket="$WORK/$1.sock" --control="$WORK/$1-ctl.sock" \
-		--fixtures="$ROOT/tools/fixtures" --fixture="$2" &
-	MACHINE_PID=$!
-	for _ in $(seq 1 100); do
-		[ -S "$WORK/$1.sock" ] && break
-		sleep 0.05
-	done
-}
-start_machine lanes snapshot_worktrees
-LANES_PID=$MACHINE_PID
-# far, up again for every attempt of a picture, and stopped a second after
-# it has answered its first snapshot.
-stage_far() {
-	if [ -n "$FAR_PID" ]; then
-		kill "$FAR_PID" 2>/dev/null
-		wait "$FAR_PID" 2>/dev/null
-	fi
-	rm -f "$WORK/far.sock" "$WORK/far-ctl.sock"
-	start_machine far snapshot_floors
-	FAR_PID=$MACHINE_PID
-	(
-		"$PYTHON" - "$WORK/far-ctl.sock" <<'PY'
-import json, socket, sys, time
-deadline = time.time() + 30
-while time.time() < deadline:
-    try:
-        conn = socket.socket(socket.AF_UNIX)
-        conn.connect(sys.argv[1])
-        conn.sendall((json.dumps({"cmd": "stats", "args": {}}) + "\n").encode())
-        answer = json.loads(conn.makefile().readline())
-        conn.close()
-        if answer.get("result", answer).get("snapshot_count", 0) >= 1:
-            break
-    except (OSError, ValueError, AttributeError):
-        pass
-    time.sleep(0.2)
-PY
-		sleep 1
-		kill "$FAR_PID" 2>/dev/null
-	) &
-}
-for shot in flat-zoom2 tree-zoom2 tree-zoom4; do
-	view="${shot%-zoom*}"
-	zoom="${shot#*-zoom}"
-	# A tall window, so the list reaches down to the dropped machine; 4x needs
-	# it 1920 wide.
-	resolution=1600x1800
-	[ "$zoom" = 4 ] && resolution=1920x1800
-	CAPTURE_PREPARE=stage_far godot_run --path "$ROOT" --resolution "$resolution" -- --socket="$WORK/herdr.sock" --read-only \
-		--machine-socket=lanes="$WORK/lanes.sock" --machine-socket=far="$WORK/far.sock" \
-		--pack=res://assets/daylight/manifest.json --zoom="$zoom" --list="$view" --drawer=open \
-		--wait=8 --capture="$OUT/list-machines-$shot.png"
-	kill "$FAR_PID" 2>/dev/null
-	wait "$FAR_PID" 2>/dev/null
-	FAR_PID=""
-done
-kill "$LANES_PID" 2>/dev/null
-wait "$LANES_PID" 2>/dev/null
 
 echo "== the agent card as an operator, against the same fake herdr"
 # Reads only: no picture clicks anything, so the one write stays closed.

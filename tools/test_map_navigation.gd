@@ -307,7 +307,6 @@ func test_a_blocked_start_has_a_blocked_card_and_an_arrow() -> void:
 ## width: at the 800-wide test window 740 units, 23 cells, four lanes (it was
 ## 660, 20, three); at the default window (1920x960 at 2x: 960 units) 900, 28,
 ## five (772, 24, four); at the 480x320 minimum 420, 13, two (340, 10, two).
-## The drawer's tab keeps its place.
 func test_the_world_starts_at_the_left_inset_and_a_first_plan_takes_the_rails_width() -> void:
 	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
 	# world runs to the right
@@ -329,7 +328,7 @@ func test_the_world_starts_at_the_left_inset_and_a_first_plan_takes_the_rails_wi
 			office.hud.placed(office.hud.staff).position.x,
 			"%s: its left edge is the bottom panel's" % screen
 		)
-		_eq(office.hud.plan_width(), room.size.x, "%s: the drawer closed, the plan is as wide as the room" % screen)
+		_eq(office.hud.plan_width(), room.size.x, "%s: the plan is as wide as the room" % screen)
 		var plan := office.layout_plan()
 		_eq(
 			[plan.initial_width_cells, plan.lanes], [step[2], step[3]], "%s: cells and lanes of the first plan" % screen
@@ -578,33 +577,51 @@ func test_machine_chips_go_narrow_below_titles_and_stay_inside_the_bar() -> void
 	_done(office)
 
 
-## A HUD line about a pane on another machine (a row of the agent list here)
+## A HUD line about a pane on another machine (a row of the EVENTS page here)
 ## outlines that pane's portrait card, as it once outlined the zone's SPACES
 ## row; one about a pane on the shown map frames its desk instead; a pane
 ## folded into a fold has no card, and nothing is outlined. Only points.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the lines were the agent list's rows; they are
+## the EVENTS page's now, each pane given a fresh wait (a live idle then blocked) so it has a row.
 func test_pointing_at_another_machines_pane_outlines_its_card() -> void:
 	var office := await _two_machine_office()
 	var bar := office.hud.bar
 	var hive := HerdrFleet.pane_key(BEE, "hive:p1")
-	office.hud.open_drawer()
-	await _frames(3)
+	_feed(office, _with(fixture, "hud:p1", {"agent_status": "idle"}))
+	_feed(office, fixture)
+	_bee_live(office, _bee_snapshot("idle"))
+	_bee_live(office, _bee_snapshot("blocked"))
+	await _frames(2)
+	await _click_tab(office, OfficeBottomPanel.Page.EVENTS)
 	var pointer := office.floor_view.pointer
 	var picked := office.picked_key
-	await _pointer_to(office.hud.agent_list.row_for(hive).get_global_rect().get_center())
+	var hive_row := _event_row(office, hive)
+	var hud_row := _event_row(office, _pane("hud:p1"))
+	_check(hive_row != null and hive_row.is_visible_in_tree(), "hive:p1 has a row on the EVENTS page")
+	_check(hud_row != null and hud_row.is_visible_in_tree(), "and hud:p1")
+	if hive_row == null or hud_row == null:
+		_done(office)
+		return
+	await _pointer_to(hive_row.get_global_rect().get_center())
 	_eq(_pointed_cards(office), [hive], "bee's blocked agent: its card is outlined, alone")
 	_check(not pointer.visible, "and no desk on Local's map is framed")
 	var ring: Panel = bar.card_for(hive).get_node("%Pointed")
 	_check(ring.visible, "by its ring")
 	_eq(ring.theme_type_variation, &"PortraitPointed", "in the theme's look")
-	await _pointer_to(office.hud.agent_list.row_for(_pane("hud:p1")).get_global_rect().get_center())
+	await _pointer_to(hud_row.get_global_rect().get_center())
 	_eq(_pointed_cards(office), [], "a line about a pane on the shown map outlines no card")
 	_eq([pointer.key, pointer.visible], [_pane("hud:p1"), true], "it frames the desk")
 	await _pointer_to(office.hud.world_rect().get_center())
-	_eq(_pointed_cards(office), [], "off the list: nothing outlined")
-	_feed_bee(office, _bee_snapshot("working"))
+	_eq(_pointed_cards(office), [], "off the rows: nothing outlined")
+	_bee_live(office, _bee_snapshot("working"))
 	await _frames(2)
 	_check(bar.card_for(hive) == null, "bee's agent at work is in the working fold")
-	await _pointer_to(office.hud.agent_list.row_for(hive).get_global_rect().get_center())
+	hive_row = _event_row(office, hive)
+	_check(hive_row != null and hive_row.is_visible_in_tree(), "its newest event has a row")
+	if hive_row == null:
+		_done(office)
+		return
+	await _pointer_to(hive_row.get_global_rect().get_center())
 	_eq(_pointed_cards(office), [], "pointed at, it has no card to outline")
 	_eq(office.picked_key, picked, "and nothing was picked")
 	_done(office)

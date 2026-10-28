@@ -208,19 +208,22 @@ const FROM_THE_BLOCK: Array[CommandContext.Kind] = [
 ## split button share a row and its notes take one line (the scene sets both).
 @export var launch_width := 0.0
 @export var launch_docked_width := 0.0
-## `%Left`'s share of the card's width beside the preview and the launch block:
-## `left_ratio`, and `left_wide_ratio` on a card at least `left_wide_from` wide,
-## where the names have their room whole (960x480 and up) without starving the
-## preview of a narrower card (the scene sets all three).
+## `%Left` beside the preview and the launch block: a `left_ratio` share of the
+## card's width (never under the scene's own minimum) on a card narrower than
+## `left_wide_from`; from there exactly `left_wide_width`, the room the longest
+## names take whole (the floors fixture's `CLAUDE · 数据 pipeline / etl` at
+## 960x480), and the preview takes everything else (the scene sets all three).
 @export var left_ratio := 0.0
-@export var left_wide_ratio := 0.0
+@export var left_wide_width := 0.0
 @export var left_wide_from := 0.0
 
 ## Null until the office connects one; the card then reads and writes through it.
 var _fleet: HerdrFleet
+## `%Left`'s minimum width as the scene sets it, kept for the narrow card.
+var _left_min := 0.0
 ## Answers whether the window is minimized (FramePacer.is_minimized()).
 var _minimized: Callable
-## Answers whether something covers the card (the compact card under the agent list).
+## Answers whether something covers the card (the panel folded to its line, the terminal monitor).
 var _covered: Callable
 ## The pane shown now and how: see show_pane().
 var _pane: PaneModel
@@ -323,6 +326,8 @@ class Draft:
 
 
 func _ready() -> void:
+	var column: Control = %Left
+	_left_min = column.custom_minimum_size.x
 	var button: Button = %FocusButton
 	button.button_down.connect(_on_focus_down)
 	button.pressed.connect(_on_focus_pressed)
@@ -406,7 +411,7 @@ func dress(pack: ArtPack) -> void:
 
 ## Read and write through `fleet` from now on. `minimized` answers whether the
 ## window is minimized and `covered` whether something is drawn over the card
-## (it is a compact header under the agent list); either stops the preview. The office calls this once.
+## (the panel folded to its line, the terminal monitor); either stops the preview. The office calls this once.
 func connect_fleet(fleet: HerdrFleet, minimized: Callable, covered := Callable()) -> void:
 	_fleet = fleet
 	_minimized = minimized
@@ -672,10 +677,18 @@ func _write_launch_form(docked_form: bool) -> void:
 	title.text_overrun_behavior = (TextServer.OVERRUN_NO_TRIMMING if docked_form else TextServer.OVERRUN_TRIM_ELLIPSIS)
 
 
-## `%Left`'s share for the card's width now (left_wide_from).
+## `%Left` for the card's width now (left_wide_from): a share of it on a narrow
+## card, `left_wide_width` and no share on a wide one.
 func _share_left() -> void:
 	var left: Control = %Left
-	left.size_flags_stretch_ratio = left_wide_ratio if size.x >= left_wide_from else left_ratio
+	var wide := size.x >= left_wide_from
+	var flags := Control.SIZE_FILL if wide else Control.SIZE_EXPAND_FILL
+	if left.size_flags_horizontal != flags:
+		left.size_flags_horizontal = flags
+	left.size_flags_stretch_ratio = left_ratio
+	var least := left_wide_width if wide else _left_min
+	if left.custom_minimum_size.x != least:
+		left.custom_minimum_size = Vector2(least, left.custom_minimum_size.y)
 
 
 ## The portrait's person while there is one; null in the empty state.
@@ -760,7 +773,7 @@ func line_refusal() -> CommandRefusal.Reason:
 
 
 ## Leave answer mode and give up keyboard focus. The office calls this when a
-## desk is picked and the HUD when the agent list takes the keyboard; the
+## desk is picked and the HUD when `A` shows the HISTORY page or the monitor opens; the
 ## card itself on every new binding and on Escape. Sends nothing.
 func leave_answer() -> void:
 	_armed_binding = -1

@@ -33,7 +33,7 @@ var reveal_on_arrival := ""
 ## Counts the navigations the viewer asked for: a zone picked (pick_zone(): a
 ## portrait card's place), a machine picked (pick_machine(): its chip in the
 ## top bar), an edge arrow (pan_to_desk()), PageUp/PageDown (step_zone()), and
-## every locate: `N`, `‹ ›`, a portrait card, the agent list, NEWS, EVENTS, the
+## every locate: `N`, `‹ ›`, a portrait card, NEWS, EVENTS, HISTORY, the
 ## overview and the strategic view (next_human(), step(), locate()). Never panning
 ## (a drag, the wheel, the arrow keys), never a desk click, never herdr's focus
 ## moving, never `--space`, and never the office's own pick of a new pane

@@ -365,19 +365,21 @@ func test_a_click_on_a_fold_opens_the_overview_on_its_state() -> void:
 	await _frames(2)
 	_check(not hud.overview_open(), "`13 panes` closes it")
 	_eq((bar.get_node("%Panes") as Button).theme_type_variation, &"BarLine", "and lets go")
-	_eq(hud.agent_list.presence_filter(), [] as Array[AgentListModel.Presence], "the list was never filtered")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: "the list was never filtered" went with the list.
 	_done(office)
 
 
-## A fold click opens no panel: the drawer stays closed, the world keeps its
-## room and the staff panel its line; once the OVERVIEW closes the floor is the
-## one it was, not planned again. The list takes neither filter nor keyboard.
+## A fold click opens no panel: the world keeps its room and the bottom panel
+## its form and page; once the OVERVIEW closes the floor is the one it was, not
+## planned again.
 ## S3 BAR-a (2026-10-27): the portrait strip replaces the counters.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer and the list's filter and keyboard
+## went with it; that the bottom panel keeps its page (the one other panel a fold could have moved) is checked instead.
 func test_a_fold_click_moves_no_panel_and_plans_nothing() -> void:
 	var office := await _live_office()
 	var hud := office.hud
 	var bar := hud.bar
-	_check(not hud.drawer_open(), "every run starts with the drawer closed")
+	var page := hud.page()
 	var room := hud.world_rect()
 	var plan := office.floor_view.plan
 	var ids := _world_ids(office)
@@ -385,10 +387,9 @@ func test_a_fold_click_moves_no_panel_and_plans_nothing() -> void:
 	await _press(bar.fold_of(PortraitBarModel.Group.IDLE))
 	await _frames(2)
 	_check(hud.overview_open(), "the OVERVIEW opens")
-	_check(not hud.drawer_open(), "the drawer stays closed")
 	_eq(hud.world_rect(), room, "the world keeps its room")
-	_eq(hud.card_compact(), compact, "the staff panel stays as it was")
-	_check(not hud.agent_list.has_keyboard(), "the list takes no keyboard")
+	_eq(hud.card_compact(), compact, "the bottom panel stays as it was")
+	_eq(hud.page(), page, "on its page")
 	await _press(_panes_button(bar))
 	await _frames(2)
 	_check(not hud.overview_open(), "closed again")

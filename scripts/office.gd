@@ -35,7 +35,7 @@ const PACK_ROOT := "res://assets"
 const DEFAULT_MANIFEST := PACK_ROOT + "/daylight/manifest.json"
 ## Where the last picked theme is remembered between runs.
 const SETTINGS_PATH := "user://herdstead.cfg"
-## The bar, the drawer and the inspector, laid out in their own scenes; where
+## The bar and the bottom panel, laid out in their own scenes; where
 ## they stand is what leaves the world its room (see OfficeCamera.free_rect()).
 const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
 const PLATE_SCENE := preload("res://scenes/world/machine_plate.tscn")
@@ -75,9 +75,7 @@ var attention: OfficeAttention
 var alerts: OfficeAlerts
 ## Whether `L` is held: the world as a data view (OfficeLens, _show_lens()).
 var lens: OfficeLens
-## Local, session-scoped records. Viewing or hiding one never changes herdr.
-var attention_store := AttentionStore.new()
-## The agent list's History lines, built again only when the log or the panes change.
+## The HISTORY page's lines, built again only when the log or the panes change.
 var history_cache := AgentHistory.Cache.new()
 ## The screen-space HUD; built in _init(), so the world can ask it for its room
 ## before anything is in the tree.
@@ -107,7 +105,7 @@ var zoom := 2
 var may_fill_screen := true
 ## The window fills the screen with the bar as its title bar (OfficeWindow).
 var filled := false
-## Whether a theme switch (and the list's view, and the chime switch) is
+## Whether a theme switch (and the chime switch) is
 ## written to the user's settings. A capture is a screenshot, not a session,
 ## and a test is neither: both turn this off.
 var remember_theme := true
@@ -256,34 +254,29 @@ func _ready() -> void:
 	hud.machine_picked.connect(_pick_machine)
 	hud.arrow_picked.connect(_pan_to_desk)
 	hud.room_changed.connect(_on_room_changed)
-	# A portrait card picks its pane as a row of the list does.
-	hud.portrait_picked.connect(_pick_from_list)
+	# A portrait card picks its pane as a click on its desk does.
+	hud.portrait_picked.connect(_pick_from_hud)
 	hud.fold_pressed.connect(_on_fold)
 	hud.panes_pressed.connect(_on_panes)
-	hud.history_locate_requested.connect(_locate_history)
 	# A HISTORY line picks its pane (checked again here) and keeps its page.
 	hud.history_picked.connect(_locate_history.bind(true))
-	hud.attention_snooze_requested.connect(_snooze_attention)
-	hud.attention_hidden_changed.connect(_hide_attention)
-	hud.agent_picked.connect(_pick_from_list)
 	hud.inspector.card_closed.connect(_on_card_closed)
-	# NEWS and EVENTS pick the pane an event is about, as a row of the list
+	# NEWS and EVENTS pick the pane an event is about, as a portrait card
 	# does; an EVENTS row keeps its page, browsing the log.
-	hud.news_picked.connect(_pick_from_list)
+	hud.news_picked.connect(_pick_from_hud)
 	hud.event_picked.connect(_pick_from_log)
-	# Hovering those, a list row or an edge arrow points at what it names; only points.
+	# Hovering those, a HISTORY row or an edge arrow points at what it names; only points.
 	hud.pane_pointed.connect(_point_at_pane)
 	hud.zone_pointed.connect(_point_at_zone)
 	# The HISTORY and EVENTS pages are laid out only while they show: the moment they do, too.
 	hud.page_shown.connect(_on_page_shown)
-	# The list's double-click, Enter or Open, and the card's "Monitor".
+	# The card's "Monitor".
 	hud.monitor_requested.connect(_open_monitor)
-	hud.agent_list_changed.connect(_remember_list)
 	# NEXT on the bottom panel is `N`; its `‹ ›` walk the same queue.
 	hud.next_requested.connect(_jump_to_next_human)
 	hud.step_requested.connect(_step_queue)
 	# The overview: a row picks its pane; `X  Esc` closes it; a sort or a chip redraws it.
-	hud.overview_picked.connect(_pick_from_list)
+	hud.overview_picked.connect(_pick_from_hud)
 	hud.overview_closed.connect(_on_overview_closed)
 	hud.overview_changed.connect(_show_overview)
 	_overview_tick = Timer.new()
@@ -299,7 +292,6 @@ func _ready() -> void:
 	_strategic_tick.wait_time = STRATEGIC_TICK_SECONDS
 	_strategic_tick.timeout.connect(_show_strategic)
 	add_child(_strategic_tick)
-	_restore_list()
 	fleet = HerdrFleet.new()
 	add_child(fleet)
 	_marks = OfficeViewMarks.new(hud, camera, fleet, _visible_world)
@@ -308,7 +300,6 @@ func _ready() -> void:
 	hud.space_created.connect(_new_pane.later_space)
 	# Every stream line can change the fleet; the frame's changes are drawn once.
 	fleet.changed.connect(_queue_refresh)
-	fleet.machine_replaced.connect(attention_store.retire_machine)
 	fleet.liveness_changed.connect(_on_liveness_changed)
 	# Everything that helps a human notice the office lives in OfficeAttention;
 	# `--always-on-top` keeps the window as a small always-visible corner view.
@@ -354,15 +345,6 @@ func _ready() -> void:
 	fit_window()
 	_refresh()
 	fleet.start(args.raw, args.read_only())
-	if args.flag("attention"):
-		hud.toggle_agent_list()
-	# `--list=tree` opens the agent list in its tree view (a capture's second shot).
-	if args.text("list") == "tree":
-		hud.agent_list.set_view(AgentListModel.View.TREE)
-	# `--drawer=open` starts with the agent list's drawer open, which every run
-	# otherwise starts closed (a capture's shot).
-	if args.text("drawer") == "open":
-		hud.open_drawer()
 	# `--panel=history` / `--panel=events` start on the bottom panel's HISTORY
 	# or EVENTS page, which every run otherwise starts on AGENT (a capture's
 	# shot): after the first refresh, so the page opens on a laid-out HUD.
@@ -570,7 +552,6 @@ func _process(delta: float) -> void:
 	_inbox_left -= delta
 	if _inbox_left <= 0.0:
 		_inbox_left = 1.0
-		_show_attention()
 		_show_history()
 		_marks.tick(frame, navigator.shown_key)
 	_questions_left -= delta
@@ -589,8 +570,9 @@ func _process(delta: float) -> void:
 func _act_on(event: InputEvent) -> bool:
 	# The terminal monitor takes every key while it is open; none of the office's
 	# fires. Under the overview `A` is the table's (it takes it and does nothing).
-	if not hud.monitor_open() and not hud.overview_open() and event.is_action_pressed(&"office_attention_panel"):
-		hud.toggle_agent_list()
+	# `A` shows the bottom panel's HISTORY page, and AGENT again.
+	if not hud.monitor_open() and not hud.overview_open() and event.is_action_pressed(&"office_history"):
+		hud.toggle_history()
 		return true
 	if hud.monitor_open():
 		return true
@@ -711,7 +693,7 @@ func _on_desk_picked(key: String, at: Vector2) -> void:
 
 
 ## A left click released over a blocked agent's chip: the same rules as a
-## desk, then the pane is picked the way the agent list picks one, and the card
+## desk, then the pane is picked the way a portrait card picks one, and the card
 ## (opened up first on a short screen) goes into answer mode once it shows the
 ## question (OfficePaneInspector.arm_answer()). Nothing is sent: answering is
 ## still the viewer's own button or key, and an office that may not write only
@@ -826,7 +808,7 @@ func _open_card_for(pane: PaneModel) -> void:
 
 ## A portrait fold or tally pressed: the overview opens on its group's state
 ## (OfficeHud.filter_of()); while it is open, the same press toggles that chip,
-## or ALL again. Nothing is picked, read or written; the list keeps its filter.
+## or ALL again. Nothing is picked, read or written.
 func _on_fold(group: PortraitBarModel.Group) -> void:
 	var keep := OfficeHud.filter_of(group)
 	if hud.overview_open():
@@ -837,7 +819,7 @@ func _on_fold(group: PortraitBarModel.Group) -> void:
 		hud.overview.set_filter(keep)
 
 
-## `13 panes` pressed: the overview opens, or closes.
+## `1 machine · 13 panes` pressed: the overview opens, or closes.
 func _on_panes() -> void:
 	if hud.overview_open():
 		_close_overview()
@@ -931,7 +913,6 @@ func _refresh() -> void:
 	_show_monitor()
 	attention.update(frame.live_panes, stale, fleet.size() - live)
 	alerts.take(frame)
-	_observe_attention()
 	_show_overview()
 	_show_strategic()
 	_show_lens()
@@ -965,12 +946,12 @@ func _flush_refresh() -> void:
 	_refresh()
 
 
-## A HUD panel moved (drawer, bottom panel): the world's room changed without the window doing so.
+## A HUD panel moved (the bottom panel): the world's room changed without the window doing so.
 ## Inside a refresh it only drops the camera's room: the one move a refresh can
 ## cause is the window's own fit in camera.free_rect(), which the refresh reads
 ## right after, so a second refresh nested in it would redo the same work on a
-## half-updated office. Before the fleet exists (the drawer restored in
-## _ready()) there is nothing to lay out yet: _ready() refreshes once it is.
+## half-updated office. Before the fleet exists there is nothing to lay out
+## yet: _ready() refreshes once it is.
 func _on_room_changed() -> void:
 	if camera == null:
 		return
@@ -1316,7 +1297,7 @@ static func bar_status(read_only: bool, live: int, total: int) -> String:
 
 
 ## The top bar's portrait strip, from the machines answering now
-## (PortraitBarModel, the selection ringed), its `13 panes`, the status line's
+## (PortraitBarModel, the selection ringed), its `1 machine · 13 panes`, the status line's
 ## hover and the machine chips (OfficeTotals; the shown map's chip the current
 ## one), and the blocked cards whose waits attention ticks.
 func _show_portraits() -> void:
@@ -1393,7 +1374,7 @@ func _show_events() -> void:
 
 
 ## The bottom panel's HISTORY page, only while it is the page shown, from the
-## same cached lines as the agent list's History group.
+## cached lines (history_cache).
 func _show_history() -> void:
 	if hud.page() != OfficeBottomPanel.Page.HISTORY:
 		return
@@ -1489,8 +1470,8 @@ func _show_overview() -> void:
 ## Open the strategic view over the world rect (`S`, `--strategic=open`): the
 ## world hides (the people keep walking under it), and so do the edge arrows and
 ## the world tooltip; the chips' reader stops (it reads nothing the view
-## covers) and the lens cannot come on (_may_lens()). The top bar, the drawer,
-## the bottom panel (NEWS in it) stay where they are and keep working. Not under the
+## covers) and the lens cannot come on (_may_lens()). The top bar and the
+## bottom panel (NEWS in it) stay where they are and keep working. Not under the
 ## terminal monitor.
 func _open_strategic() -> void:
 	if hud.monitor_open() or hud.strategic_open():
@@ -1522,10 +1503,10 @@ func _on_strategic_closed() -> void:
 		reveal(navigator.active_key, true)
 
 
-## A square was clicked (the view closed already): pick that pane as a list
-## row does, which shows its map and reveals its desk once drawn.
+## A square was clicked (the view closed already): pick that pane as a
+## portrait card does, which shows its map and reveals its desk once drawn.
 func _on_strategic_picked(key: String) -> void:
-	_pick_from_list(key)
+	_pick_from_hud(key)
 
 
 ## The open strategic view, from this refresh's plan of the shown machine's
@@ -1593,25 +1574,6 @@ func _show_monitor() -> void:
 	hud.monitor.show_pane(frame.pane(key), label, dimmed)
 
 
-# --- attention ----------------------------------------------------------------
-
-
-func _observe_attention() -> void:
-	attention_store.retain_machines(fleet.keys())
-	var now := Time.get_ticks_msec()
-	var wall_time := Time.get_unix_time_from_system()
-	for building in frame.buildings:
-		attention_store.observe(building.key, building.label, building.all_panes, not building.stale, now, wall_time)
-	_show_attention()
-
-
-func _show_attention() -> void:
-	var now := Time.get_ticks_msec()
-	var lines := history_cache.lines(fleet.state_log(), frame, _live_machines(), now)
-	hud.show_attention(attention_store.current(now))
-	hud.show_agents(frame, attention_store.active(), lines, navigator.active_key, now)
-
-
 ## Machine key -> online (not stale), for what the History lines may locate.
 func _live_machines() -> Dictionary[String, bool]:
 	var result: Dictionary[String, bool] = {}
@@ -1620,9 +1582,8 @@ func _live_machines() -> Dictionary[String, bool]:
 	return result
 
 
-## A History line's View (the agent list's menu), or a click on a line of the
-## HISTORY page (`keep_page`: that page stays): pane `key`, if it is still the
-## terminal the StateLog saw needing a human.
+## A click on a line of the HISTORY page (`keep_page`: that page stays): pane
+## `key`, if it is still the terminal the StateLog saw needing a human.
 func _locate_history(key: String, keep_page := false) -> void:
 	var pane := frame.pane(key)
 	if pane == null or fleet.is_stale(pane.machine()):
@@ -1637,8 +1598,9 @@ func _locate_history(key: String, keep_page := false) -> void:
 	_refresh()
 
 
-## A row of the agent list: the pane it names now, picked as its desk would be.
-func _pick_from_list(key: String) -> void:
+## A portrait card, a NEWS item, an OVERVIEW row or a strategic square: the
+## pane it names now, picked as its desk would be.
+func _pick_from_hud(key: String) -> void:
 	var pane := frame.pane(key)
 	if pane != null:
 		_pick_pane(pane)
@@ -1651,7 +1613,7 @@ func _pick_from_log(key: String) -> void:
 		_pick_pane(pane, true)
 
 
-## The one way a list or an attention record picks a pane: select that
+## The one way a line of the HUD picks a pane: select that
 ## terminal, show its map and reveal its desk once drawn, like `N`. A pick,
 ## as on a desk, ends the card's answer mode first, and shows the AGENT page
 ## unless `keep_page` (a click on a HISTORY or EVENTS line keeps its page).
@@ -1674,30 +1636,6 @@ func _card_may_open() -> bool:
 	return not pane.provider.is_empty() or (not pane.starting and not fleet.agent_kinds(pane.machine()).is_empty())
 
 
-func _snooze_attention(id: String, seconds: int) -> void:
-	attention_store.snooze(id, seconds, Time.get_ticks_msec())
-	_show_attention()
-
-
-func _hide_attention(id: String, is_hidden: bool) -> void:
-	attention_store.set_hidden(id, is_hidden)
-	_show_attention()
-
-
-## The list's view and the flat view's folds, kept with the theme in the
-## settings file, and like it never written by a capture or a test. Whether the
-## drawer is open is not kept: every run starts with it closed.
-func _remember_list() -> void:
-	if not remember_theme:
-		return
-	var settings := ConfigFile.new()
-	# Loading first keeps anything else the config file holds.
-	settings.load(settings_path)
-	settings.set_value("agent_list", "flat", hud.agent_list.view == AgentListModel.View.FLAT)
-	settings.set_value("agent_list", "folds", hud.agent_list.flat_folds())
-	settings.save(settings_path)
-
-
 ## The top bar's chime switch was clicked: the chime is `on` from now on, the
 ## switch says so, and the choice is kept in the settings file for the next
 ## run (never by a capture or a test, like the theme).
@@ -1711,27 +1649,6 @@ func _switch_chime(on: bool) -> void:
 	settings.load(settings_path)
 	settings.set_value(OfficeAlerts.CHIME_SECTION, OfficeAlerts.CHIME_KEY, on)
 	settings.save(settings_path)
-
-
-func _restore_list() -> void:
-	if not remember_theme:
-		return
-	var settings := ConfigFile.new()
-	if settings.load(settings_path) != OK:
-		return
-	var flat: Variant = settings.get_value("agent_list", "flat", true)
-	var saved: Variant = settings.get_value("agent_list", "folds", {})
-	var folds: Dictionary[String, bool] = {}
-	if saved is Dictionary:
-		var entries: Dictionary = saved
-		for key: Variant in entries:
-			var folded: Variant = entries[key]
-			if key is String and folded is bool:
-				folds[str(key)] = folded == true
-	var flat_view: bool = flat is not bool or flat == true
-	hud.agent_list.restore(flat_view, folds)
-	# The drawer starts closed on every run: an `agent_list/open` an earlier
-	# version saved is not read, nor written any more.
 
 
 # --- the lens and the hover mark ----------------------------------------------

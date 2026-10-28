@@ -50,7 +50,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_type_variation = &"DrawerRowsGap"
+theme_type_variation = &"PageRowsGap"
 
 [node name="Rows" type="VBoxContainer" parent="Frame/Body/Scroll/RowsGap"]
 unique_name_in_owner = true
