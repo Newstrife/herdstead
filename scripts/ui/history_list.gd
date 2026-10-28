@@ -25,7 +25,7 @@ func _ready() -> void:
 	# its room either way), never focused.
 	var scroll: ScrollContainer = %Scroll
 	var bar := scroll.get_v_scroll_bar()
-	bar.theme_type_variation = &"DrawerScroll"
+	bar.theme_type_variation = &"PageScroll"
 	bar.focus_mode = Control.FOCUS_NONE
 
 

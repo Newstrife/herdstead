@@ -14,7 +14,7 @@ extends Node
 ## Held is polled, not an input event: the key's state, gated by `may_hold` (the
 ## office's: no monitor, no OVERVIEW, no text field with the keyboard). A press
 ## that meets a closed gate is spoiled until `L` is let go, so a key typed into
-## the list's filter never turns into the lens when the focus leaves. While held
+## a text field (the branch box) never turns into the lens when the focus leaves. While held
 ## the lines move every TICK, the top bar's beat; let go, one poll a frame and
 ## nothing else. `forced` (`--lens=held`, captures and perf only) holds it
 ## without the key; the gate still applies.

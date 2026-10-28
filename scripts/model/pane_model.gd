@@ -97,7 +97,7 @@ func machine() -> String:
 ## The terminal, agent and session this seat holds (AgentSessionIdentity.runtime_key()):
 ## worked out on the first call and kept until one of the three is assigned
 ## again or the session's own key changes. Every refresh asks it of every pane
-## several times (the start stamps, the sightings, attention, the agent list),
+## several times (the start stamps, the sightings, attention),
 ## and each was a JSON.stringify.
 func identity_key() -> String:
 	var session_key := "" if session == null else session.identity_key()

@@ -42,8 +42,8 @@ connects to herdr.
   click pans there; with several machines, a chip per machine shows its map.
 - **PageUp / PageDown** walk every machine's spaces, worktree mezzanines after their source; arrows on the edges of the
   world point to blocked agents out of view.
-- **Agent list** drawer (`A`), flat by urgency or as a tree, plus an **EVENTS** tab and a **NEWS** line of state changes
-  observed this session.
+- **HISTORY** (`A`) and **EVENTS** pages and a **NEWS** line in the bottom panel: the state changes observed this
+  session; **OVERVIEW** (`O`) lists every pane.
 - **Staff panel** at the bottom with a live terminal preview, **NEXT** (`N`: the next agent that needs you), and
   **Switch herdr here**.
 - **Answer mode**: answer a blocked agent with `1`–`9` / `y` / `n` / Enter / Esc, or send an idle one a line.

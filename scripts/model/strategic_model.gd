@@ -10,7 +10,7 @@ extends RefCounted
 ## asks on a machine that answers, how long it has waited (StateLog.wait_of()
 ## in OfficeAttention.wait_text(): the OVERVIEW's FOR, the lens's line). A seat
 ## whose pane is gone is a vacancy, drawn as none; a pane the plan does not
-## seat is the agent list's to show.
+## seat is the OVERVIEW's to show.
 ##
 ## Pure: built by the office from the plan, the frame's building (the machine),
 ## its state and the state log at a clock it is handed, never Time.*.

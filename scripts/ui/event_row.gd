@@ -64,7 +64,7 @@ func show_event(event: StateLog.Event, several: bool, pickable: bool, current: b
 			label.text = words[index]
 		label.theme_type_variation = tone
 	disabled = not pickable
-	# The whole of what happened first: a narrow drawer can cut the ended part short.
+	# The whole of what happened first: a narrow page can cut the ended part short.
 	if NewsItem.is_machine(event):
 		tooltip_text = "%s · %s" % [event.machine_label, NewsItem.what(event)]
 	else:
@@ -123,5 +123,5 @@ func _draw_badge() -> void:
 	badge.show_badge(_art, id)
 	badge.visible = true
 	# Every UI image declares its own pivot; the sprite stands at it inside its
-	# square, as in the agent list's rows.
+	# square, as in the HISTORY page's rows.
 	badge.position = _art.ui_sprite(id).pivot

@@ -191,9 +191,10 @@ const ZONES_1280: Dictionary[String, Array] = {
 	"notes": [Vector2(0, 174), Vector2(0, 92), Vector2(0, 174), Vector2(0, 92)],
 	"data": [Vector2(0, 398), Vector2(0, 92), Vector2(0, 398), Vector2(0, 92)],
 }
-## REVEAL_800 and ZONES_800 with the drawer open (616x276 of the map in view, 616x241 before S3 PANEL-a1
-## round 2): see test_a_relayout_moves_no_answer.
-const REVEAL_DRAWER: Dictionary[String, Array] = {
+## REVEAL_800 and ZONES_800 in a window narrowed to 640x480 after the map was planned at 800 (616x276 of the map in
+## view, as with the retired drawer open; 616x241 before S3 PANEL-a1 round 2): see test_a_relayout_moves_no_answer.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: these were REVEAL_DRAWER and ZONES_DRAWER, the same numbers.
+const REVEAL_NARROW: Dictionary[String, Array] = {
 	"api:p1": [Vector2(0, 12), Vector2(0, 76), Vector2(65, 198), Vector2(64, 198)],
 	"api:p2": [Vector2(0, 12), Vector2(0, 76), Vector2(97, 198), Vector2(64, 198)],
 	"api:p3": [Vector2(0, 76), Vector2(0, 76), Vector2(97, 264), Vector2(64, 198)],
@@ -208,7 +209,7 @@ const REVEAL_DRAWER: Dictionary[String, Array] = {
 	"web:p2": [Vector2(0, 76), Vector2(0, 76), Vector2(120, 264), Vector2(120, 198)],
 	"web:p3": [Vector2(0, 12), Vector2(0, 76), Vector2(120, 198), Vector2(120, 198)],
 }
-const ZONES_DRAWER: Dictionary[String, Array] = {
+const ZONES_NARROW: Dictionary[String, Array] = {
 	"api": [Vector2(0, 174), Vector2(0, 174), Vector2(32, 174), Vector2(32, 174)],
 	"web": [Vector2(24, 174), Vector2(24, 174), Vector2(120, 174), Vector2(120, 174)],
 	"infra": [Vector2(0, 398), Vector2(0, 332), Vector2(32, 398), Vector2(32, 332)],
@@ -621,38 +622,43 @@ func test_an_arrow_follows_its_chip_to_the_unit() -> void:
 # --- a relayout -------------------------------------------------------------------
 
 
-## Opening the drawer by `A` takes the world's right edge in (616 of it in
-## view where 776 are) and moves nothing on the floor: every reveal from
-## no pan is where it was, and so is every zone's opening but those that now
-## end past the open drawer, every pointed desk too, and the arrows stand along
-## the narrower view. S3 BAR-b (2026-10-27): the four-lane map is 736 wide,
-## wider than 616, so the far corner moves 120 right and a reveal or an opening
-## from it keeps or takes as much of it as it needs (REVEAL_DRAWER,
-## ZONES_DRAWER); web and data, whose zones end at 640, open 24 in from no pan.
+## Narrowing the window after the map was planned (800x480 to 640x480) takes
+## the world's right edge in (616 of it in view where 776 are) and moves
+## nothing on the floor: the plan is the one it had, every reveal from no pan
+## is where it was, and so is every zone's opening but those that now end past
+## the narrower view, every pointed desk too, and the arrows stand along the
+## narrower view. S3 BAR-b (2026-10-27): the four-lane map is 736 wide, wider
+## than 616, so the far corner moves 120 right and a reveal or an opening from
+## it keeps or takes as much of it as it needs (REVEAL_NARROW, ZONES_NARROW);
+## web and data, whose zones end at 640, open 24 in from no pan.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the relayout was `A`
+## opening the drawer over the world's right edge; the drawer is gone, and a narrower window after the
+## first plan is the relayout that leaves the same 616x276 room (the plan is fixed by its first width).
+## Every number is the drawer's.
 func test_a_relayout_moves_no_answer() -> void:
 	var office := await _office()
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# `A` opens the drawer (no closed tab); the room is 241 deep, so the far corner 367 down.
-	await _office_key(office, KEY_A)
+	var plan := office.floor_view.plan
+	office.test_screen = Vector2(640, 480)
+	office.refresh()
 	await _frames(2)
-	_check(office.hud.drawer_open(), "`A` opens the drawer")
+	_check(office.floor_view.plan == plan, "the narrower window plans nothing again")
 	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the room
 	# 241 -> 276 deep, the far corner 35 less (367 -> 332).
-	_eq(office.camera.free_rect(), Rect2(16, 68, 616, 276), "the world's room stops at the open drawer")
+	_eq(office.camera.free_rect(), Rect2(16, 68, 616, 276), "the world's room stops 8 short of the narrower edge")
 	_eq(_far(office), Vector2(120, 332), "the far corner is 120 further right")
 	for key: String in REVEAL_800:
-		_eq(REVEAL_DRAWER[key].slice(0, 2), REVEAL_800[key].slice(0, 2), "%s: from no pan, as with it shut" % key)
+		_eq(REVEAL_NARROW[key].slice(0, 2), REVEAL_800[key].slice(0, 2), "%s: from no pan, as at 800" % key)
 	for key: String in ZONES_800:
 		var shut: Array = ZONES_800[key].slice(0, 2)
 		var past := Vector2(24, 0) if key in ["web", "data"] else Vector2.ZERO
 		_eq(
-			ZONES_DRAWER[key].slice(0, 2),
+			ZONES_NARROW[key].slice(0, 2),
 			shut.map(func(pan: Vector2) -> Vector2: return pan + past),
-			"%s: opened from no pan as with it shut, and as far in as its width needs" % key
+			"%s: opened from no pan as at 800, and as far in as its width needs" % key
 		)
-	_reveals(office, REVEAL_DRAWER, "drawer open")
-	await _openings(office, ZONES_DRAWER, "drawer open")
-	_pointed(office, POINTER_800, "drawer open")
+	_reveals(office, REVEAL_NARROW, "640 wide")
+	await _openings(office, ZONES_NARROW, "640 wide")
+	_pointed(office, POINTER_800, "640 wide")
 	_eq(
 		await _arrows_at(office, Vector2.ZERO),
 		# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: places from
@@ -661,13 +667,13 @@ func test_a_relayout_moves_no_answer() -> void:
 			_arrow("web", "web:p2", 1, EdgeArrowModel.Edge.BOTTOM, "0.6001"),
 			_arrow("infra", "infra:p1", 1, EdgeArrowModel.Edge.BOTTOM, "0.3433")
 		],
-		"drawer open, at the top: web's near chip and infra's below, along the narrower view"
+		"640 wide, at the top: web's near chip and infra's below, along the narrower view"
 	)
 	_eq(
 		await _arrows_at(office, Vector2(0, 300)),
 		# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the place from
 		# the print (0.5997 -> 0.6041).
 		[_arrow("web", "web:p1", 1, EdgeArrowModel.Edge.TOP, "0.6041")],
-		"drawer open, 300 down (the bottom before the panel docked): web's far chip above"
+		"640 wide, 300 down (the bottom before the panel docked): web's far chip above"
 	)
 	_done(office)

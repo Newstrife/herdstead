@@ -5,7 +5,7 @@ extends "res://tools/office_test_base.gd"
 ## scale, StrategicModel.window_look()), a blocked one saying how long it has
 ## waited where there is room. A click on a square picks that pane, closes the
 ## view and pans its desk into sight; `S` and Escape leave. Only the world rect
-## is covered: the top bar, the drawer, the staff panel and NEWS stay usable. Keys, clicks, drags, the wheel
+## is covered: the top bar and the bottom panel (NEWS in it) stay usable. Keys, clicks, drags, the wheel
 ## and the pointer go through real input. Run through run_tests.sh.
 ##
 ## godot --headless --path . --script tools/test_strategic.gd -- \
@@ -85,14 +85,16 @@ func _after_case() -> void:
 
 ## `S` covers the world rect and nothing else: the world hides (the people keep
 ## walking under it), the edge arrows and the world tooltip go, and the top
-## bar, the drawer's tab, the staff panel and NEWS stay where they were, shown.
+## bar, the bottom panel and NEWS stay where they were, shown.
 ## The top bar's theme line says the view is on. (S3 BAR-b, 2026-10-27: the
 ## SPACES rail it once left standing is gone.)
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer (the right column) is gone, so it is
+## no longer among the panels left as they were.
 func test_s_opens_it_over_the_world_only() -> void:
 	var office := await _live_office(fixture, WIDE)
 	var hud := office.hud
 	var others := {}
-	for panel: Control in [hud.bar, hud.right_column, hud.staff, hud.news]:
+	for panel: Control in [hud.bar, hud.staff, hud.news]:
 		others[panel.name] = [panel.visible, hud.placed(panel)]
 	await _frames(2)
 	_check(hud.edge_arrows.visible, "web and infra wait off screen: edge arrows before")
@@ -105,7 +107,7 @@ func test_s_opens_it_over_the_world_only() -> void:
 	var view := hud.strategic
 	_eq(view.get_global_rect(), hud.world_rect(), "it covers the world rect exactly")
 	_eq(view.mouse_filter, Control.MOUSE_FILTER_STOP, "and takes the mouse there")
-	for panel: Control in [hud.bar, hud.right_column, hud.staff, hud.news]:
+	for panel: Control in [hud.bar, hud.staff, hud.news]:
 		_eq([panel.visible, hud.placed(panel)], others[panel.name], "left as it was: " + str(panel.name))
 	_eq(hud.bar.theme_line(), STRATEGIC_LINE, "the top bar says so")
 	_done(office)
@@ -539,9 +541,13 @@ func test_the_overview_over_it_leaves_the_world_hidden() -> void:
 	_done(office)
 
 
-## No `S` under the terminal monitor (it takes every key), the OVERVIEW (it
-## takes the office's keys), or while a text field has the keyboard (typing).
-func test_no_s_under_the_monitor_the_overview_or_a_text_field() -> void:
+## No `S` under the terminal monitor (it takes every key) or the OVERVIEW (it
+## takes the office's keys).
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the list's filter, the text field this case
+## typed `s` in, is gone, and a read-only office has none; "S in a text field is typing" is pinned by SPACES'
+## test_the_branch_box_lets_the_page_keys_through_and_lets_go_outside (the branch box) (was
+## test_no_s_under_the_monitor_the_overview_or_a_text_field).
+func test_no_s_under_the_monitor_or_the_overview() -> void:
 	var office := await _live_office(fixture, WIDE)
 	await _office_key(office, KEY_O)
 	await _office_key(office, KEY_S)
@@ -555,22 +561,8 @@ func test_no_s_under_the_monitor_the_overview_or_a_text_field() -> void:
 	await _press(close)
 	await _frames(2)
 	_check(not office.hud.monitor_open(), "the monitor closes")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(2)
-	var filter: LineEdit = office.hud.agent_list.get_node("%Filter")
-	await _press(filter)
-	_check(filter.has_focus(), "the filter has the keyboard")
-	var typed := InputEventKey.new()
-	typed.keycode = KEY_S
-	typed.unicode = "s".unicode_at(0)
-	typed.pressed = true
-	await _parsed(typed)
-	typed.pressed = false
-	await _parsed(typed)
-	_check(not office.hud.strategic_open(), "S in the filter is typing")
-	_eq(filter.text, "s", "typed there")
+	await _office_key(office, KEY_S)
+	_check(office.hud.strategic_open(), "S, nothing over the world: the view opens")
 	_done(office)
 
 
@@ -600,10 +592,12 @@ func test_no_lens_while_open() -> void:
 	_done(office)
 
 
-## `N`, `‹ ›` and a list row move the selection with the view open: it stays
-## open, and the corners move to the pane picked.
+## `N`, `‹ ›` and an EVENTS row move the selection with the view open: it
+## stays open, and the corners move to the pane picked.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: an EVENTS row where a row of the agent list was.
 func test_n_keeps_it_open_and_moves_the_corners() -> void:
-	var office := await _live_office(_stress(), WIDE)
+	var stress := _stress()
+	var office := await _live_office(stress, WIDE)
 	await _office_key(office, KEY_S)
 	var plan := _plan(office)
 	_eq(plan.picked_key(), office.navigator.active_key, "the corners on the selected pane")
@@ -624,41 +618,45 @@ func test_n_keeps_it_open_and_moves_the_corners() -> void:
 	_check(office.picked_key != after_n, "› picks the next in NEXT's queue")
 	_check(office.hud.strategic_open(), "still open")
 	_eq(plan.picked_key(), office.picked_key, "the corners follow ›")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(3)
 	var target := _spk("w0:t4:p4")
-	var row := office.hud.agent_list.row_for(target)
-	_check(row != null, "a row for w0:t4:p4")
+	# It finishes, so the log has an event about it and the EVENTS page a row.
+	_feed(office, _with(stress, "w0:t4:p4", {"agent_status": "done"}))
+	await _frames(2)
+	await _click_tab(office, OfficeBottomPanel.Page.EVENTS)
+	var row := _event_row(office, target)
+	_check(row != null and row.is_visible_in_tree(), "an EVENTS row for w0:t4:p4")
 	if row != null:
-		var list_scroll: ScrollContainer = office.hud.agent_list.get_node("%Scroll")
-		list_scroll.ensure_control_visible(row)
-		await _frames(2)
 		await _press(row)
 		await _frames(2)
-		_eq(office.picked_key, target, "a list row picks")
+		_eq(office.picked_key, target, "an EVENTS row picks")
 		_check(office.hud.strategic_open(), "and the view stays open")
 		_eq(plan.picked_key(), target, "the corners on it")
 	_done(office)
 
 
-## Hovering a list row about a pane on the shown map dashes its square, in
+## Hovering an EVENTS row about a pane on the shown map dashes its square, in
 ## whichever zone it sits.
-func test_hovering_a_list_row_dashes_its_square() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: EVENTS rows where the agent list's rows were
+## (was test_hovering_a_list_row_dashes_its_square); each pane is given an event first.
+func test_hovering_an_events_row_dashes_its_square() -> void:
 	var office := await _live_office(fixture, WIDE)
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _frames(3)
+	_feed(office, _with(fixture, "api:p1", {"agent_status": "blocked"}))
+	_feed(office, _with(fixture, "web:p1", {"agent_status": "idle"}))
+	await _frames(2)
+	await _click_tab(office, OfficeBottomPanel.Page.EVENTS)
 	await _office_key(office, KEY_S)
 	var plan := _plan(office)
 	var draws := plan.draws
-	var row := office.hud.agent_list.row_for(_pk("api:p1"))
+	var row := _event_row(office, _pk("api:p1"))
+	var other := _event_row(office, _pk("web:p1"))
+	_check(row != null and row.is_visible_in_tree(), "an EVENTS row for api:p1")
+	_check(other != null and other.is_visible_in_tree(), "and one for web:p1")
+	if row == null or other == null:
+		_done(office)
+		return
 	await _hover(row.get_global_rect().get_center())
 	_eq(plan.pointed_key(), _pk("api:p1"), "its square is dashed")
 	_check(plan.draws > draws, "drawn again for it")
-	var other := office.hud.agent_list.row_for(_pk("web:p1"))
 	await _hover(other.get_global_rect().get_center())
 	_eq(plan.pointed_key(), _pk("web:p1"), "a pane in another zone of this map dashes its own square")
 	_check(
@@ -1383,14 +1381,16 @@ func _caption_seen(office: OfficeDouble, key: String) -> bool:
 
 ## `count` workspaces `z0`.. of one tab of two working agents each, herdr's
 ## focus in the first: a map of many small zones.
-## The drawer opened over the minimum window's world (setup), so its room is
-## the 280x168 the 404x166 one was short of: forty zones scroll in it.
+## The bottom panel opened for HISTORY over the minimum window's world (a real
+## click on its tab), so the room is 456x103: forty zones scroll in it.
 ## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: with the
 ## drawer closed the
 ## room is 440x168, and forty zones fit it whole.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer opened (280x168) made the room this
+## needed; the panel opened is the one smaller room left.
 func _narrow(office: OfficeDouble) -> void:
-	office.hud.open_drawer()
-	await _frames(2)
+	await _click_tab(office, OfficeBottomPanel.Page.HISTORY)
+	_eq(office.hud.world_rect().size, Vector2(456, 103), "the minimum's world, the panel opened for HISTORY")
 
 
 func _many_zones(count: int) -> Dictionary:

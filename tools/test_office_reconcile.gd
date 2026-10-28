@@ -386,25 +386,30 @@ func test_complete_floor_and_unique_wall_cells_follow_the_plan() -> void:
 	_done(office)
 
 
-## A floor is planned for the world with the drawer closed (plan_width()),
-## so a real click that opens the drawer plans nothing again and rebuilds
-## nothing: it only takes the world's right edge in. The rightmost desk, which
-## the open drawer now covers, is still reached: a real click on its row in
-## the list picks it and the camera pans it into view (reveal()). And a click
-## on the open drawer over a desk is the list's: it picks no desk.
-func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() -> void:
+## A floor is planned for the world it is first shown in (plan_width()), so
+## narrowing the window afterwards plans nothing again and rebuilds nothing:
+## it only takes the world's right edge in. The rightmost desk, now past that
+## edge, is still reached: a real click on its row on the EVENTS page picks it
+## and the camera pans it into view (reveal()).
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the world's right edge came in by `A` opening
+## the drawer over it (616 of 776); the drawer is gone, and a 640x480 window after the first plan leaves the same
+## 616. The pick was a click on its row in the list; it is its EVENTS row now. The drawer's own clause (a click on
+## the open drawer over a desk is the list's) went with it: a click on a panel over a desk is pinned for the bottom
+## panel by INCREMENTAL's test_a_click_over_a_panel_picks_nothing (was
+## test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens).
+func test_a_floor_planned_wider_keeps_its_plan_when_the_window_narrows() -> void:
 	# api with 33 more agents: its pod of 18 desks reaches across the whole
 	# plan (a dozen more agents did with the long tables; a desk is 32 wide).
-	var office := await _live_office(_wide_api(33))
+	var wide := _wide_api(33)
+	var office := await _live_office(wide)
 	await _frames(4)
 	var hud := office.hud
-	_check(not hud.drawer_open(), "the drawer starts closed")
 	# The map's first width is the lanes that width holds: 10L + 3 cells.
 	var policy := FloorLayoutPolicy.new()
 	_eq(
 		office.layout_plan().initial_width_cells,
 		policy.map_width(policy.lanes_for(floori(hud.plan_width() / FloorLayoutPolicy.GRID))),
-		"the floor is planned for the drawer closed"
+		"the floor is planned for the world it is first shown in"
 	)
 	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
 	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: no
@@ -416,17 +421,16 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 	var desks := _desk_ids(office, "")
 	var rightmost: OfficeStation = null
 	for station in _seats(office):
-		# api's pod: the other zones of the map hold shells the list does not show.
+		# api's pod: the other zones of the map hold shells.
 		if not station.pane_key.begins_with(HerdrFleet.pane_key(LOCAL, "api:")):
 			continue
 		if rightmost == null or station.target_rect().end.x > rightmost.target_rect().end.x:
 			rightmost = station
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: `A`
-	# opens the drawer (no closed tab).
-	await _office_key(office, KEY_A)
+	office.test_screen = Vector2(640, 480)
+	office.refresh()
 	await _frames(2)
-	_check(hud.drawer_open(), "`A` opens the drawer")
-	_eq(office.camera.free_rect(), hud.world_rect(), "the world's room stops at the open drawer")
+	_eq(hud.world_rect().size.x, 616.0, "640x480: the world 616 wide")
+	_eq(office.camera.free_rect(), hud.world_rect(), "the world's room stops 8 short of the narrower edge")
 	_eq(office.world.get_instance_id(), world_id, "the world is not rebuilt")
 	_eq(office.plans.attempt_count(), attempts, "the floor is not planned again")
 	_eq(office.layout_plan().geometry_signature(), plan, "its plan is the same")
@@ -434,14 +438,15 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 	var on_screen := func(station: OfficeStation) -> Rect2:
 		return Rect2(station.target_rect().position - office.camera.position, station.target_rect().size)
 	var covered: Rect2 = on_screen.call(rightmost)
-	_check(covered.end.x > hud.world_rect().end.x, "the open drawer covers the rightmost desk: %s" % covered)
-	# Its row in the list: a real click picks it, and the camera reveals it.
-	var list := hud.agent_list
-	var row := list.row_for(rightmost.pane_key)
-	_check(row != null, "the list has a row for it")
+	_check(covered.end.x > hud.world_rect().end.x, "the rightmost desk stands past the world's edge: %s" % covered)
+	# It blocks, so it has an EVENTS row: a real click picks it, and the camera reveals it.
+	_feed(office, _with(wide, HerdrFleet.split_key(rightmost.pane_key)[1], {"agent_status": "blocked"}))
+	await _frames(2)
+	_eq(office.world.get_instance_id(), world_id, "a state change rebuilds nothing either")
+	await _click_tab(office, OfficeBottomPanel.Page.EVENTS)
+	var row := _event_row(office, rightmost.pane_key)
+	_check(row != null and row.is_visible_in_tree(), "the EVENTS page has a row for it")
 	if row != null:
-		(list.get_node("%Scroll") as ScrollContainer).ensure_control_visible(row)
-		await _frames(2)
 		await _click(row.get_global_rect().get_center())
 		await _frames(3)
 		_eq(office.picked_key, rightmost.pane_key, "a click on its row picks it")
@@ -450,50 +455,6 @@ func test_a_floor_planned_with_the_drawer_closed_keeps_its_plan_when_it_opens() 
 			hud.world_rect().encloses(revealed),
 			"and the camera pans it into view: %s in %s" % [revealed, hud.world_rect()]
 		)
-	# Another pick (api:p1, by a real click on its desk), and back to the
-	# floor's left edge: the desks right of the world's room are under the open
-	# drawer. A click there is the list's: its row's pane, or nothing where no
-	# row is; never the desk under it.
-	office.camera.pan = Vector2.ZERO
-	await _frames(2)
-	await _click_desk(office, HerdrFleet.pane_key(LOCAL, "api:p1"))
-	await _frames(2)
-	_eq(office.picked_key, HerdrFleet.pane_key(LOCAL, "api:p1"), "api:p1 picked")
-	(list.get_node("%Scroll") as ScrollContainer).scroll_vertical = 0
-	var drawer := hud.placed(hud.right_column)
-	var box := (list.get_node("%Scroll") as Control).get_global_rect()
-	var under: OfficeStation = null
-	var row_key := ""
-	var at := Vector2.ZERO
-	# At the floor's left edge, panned down as far as it takes for a desk to
-	# stand under the drawer (the card leaves the drawer short of the lowest ones).
-	for down: float in [0.0, 48.0, 96.0, 144.0]:
-		if under != null:
-			break
-		office.camera.pan = Vector2(0.0, down)
-		await _frames(2)
-		for station in _seats(office):
-			var point := station.target_rect().get_center() - office.camera.position
-			if station.pane_key == office.picked_key or not drawer.has_point(point):
-				continue
-			var over := ""
-			for key: String in list.shown_keys():
-				var line := list.row_for(key)
-				if line != null and box.has_point(point) and line.get_global_rect().has_point(point):
-					over = key
-			if over != station.pane_key:
-				under = station
-				row_key = over
-				at = point
-				break
-	_check(under != null, "a desk really is under the open drawer")
-	if under != null:
-		var before := office.picked_key
-		await _click(at)
-		await _frames(2)
-		_check(office.picked_key != under.pane_key, "a click on the drawer over a desk picks no desk")
-		_eq(office.picked_key, before if row_key.is_empty() else row_key, "it is the list's: its row, or nothing")
-		_check(not office.camera.dragging, "the office never saw the press")
 	_done(office)
 
 
@@ -1046,8 +1007,8 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 	return office.world.to_local(holder.to_global(board.drawn_rect().position)).y
 
 
-## PLAN_R2 §1.10, density: 1920×960 at 2x (the 960×480 view), the drawer
-## closed, the bottom panel docked; the first zone visited (S3 BAR-b: by the
+## PLAN_R2 §1.10, density: 1920×960 at 2x (the 960×480 view), the bottom
+## panel docked; the first zone visited (S3 BAR-b: by the
 ## page keys, not its SPACES row; herdr's focus is there already, so the view
 ## is the one it opens on); the seats whose click rect (target_rect(), no chip) is wholly inside
 ## world_rect() are counted. Two workspaces, each of four tabs of 8, 4, 8 and 4
@@ -1058,7 +1019,8 @@ func _sign_top(office: OfficeDouble, zone: String) -> float:
 func test_a_zone_call_shows_the_planned_density() -> void:
 	for rows: int in [2, 1]:
 		var office := await _live_office(_density(rows), Vector2(960, 480))
-		_check(not office.hud.drawer_open() and office.hud.inspector.docked(), "drawer closed, panel docked")
+		# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: no drawer to be closed.
+		_check(office.hud.inspector.docked(), "the panel docked")
 		# S3 BAR-b (2026-10-27): the SPACES rail is gone; the world starts 16 in and first plans take its width.
 		# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 52
 		# bar, 151 docked panel.

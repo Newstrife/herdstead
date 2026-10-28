@@ -2,7 +2,7 @@ class_name EventList
 extends HdPanel
 ## The bottom panel's EVENTS page: the fleet's StateLog events as rows
 ## (EventRow), newest on top, the NEWS row's entries and older ones in the same words.
-## A click on a row picks its pane, as the agent list does.
+## A click on a row picks its pane, as a portrait card does, and keeps the page.
 ##
 ## Plain log data in, pane keys out. Rows are kept by event id and changed in
 ## place; a row is made the first time its event is drawn and dropped when the
@@ -27,7 +27,7 @@ func _ready() -> void:
 	# its room either way), never focused.
 	var scroll: ScrollContainer = %Scroll
 	var bar := scroll.get_v_scroll_bar()
-	bar.theme_type_variation = &"DrawerScroll"
+	bar.theme_type_variation = &"PageScroll"
 	bar.focus_mode = Control.FOCUS_NONE
 
 

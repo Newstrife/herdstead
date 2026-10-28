@@ -445,13 +445,9 @@ func test_a_click_over_a_panel_picks_nothing() -> void:
 	# reflow on resize, so neither zero nor maximum pan implies an overlap.
 	office.test_screen = Vector2(480, 320)
 	office.refresh()
-	# The drawer open, so the right column is the list. S3 PANEL-a1 (2026-10-27):
-	# the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab (setup opens it).
-	office.hud.open_drawer()
-	await _frames(2)
-	_check(office.hud.drawer_open(), "the drawer is open")
-	# The right column is the agent list's drawer; the bottom panel (NEWS in it) along the bottom.
-	for panel: Control in [office.hud.right_column, office.hud.staff]:
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer (the right
+	# column) is gone; the bottom panel (NEWS in it) along the bottom stays.
+	for panel: Control in [office.hud.staff]:
 		var bounds := office.hud.placed(panel)
 		# The seat goes under a spot of the panel with no button on it: a click
 		# on a minimap row or a list row is that panel's own gesture, not a desk's.
@@ -1223,15 +1219,15 @@ func test_herdrs_focus_moving_floors_switches_at_once() -> void:
 ## world_rect() before the next snapshot or resize.
 func test_a_room_change_moves_the_world_at_once() -> void:
 	var office := await _live_office()
-	office.test_screen = Vector2(800, 480)
+	office.test_screen = Vector2(480, 320)
 	office.refresh()
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab.
-	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: 241 -> 276.
-	_eq(office.camera.free_rect().size, Vector2(776, 276), "the room to the right edge, above the docked panel")
-	office.hud.open_drawer()
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the room change was the drawer opening (616 wide at
+	# 800x480); now it is the panel opening for HISTORY at 480x320 (202 -> 103 tall), the one left.
+	_eq(office.camera.free_rect().size, Vector2(456, 202), "the room to the right edge, above the panel's two rows")
+	office.hud.show_page(OfficeBottomPanel.Page.HISTORY)
 	await _frames(1)
 	_eq(office.camera.free_rect(), office.hud.world_rect(), "the camera's room is the HUD's new one")
-	_eq(office.camera.free_rect().size.x, 616.0, "up to the open drawer")
+	_eq(office.camera.free_rect().size.y, 103.0, "down to the panel opened for HISTORY")
 	_eq(office.world.position, office.camera.free_rect().position, "the world stands in it")
 	_eq(office.plate.size.x, office.camera.free_rect().size.x, "and the plate spans it")
 	_done(office)

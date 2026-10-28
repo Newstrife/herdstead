@@ -19,10 +19,10 @@
 # the furnishing dimmed, the lines rewritten every 0.25 s); stress+strategic
 # (the stress map under the strategic view, `--strategic=open`: 80 squares
 # and 10 captions in one CanvasItem, drawn again each second while a wait
-# shows); stress400, stress400+drawer and stress400+strategic (1 zone, 50 tabs
-# x 8 panes: the world, the world with the agent list's drawer open,
-# `--drawer=open`, so its 400 rows stay on the measured path while a closed
-# drawer skips them, and the view over it);
+# shows); stress400, stress400+events and stress400+strategic (1 zone, 50 tabs
+# x 8 panes: the world, the world with the bottom panel on its EVENTS page,
+# `--panel=events`, so its rows stay on the measured path while the AGENT page
+# skips them, and the view over it);
 # --figures adds 80 seated pixel people on their own, every one on screen; --walks
 # adds the stress map's people walking (tools/perf_probe.gd --walk=): 80 walk
 # in at once, 40 are done at once (seated, with paper), a pod grows
@@ -158,10 +158,10 @@ measure() {
 	elif [ "$mode" = "office-strategic" ]; then
 		# The same way, `--strategic=open` opens the strategic view at start.
 		args+=(--mode=office --strategic=open)
-	elif [ "$mode" = "office-drawer" ]; then
-		# `--drawer=open` starts with the agent list's drawer open (a closed
-		# drawer renders no rows, so this is where their cost is measured).
-		args+=(--mode=office --drawer=open)
+	elif [ "$mode" = "office-events" ]; then
+		# `--panel=events` starts on the bottom panel's EVENTS page (a page out
+		# of sight renders no rows, so this is where their cost is measured).
+		args+=(--mode=office --panel=events)
 	elif [ "$mode" = "overview" ]; then
 		# The stress map in a big window at the lowest zoom (2x): the whole
 		# map on screen, as zoom 1 showed it before.
@@ -171,7 +171,7 @@ measure() {
 		args+=(--mode="$mode")
 	fi
 	if [ "$mode" = "office" ] || [ "$mode" = "walks" ] || [ "$mode" = "overview" ] || [ "$mode" = "office-overview" ] \
-		|| [ "$mode" = "office-lens" ] || [ "$mode" = "office-strategic" ] || [ "$mode" = "office-drawer" ]; then
+		|| [ "$mode" = "office-lens" ] || [ "$mode" = "office-strategic" ] || [ "$mode" = "office-events" ]; then
 		start_fake "$fixture" || return 1
 		# Read-only, like every baseline before the write boundary: the agent
 		# card's terminal preview would add reads the older runs never made.
@@ -251,7 +251,7 @@ SCENARIOS=("medium office snapshot_medium 3 zones, 36 panes" "stress office snap
 	"stress+lens office-lens snapshot_stress80 1 zone, 80 panes, the lens held"
 	"stress+strategic office-strategic snapshot_stress80 1 zone, 80 panes, the strategic view open"
 	"stress400 office snapshot_stress400 1 zone, 400 panes"
-	"stress400+drawer office-drawer snapshot_stress400 1 zone, 400 panes, the agent list's drawer open"
+	"stress400+events office-events snapshot_stress400 1 zone, 400 panes, the bottom panel's EVENTS page"
 	"stress400+strategic office-strategic snapshot_stress400 1 zone, 400 panes, the strategic view open")
 if [ "$FIGURES" -eq 1 ]; then
 	SCENARIOS+=("actors80 actors - 80 pixel people")

@@ -116,10 +116,10 @@ func _office(screen: Vector2) -> OfficeDouble:
 	return office
 
 
-## The state the desk's badge pulses for; the agent list's row badge is not it.
+## The state the desk's badge pulses for.
 func _badge_state(machine: String, pane_id: String) -> String:
 	for badge: StatusBadge in get_nodes_in_group(StatusBadge.GROUP):
-		if badge.is_queued_for_deletion() or badge.get_parent().get_parent().get_parent() is AgentListRow:
+		if badge.is_queued_for_deletion():
 			continue
 		if badge.machine == machine and badge.pane_id == pane_id:
 			return str(badge.state)
@@ -144,8 +144,11 @@ func _actors_playing(office: OfficeDouble) -> Array:
 ## presses as there are zones. A case that needs a click on the zone uses a
 ## portrait card's place instead (_place_click()).
 func _zone_pick(office: OfficeDouble, key: String) -> void:
-	if office.hud.agent_list.has_keyboard():
-		_fail("the agent list holds the keyboard: the page keys would not reach the office")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire; the precondition was "the agent
+	# list holds the keyboard", now any text field.
+	var focus := office.get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit:
+		_fail("a text field holds the keyboard: the page keys would not reach the office")
 		return
 	var order := office.frame.zone_order
 	if not order.has(key):
@@ -545,16 +548,15 @@ func _click_visible_pane(office: OfficeDouble, key: String) -> void:
 
 ## Whether a viewer could click `at`: inside the world's visible room and not
 ## under an edge arrow, which stands over the world along its edge and takes
-## a click there, or under the open drawer (over the desks a plan made for it
-## closed puts to its right), or under the bottom panel (NEWS stands in it),
-## which stands over the world's middle in answer mode.
+## a click there, or under the bottom panel (NEWS stands in it), which stands
+## over the world's middle in answer mode.
 ## S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: no closed
 ## tab, no NEWS strip.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: no drawer to stand under.
 func _clickable(office: OfficeDouble, visible: Rect2, at: Vector2) -> bool:
 	if not visible.has_point(at):
 		return false
-	var holder: Control = office.hud.get_node("%ListHolder")
-	var covers: Array[Control] = [holder, office.hud.staff]
+	var covers: Array[Control] = [office.hud.staff]
 	covers.append_array(office.hud.edge_arrows.shown())
 	for cover in covers:
 		if cover.is_visible_in_tree() and cover.get_global_rect().has_point(at):
@@ -729,30 +731,6 @@ func _loop_clean_text(value: Variant) -> String:
 ## The second pack the pack-switching cases switch to (test_base.gd).
 func _second_pack() -> String:
 	return _second_pack_at(args.work.path_join("machines-pack-second"))
-
-
-func _attention_identity_fixture() -> Dictionary:
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://tools/fixtures/snapshot_basic.json"))
-	var data: Dictionary = parsed
-	var snapshot := _dict(data, "snapshot")
-	snapshot.agents = []
-	for pane: Dictionary in _list(snapshot, "panes"):
-		pane.erase("terminal_id")
-		pane.erase("agent_session")
-		pane.agent_status = "blocked" if pane.pane_id in ["alpha:p1", "alpha:p3"] else "idle"
-	return snapshot
-
-
-func _attention_machine(label: String, target: String, session := "") -> Dictionary:
-	return {"id": "attention", "label": label, "target": target, "session": session, "enabled": true}
-
-
-func _machine_attention(office: OfficeDouble, machine: String) -> Array[AttentionItem]:
-	var items: Array[AttentionItem] = []
-	for item in office.attention_store.current(Time.get_ticks_msec()):
-		if item.machine_key == machine:
-			items.append(item)
-	return items
 
 
 ## Whether the chip over pane `key`'s desk is inside the world on screen.

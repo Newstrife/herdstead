@@ -71,7 +71,9 @@ PYTHON="${PYTHON:-$DEFAULT_PYTHON}"
 # its cases fails here instead of staying green. Raise them as cases are added.
 MIN_CASES_ART=32
 MIN_CASES_CLIENT=52
-MIN_CASES_MACHINE=34
+# MACHINE 34 -> 32 (S3 PANEL-a2, 2026-10-28): the two attention-record cases
+# (a socket target replaced, a roster replaced) retired with the records.
+MIN_CASES_MACHINE=32
 MIN_CASES_INCREMENTAL=54
 MIN_CASES_OFFICE_LAYOUT=53
 MIN_CASES_OFFICE_MAP=25
@@ -107,25 +109,21 @@ MIN_CASES_OFFICE_NAVIGATOR=26
 # through the OVERVIEW (D-SHELLZONE).
 MIN_CASES_MAP_NAVIGATION=18
 MIN_CASES_EDGE_ARROWS=20
-MIN_CASES_ATTENTION_STORE=28
-# AGENT LIST 36 -> 38: the 37th case was already there; NEXT with nobody next
-# is an opaque pill. 38 -> 24 (S3 PANEL-a1): ten staff-panel cases moved to
-# BOTTOM PANEL (the one-row smallest screen, compact until opened, both forms
-# close, the card's note, the line's Monitor, NEXT's words, the opaque pill,
-# a hidden slot, the NEWS slot, the compact identity) and four retired with
-# the drawer's closed tab and its EVENTS page (floors planned for the tab:
-# BOTTOM PANEL's no-closed-tab case; the tab and `A`: the same and ATTENTION
-# INTEGRATION's `A` case; the tab's number: nothing shows it now, the title's
-# (N) stays in ALERTS; the EVENTS page renders once: BOTTOM PANEL's pages render
-# only while they show).
-MIN_CASES_AGENT_LIST=24
+# AGENT LIST, ATTENTION STORE and ATTENTION INTEGRATION retired (S3 PANEL-a2,
+# 2026-10-28) with the agent list, its drawer and the local attention records;
+# the commit message accounts for every case (where it moved, or why nothing).
 # The bottom panel (S3 PANEL-a1): docked or two rows, its tabs and pages, NEWS
 # in its top row, NEXT and `‹ ›`, the HISTORY page, the bar's band, picks and
 # their page, no drawer tab; ten cases moved from AGENT LIST, twelve new.
 # 22 -> 24 (S3 PANEL-a1 round 2): the docked card says the fixture's names
 # whole at 960; every docked state keeps its write controls in the 116 panel.
-MIN_CASES_BOTTOM_PANEL=24
-MIN_CASES_ATTENTION_INTEGRATION=19
+# 24 -> 29 (S3 PANEL-a2, 2026-10-28): five cases from ATTENTION INTEGRATION
+# (a log row's pick cancels a world press, an unseated pane's details, a
+# conflicting workspace, an unverifiable reconnect's History, the UNREAD note);
+# 29 -> 30 (Q-A1-4): the docked NEXT says the fixture's words whole at 960.
+# 30 -> 31 (S3 PANEL-a2 round 2, R1): a wide docked card's left column holds
+# the names and the preview takes the rest.
+MIN_CASES_BOTTOM_PANEL=31
 MIN_CASES_FRAME_LOOP=9
 MIN_CASES_PIXEL_PEOPLE=53
 MIN_CASES_AVATAR_STUDIO=13
@@ -457,12 +455,8 @@ run_suites() {
 		--socket="$WORK/map-navigation-nowhere.sock" --work="$WORK"
 	run_scene_suite test_edge_arrows "EDGE ARROW TESTS" "$MIN_CASES_EDGE_ARROWS" -- --read-only \
 		--socket="$WORK/edge-arrows-nowhere.sock" --work="$WORK"
-	run_scene_suite test_attention_store "ATTENTION STORE TESTS" "$MIN_CASES_ATTENTION_STORE"
-	run_scene_suite test_agent_list "AGENT LIST TESTS" "$MIN_CASES_AGENT_LIST" -- --work="$WORK"
 	run_scene_suite test_bottom_panel "BOTTOM PANEL TESTS" "$MIN_CASES_BOTTOM_PANEL" -- --read-only \
 		--socket="$WORK/panel-nowhere.sock" --work="$WORK"
-	run_scene_suite test_attention_integration "ATTENTION INTEGRATION TESTS" "$MIN_CASES_ATTENTION_INTEGRATION" -- \
-		--read-only --socket="$WORK/attention-nowhere.sock" --work="$WORK"
 	run_scene_suite test_frame_loop "FRAME LOOP TESTS" "$MIN_CASES_FRAME_LOOP" -- --read-only \
 		--socket="$WORK/frame-loop-nowhere.sock" --work="$WORK"
 	# Manifests and saved looks live under WORK, never in the user's save directory.

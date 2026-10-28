@@ -237,7 +237,7 @@ static func waits_of(ledger: StateLog, keys: PackedStringArray, now_msec: int) -
 
 
 ## How long each blocked agent has been kept waiting, in their chip and on
-## their list row, on the same beat as the inspector's.
+## their portrait card, on the same beat as the inspector's.
 ## Only blocked: an agent who is working or done is not waiting on anybody. A
 ## machine that dropped shows no number at all — it would go on
 ## growing off a snapshot nobody is receiving any more — and a wait whose start

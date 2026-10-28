@@ -565,9 +565,12 @@ func test_a_branch_edited_between_press_and_release_is_refused() -> void:
 ## The branch box holds the keyboard only while the viewer works in it: with
 ## a name typed, PageDown lets it go and steps the zone (the office's key, as
 ## anywhere else), a press anywhere outside it lets it go (the press does what
-## it does there), and `L` then holds the lens. The name stays typed; nothing
+## it does there), and `L` then holds the lens. `S` typed in the box is typing,
+## not the strategic view. The name stays typed; nothing
 ## is sent. (D-PGKEYS, S3 PANEL-a1, 2026-10-27; measured: a focused box takes
 ## PageDown unless it lets go in its own gui_input.)
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the `S` clause comes here from STRATEGIC, whose
+## read-only office lost its only text field (the list's filter) with the list.
 func test_the_branch_box_lets_the_page_keys_through_and_lets_go_outside() -> void:
 	_fakes("snapshot_worktrees", ["pane.read"])
 	var office := await _office_with(false, false)
@@ -592,6 +595,9 @@ func test_the_branch_box_lets_the_page_keys_through_and_lets_go_outside() -> voi
 	_eq(office.navigator.current_zone(office.frame), before, "PageUp, the box let go, steps back")
 	await _click_control(box)
 	_check(box.has_focus(), "a click puts the keyboard back in the box")
+	await _type("s")
+	_check(not office.hud.strategic_open(), "S in the box is typing")
+	_eq(box.text, "v1s", "typed there")
 	var corner := office.hud.world_rect().position + Vector2(4, 4)
 	await _click(corner)
 	await _frames(2)

@@ -126,14 +126,14 @@ func _say(unique: String, said: String) -> void:
 
 
 ## The pack image the row's badge wears: a state's name, or a UI overlay's id
-## (starting, offline), as the agent list's row wears it; empty for a shell.
+## (starting, offline); empty for a shell.
 func badge_mark() -> StringName:
 	return _mark
 
 
 ## The badge the row wears: the offline mark; the starting mark while herdr
 ## launches the pane's agent and it has not asked anything (PaneModel.launching(),
-## as the agent list and the desk show it; a blocked one wears blocked's); its
+## as the desk shows it; a blocked one wears blocked's); its
 ## state's; nothing for a shell.
 static func _mark_of(row: OverviewModel.Row) -> StringName:
 	if row.offline:

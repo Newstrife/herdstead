@@ -138,13 +138,15 @@ func test_the_timeline_spans_start_observed_and_hatch_what_nobody_watched() -> v
 # --- opening and closing ---------------------------------------------------------------
 
 
-## A click on `13 panes` opens the overview over the world and both side columns:
-## it reads pressed, the world and the signposts are hidden, the minimap and
-## the drawer stay where they are, and nothing is laid out again (no floor
-## planned, no room changed). It stands from under the bar to the columns'
-## bottom edge. Its `X  Esc`, clicked, closes it and brings the world back.
+## A click on `13 panes` opens the overview over the world: it reads pressed,
+## the world and the signposts are hidden, the bottom panel stays where it is,
+## and nothing is laid out again (no floor planned, no room changed). It
+## stands from under the bar to the world's bottom edge. Its `X  Esc`,
+## clicked, closes it and brings the world back.
 ## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; PANES is
 ## the bar's `13 panes` button.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the drawer (the one column left) is gone, so
+## "the drawer stays closed" went with it, and the overview's bottom is read off the world's, the same edge.
 func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 	var office := await _blocked_bee()
 	var hud := office.hud
@@ -159,10 +161,6 @@ func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 	_eq(panes.theme_type_variation, &"BarLineOn", "and reads pressed")
 	_check(not office.world.visible, "the world is out of sight")
 	_check(not hud.edge_arrows.visible, "so are the edge arrows")
-	# S3 BAR-b (2026-10-27): the SPACES rail is gone; the drawer is the one column left.
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: closed,
-	# it is no tab and takes nothing.
-	_check(not hud.right_column.visible, "the drawer stays closed")
 	_eq(hud.world_rect(), room, "the world's room is what it was")
 	_eq(office.layout_attempt_count(), attempts, "no floor is planned for it")
 	_eq(moves[0], 0, "and no room changed")
@@ -170,7 +168,7 @@ func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: 8 under
 	# the 52-unit bar.
 	_eq([placed.position.x, placed.position.y, placed.end.x], [16.0, 60.0, 784.0], "under the bar, 16 in")
-	_eq(placed.end.y, hud.placed(hud.right_column).end.y, "down to the column's bottom edge")
+	_eq(placed.end.y, hud.world_rect().end.y, "down to the world's bottom edge")
 	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the
 	# world runs to 8 from the
 	# screen's edge now; the overview keeps the panels' 16 and the hidden world leaves those 8 empty.
@@ -188,13 +186,14 @@ func test_the_panes_button_opens_the_overview_and_x_closes_it() -> void:
 
 
 ## `O` opens and closes it, again and again; Escape closes it. Nothing is
-## written, the pick and the drawer stay as they were.
+## written, the pick and the bottom panel's page stay as they were.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the page where the drawer was.
 func test_o_toggles_and_esc_closes_only_the_overview() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with()
 	var hud := office.hud
 	var picked := office.picked_key
-	var drawer := hud.drawer_open()
+	var page := hud.page()
 	await _tap(KEY_O)
 	_check(hud.overview_open(), "O opens it")
 	await _tap(KEY_O)
@@ -205,7 +204,7 @@ func test_o_toggles_and_esc_closes_only_the_overview() -> void:
 	_check(not hud.overview_open(), "Escape closes it")
 	await _tap(KEY_ESCAPE)
 	_check(not hud.overview_open(), "and a second Escape opens nothing")
-	_eq([office.picked_key, hud.drawer_open()], [picked, drawer], "nothing else changed")
+	_eq([office.picked_key, hud.page()], [picked, page], "nothing else changed")
 	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "nothing written")
 
 
@@ -300,13 +299,13 @@ func test_rows_are_pooled_and_sorted_by_move_child() -> void:
 	_check(overview.line_for(local_p1) == p1, "the same row, moved")
 	_ctl("control-a", "status", {"pane_id": "bravo:p1", "agent_status": "idle"})
 	await _until(func() -> bool: return _state_text(office, local_blocked) == "IDLE", "the row says IDLE")
-	# bravo:p1 stopped waiting: the agent list's History (the StateLog) has its
-	# first line. The drawer is closed (every run starts so), and a list out of
-	# sight renders nothing: not even that group's header is made yet.
+	# bravo:p1 stopped waiting: the HISTORY page (the StateLog) has its first
+	# line. Every run starts on AGENT, and a page out of sight renders nothing.
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the HISTORY page where the list's History group was.
 	_eq(_hud_nodes(office), nodes, "nor does a state change")
-	var history := office.hud.agent_list.group_for(AgentListModel.FLAT_HISTORY)
-	_check(history != null, "the list's History has its first line once the list is read")
 	_eq(overview.shown_keys()[0], local_blocked, "which moves its row: the shortest in its state now")
+	await _click_tab(office, OfficeBottomPanel.Page.HISTORY)
+	_check(office.hud.history_list.row_for(local_blocked) != null, "HISTORY has its first line once the page shows")
 	_eq(_writes_seen("control-a") + _writes_seen("control-b"), PackedStringArray(), "nothing written")
 
 
@@ -442,7 +441,9 @@ func test_bubbles_read_nothing_and_no_tip_while_the_overview_covers_the_world() 
 
 
 ## The arrows are the table's while the overview is open: the world does not
-## pan. So are `A` and PageUp: no list takes the keyboard, no floor changes.
+## pan. So are `A` and PageUp: no page changes, no floor changes.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: `A` shows the HISTORY page where it opened the
+## list, so "the list does not take the keyboard" is now "the bottom panel stays on its page".
 func test_arrows_scroll_the_table_not_the_world() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with(false, true, true, Vector2(480, 320))
@@ -457,7 +458,7 @@ func test_arrows_scroll_the_table_not_the_world() -> void:
 	await _tap(KEY_A)
 	# PageDown: the key that would pan on from the rail's first zone, were it the office's.
 	await _tap(KEY_PAGEDOWN)
-	_check(not office.hud.agent_list.has_keyboard(), "A: the list does not take the keyboard")
+	_eq(office.hud.page(), OfficeBottomPanel.Page.AGENT, "A: the bottom panel stays on its page")
 	_eq([office.navigator.shown_key, office.navigator.current_zone(office.frame)], shown, "PageDown: no other zone")
 	_check(office.hud.overview_open(), "the overview is still open")
 	await _tap(KEY_O)
@@ -565,17 +566,18 @@ func test_the_timeline_redraws_once_a_second_not_every_frame() -> void:
 	_check(drawn >= 1 and drawn <= 3, "drawn %d times in 1.2 s" % drawn)
 
 
-## Under the overview the working and idle folds set its chips and leave the
-## agent list's filter alone; the fold pressed is the chip's, `13 panes` stays
-## pressed. Closed, nothing reads pressed.
+## Under the overview the working and idle folds set its chips; the fold
+## pressed is the chip's, `13 panes` stays pressed. Closed, nothing reads
+## pressed.
 ## S3 BAR-a (2026-10-27): the portrait strip replaces the counters; the
 ## counters' "closed: IDLE says the list's filter" retires with the bar's
 ## list filter (a fold opens the overview instead).
-func test_folds_while_open_drive_the_chips_not_the_list() -> void:
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: "and leaves the list's filter" went with the
+## list (was test_folds_while_open_drive_the_chips_not_the_list).
+func test_folds_while_open_drive_the_chips() -> void:
 	_fakes("snapshot_basic", ["pane.read"])
 	var office := await _office_with()
 	var bar := office.hud.bar
-	var list := office.hud.agent_list
 	var panes: Button = bar.get_node("%Panes")
 	var working := bar.fold_of(PortraitBarModel.Group.WORKING)
 	var idle := bar.fold_of(PortraitBarModel.Group.IDLE)
@@ -584,7 +586,6 @@ func test_folds_while_open_drive_the_chips_not_the_list() -> void:
 	_eq(idle.theme_type_variation, &"PortraitFoldIdle", "open on ALL: no fold pressed")
 	await _click_control(working)
 	_eq(office.hud.overview.filter(), OverviewModel.Filter.WORKING, "the working fold sets the chip")
-	_eq(list.presence_filter(), [] as Array[AgentListModel.Presence], "and leaves the list's filter")
 	_eq(working.theme_type_variation, &"PortraitFoldWorkingOn", "the fold reads pressed")
 	_eq(panes.theme_type_variation, &"BarLineOn", "`13 panes` too")
 	_check(office.hud.overview.shown_keys().size() >= 1, "working rows show")
@@ -631,8 +632,8 @@ func test_a_launching_pane_reads_starting_in_the_state_column() -> void:
 	await _until(func() -> bool: return _state_text(office, key) == "STARTING", "STATE says STARTING")
 	_eq(_text(office, key, "%AgentName"), "main", "under the pane's name (its tab), as before the start")
 	_eq(office.hud.overview.line_for(key).badge_mark(), ArtContract.UI_STARTING, "the starting badge, not unknown's")
-	var starting_mark := AgentListRow.MARKS[AgentListModel.Presence.STARTING]
-	_eq(office.hud.overview.line_for(key).badge_mark(), starting_mark, "the one the agent list wears for a start")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: "the one the agent list wears for a start" went
+	# with the list's row; the mark itself is pinned on the line above.
 	var fields := {"launch_pending": true, "name": "claude-1", "agent": "claude", "agent_status": "unknown"}
 	var detected := _launching(_raw(), "alpha:p2", fields)
 	for pane: Dictionary in _list(detected, "panes"):
@@ -643,7 +644,11 @@ func test_a_launching_pane_reads_starting_in_the_state_column() -> void:
 	await _until(func() -> bool: return office.frame.pane(key).provider == "claude", "herdr detects claude")
 	_eq(_text(office, key, "%AgentName"), "main", "the pane keeps its name")
 	_eq(_state_text(office, key), "STARTING", "still launching: STARTING")
-	_eq(office.hud.overview.line_for(key).badge_mark(), starting_mark, "and the starting badge, not unknown's `?`")
+	_eq(
+		office.hud.overview.line_for(key).badge_mark(),
+		ArtContract.UI_STARTING,
+		"and the starting badge, not unknown's `?`"
+	)
 	_eq(office.hud.overview.line_for(local_p3).badge_mark(), ArtContract.STATE_IDLE, "an idle agent still wears idle's")
 	_eq(_state_text(office, local_p3), "IDLE", "an idle agent still says IDLE")
 	await _click_control(_part(overview, "%ChipIdle"))

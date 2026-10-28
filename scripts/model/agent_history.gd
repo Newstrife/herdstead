@@ -1,16 +1,14 @@
 class_name AgentHistory
 extends RefCounted
-## The agent list's History group, read from the StateLog: one line per pane
+## The bottom panel's HISTORY page, read from the StateLog: one line per pane
 ## whose agent needed a human this run (a blocked or done stretch the log
 ## watched) and does not now, newest first. Pure static functions: the log's
-## tracks and one refresh's OfficeFrame in, lines out; nothing is written. The
-## live episodes Snooze and Hide act on are AttentionStore's; what ended is
-## told here.
+## tracks and one refresh's OfficeFrame in, lines out; nothing is written.
 ##
 ## ENDED: the pane is there, its machine online, in another state now.
 ## OFFLINE: its machine is away, so what it does now is unknown. GONE: the pane
 ## closed. A pane still blocked or done on a machine that is online has no
-## line: it waits in the list's Waiting or Unread group.
+## line: it waits in the top bar's blocked or done cards.
 ##
 ## A line is about the pane's current agent run. The log keeps one track per
 ## pane and starts a new run on it when another terminal, agent or session

@@ -751,7 +751,7 @@ func test_cards_folds_and_their_hovers_send_nothing() -> void:
 			await _click_control(fold)
 	var panes: Button = bar.get_node("%Panes")
 	await _click_control(panes)
-	_check(office.hud.agent_list.presence_filter().is_empty(), "the list is never filtered")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: "the list is never filtered" went with the list.
 	await _frames(3)
 	_eq(_sequence("control-a"), before_a, "Local is asked nothing")
 	_eq(_sequence("control-b"), before_b, "nor is bee")

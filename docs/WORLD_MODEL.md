@@ -701,7 +701,7 @@ Besides the client / machine / incremental-update tests, `tools/run_tests.sh` ch
   seat sides seated, with a chip, idle with a mug and as a shell, wherever the world stands and with the lens
   held; the extent and the arrow's target differ exactly while a chip shows; the pod joins a desk's framing only when
   the two fit with the headroom, to the unit; a zone opens at its sign's top with none. The live office's pans, pointer
-  frames and arrows are pinned to recorded numbers in three windows and across a drawer relayout, so they also follow
+  frames and arrows are pinned to recorded numbers in three windows and across a narrower-window relayout, so they also follow
   where `hud.tscn` puts the panels.
 
 Screenshots remain part of visual acceptance and must actually be opened and looked at; use the capture target in the

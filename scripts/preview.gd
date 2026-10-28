@@ -360,10 +360,8 @@ func legend(area: Rect2, left: float) -> void:
 	add_child(text)
 
 
-## The showroom shows the office's own bar and staff panel, fed mock data, so a
-## HUD change is visible here without a herdr session. The agent list's drawer
-## needs a fleet to say anything, so it stays out, and the world's room keeps
-## its place.
+## The showroom shows the office's own bar and bottom panel, fed mock data, so
+## a HUD change is visible here without a herdr session.
 func _hud() -> OfficeHud:
 	var hud: OfficeHud = HUD_SCENE.instantiate()
 	add_child(hud)
@@ -372,7 +370,6 @@ func _hud() -> OfficeHud:
 	# before fit(), so the staff panel is laid out without it.
 	hud.news_wanted = false
 	hud.fit(HUD_SCREEN)
-	hud.right_column.visible = false
 	hud.show_bar(art.display_name.to_upper(), "PREVIEW / MOCK DATA", false)
 	var pane := PaneModel.new()
 	pane.pane_id = "w1:p2"

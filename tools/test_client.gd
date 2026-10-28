@@ -1816,10 +1816,9 @@ func test_hud_free_area() -> void:
 		"16 in from the left as the bottom panel is, to the right edge, below the bar, above the docked panel"
 	)
 	_eq(hud.placed(hud.bar), Rect2(0, 0, 800, 52), "the bar spans the top, 52 tall on a tall screen")
-	_check(not hud.right_column.visible, "the right column (the agent list's drawer) starts closed, taking no room")
-	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: the column's
-	# bottom offset -171 -> -136, so 249 -> 284 tall.
-	_eq(hud.placed(hud.right_column), Rect2(640, 60, 144, 284), "where it would open, 8 under the bar")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the right column (the agent list's drawer)
+	# is gone, so where it would have opened is no longer pinned; that nothing stands there is.
+	_check(hud.get_node_or_null("Screen/RightColumn") == null, "no right column: nothing takes the world's right edge")
 	# 480 high is tall enough to dock the bottom panel (staff_tall_from): 151 high.
 	# S3 PANEL-a1 round 2 (2026-10-28): the docked panel 116 tall (was 151), the world 35 taller: 116 high now, its
 	# top 35 lower (325 -> 360).
@@ -1852,7 +1851,8 @@ func test_hud_free_area() -> void:
 	_eq(panes.get_global_rect().end.x + 4.0, room.position.x, "`13 panes` stands before the switch")
 	_eq(strip.get_global_rect().end.x + 4.0, panes.get_global_rect().position.x, "and the strip has the rest, up to it")
 	# Every panel swallows the mouse, so nothing over one reaches the office.
-	for panel: Control in [hud.bar, hud.inspector, hud.agent_list]:
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the bottom panel stands where the list was.
+	for panel: Control in [hud.bar, hud.inspector, hud.staff]:
 		_eq(panel.mouse_filter, Control.MOUSE_FILTER_STOP, "%s stops the mouse" % panel.name)
 	hud.free()
 

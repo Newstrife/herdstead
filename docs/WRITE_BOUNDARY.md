@@ -272,7 +272,7 @@ card. Enter (or keypad Enter; never `ui_accept`, which includes Space), the head
 the seat's chip opens it. That Enter is consumed and sends nothing: **Enter on the keyboard never sends**, so
 pressing it twice cannot confirm a dialog's default. `Esc` is always local: it leaves answer mode and leaves the
 panel open; it is never sent to the terminal. A remote Esc is only the named **Send Esc** button. Picking another
-station, rebinding the card, opening the terminal monitor, or giving the keyboard to the agent list (`A`) leaves
+station, rebinding the card, opening the terminal monitor, or showing the HISTORY page (`A`) leaves
 answer mode and releases the keyboard focus. OVERVIEW does not: the bottom panel answers as usual while it is open.
 Every answer that reached herdr (accepted, rejected or unknown) ends answer mode; one refused before any write
 leaves it open and says why.

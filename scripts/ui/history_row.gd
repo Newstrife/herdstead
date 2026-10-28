@@ -12,7 +12,7 @@ extends Button
 signal picked(pane_key: String)
 
 ## What the line waited as (AgentHistory.Line.was) -> the state whose badge it
-## wears: the agent list's History marks.
+## wears (the marks the retired agent list's History group wore).
 const MARKS: Dictionary[String, StringName] = {
 	"blocked": ArtContract.STATE_BLOCKED,
 	"done": ArtContract.STATE_DONE,
@@ -61,7 +61,7 @@ func dress(art: ArtPack) -> void:
 
 ## What a row says for `line`, `current` when it is the selected pane's.
 ## The title is what the office called the pane, else its agent in
-## capitals, else AGENT (the agent list's History words).
+## capitals, else AGENT.
 static func words_of(line: AgentHistory.Line, current: bool) -> Words:
 	var made := Words.new()
 	made.title = line.name

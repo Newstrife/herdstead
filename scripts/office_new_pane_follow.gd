@@ -63,7 +63,7 @@ func later_space(
 
 
 ## In a refresh, before the navigator settles: when PickFollowsWrite.new_pane()
-## says the new pane is picked, pick it as a list pick does. The card then
+## says the new pane is picked, pick it as a portrait card's pick does. The card then
 ## shows that shell; nothing is sent to it. A new zone's shell (a space or a
 ## worktree) is picked the same way, on the same map: the pick pans to its
 ## zone's pod. The office's own pick (OfficeNavigator.follow_to()) does not

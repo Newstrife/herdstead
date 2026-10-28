@@ -771,52 +771,41 @@ func test_input_for_a_new_terminal_is_not_refused_for_the_old_one() -> void:
 	commands.free()
 
 
-## A double-click on a pane's row in the agent list opens the monitor on that
-## pane, by real input: the list's way in (HB's `monitor_requested`).
-func test_a_double_click_in_the_list_opens_the_monitor() -> void:
+## A click on a pane's row on the EVENTS page picks that pane and keeps the
+## page, and `M` then opens the monitor on it, by real input: the log's way in.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the list's way in was a double-click on its
+## row (was test_a_double_click_in_the_list_opens_the_monitor); the log's rows pick, and `M` opens.
+func test_an_events_row_pick_then_m_opens_the_monitor() -> void:
 	_fakes()
-	_ctl("control-b", "set_screen", {"pane_id": PANE, "source": "visible", "ansi": "$ from the list\r\n"})
+	_ctl("control-b", "set_screen", {"pane_id": PANE, "source": "visible", "ansi": "$ from the log\r\n"})
 	var office := await _office_with()
 	var key := HerdrFleet.pane_key(BEE, PANE)
-	var list := office.hud.agent_list
-	# Every run starts with the drawer closed. S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band
-	# on tall screens, no drawer tab:
-	# no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _until(office.hud.drawer_open, "the drawer is open")
-	await _until(func() -> bool: return list.row_for(key) != null, "the list has the pane")
-	var entry := list.entry_for(key)
-	if entry != null and not entry.parent.is_empty():
-		list.set_collapsed(entry.parent, false)
-	var row := list.row_for(key)
-	var scroll: ScrollContainer = list.get_node("%Scroll")
-	scroll.ensure_control_visible(row)
-	await _frames(2)
-	var at := row.get_global_rect().get_center()
-	for press: Array in [[true, false], [false, false], [true, true], [false, false]]:
-		var event := InputEventMouseButton.new()
-		event.button_index = MOUSE_BUTTON_LEFT
-		event.position = at
-		event.global_position = at
-		event.pressed = press[0]
-		event.double_click = press[1]
-		Input.parse_input_event(event)
-		Input.flush_buffered_events()
-		await physics_frame
-		await process_frame
+	_ctl("control-b", "status", {"pane_id": PANE, "agent_status": "blocked"})
+	await _until(func() -> bool: return office.frame.pane(key).state == "blocked", "the pane blocks: an event")
+	await _click_tab(office, OfficeBottomPanel.Page.EVENTS)
+	var row := _event_row(office, key)
+	_check(row != null and row.is_visible_in_tree() and not row.disabled, "the EVENTS page has a row that picks it")
+	if row == null:
+		return
+	await _click_control(row)
+	await _until(func() -> bool: return office.picked_key == key, "the row picked the pane")
+	_eq(office.hud.page(), OfficeBottomPanel.Page.EVENTS, "and the page stays")
+	await _press_key(KEY_M, 0x6D)
 	await _until(office.hud.monitor_open, "the monitor is open")
 	_eq(office.hud.monitor.pane_key(), key, "on that pane")
 	var monitor := office.hud.monitor
-	await _until(func() -> bool: return monitor.grid_node().screen.row_text(0) == "$ from the list", "its screen")
+	await _until(func() -> bool: return monitor.grid_node().screen.row_text(0) == "$ from the log", "its screen")
 	_eq(monitor.mode(), TerminalMonitor.Mode.LIVE, "live")
 
 
 ## At the 480x320 minimum the staff panel is one compact line, which says
 ## Monitor as the icon alone and has no room for the full panel's "Monitor" chip;
 ## Enter opens the panel up, and there the chip is on screen, inside the panel.
-## The open monitor covers the whole screen, the right column and the staff
-## panel included, and gives them back on close.
-func test_the_monitor_chip_fits_the_opened_panel_and_the_monitor_covers_the_column_and_the_panel() -> void:
+## The open monitor covers the whole screen, the staff panel included, and
+## gives it back on close.
+## S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: no right column to cover (was
+## test_the_monitor_chip_fits_the_opened_panel_and_the_monitor_covers_the_column_and_the_panel).
+func test_the_monitor_chip_fits_the_opened_panel_and_the_monitor_covers_the_panel() -> void:
 	_fakes()
 	var office := await _office_with(false, true, true, Vector2(480, 320))
 	await _pick_bee(office, PANE, false)
@@ -842,14 +831,11 @@ func test_the_monitor_chip_fits_the_opened_panel_and_the_monitor_covers_the_colu
 	await _click_control(chip)
 	await _until(office.hud.monitor_open, "open")
 	var monitor := office.hud.monitor
-	_check(monitor.get_global_rect().encloses(office.hud.right_column.get_global_rect()), "it covers the right column")
-	_check(monitor.get_global_rect().encloses(card.get_global_rect()), "and the staff panel")
+	_check(monitor.get_global_rect().encloses(card.get_global_rect()), "it covers the staff panel")
 	_check(monitor.get_global_rect().encloses(screen), "and the whole screen")
 	await _press_key(KEY_BRACKETRIGHT, 0, KEY_MASK_CTRL)
 	_check(not monitor.visible, "closed")
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab: the closed drawer is no tab; it
-	# stays closed and hidden, and the bottom panel is back.
-	_check(not office.hud.drawer_open() and office.hud.staff.is_visible_in_tree(), "the panels are back as they were")
+	_check(office.hud.staff.is_visible_in_tree(), "the panels are back as they were")
 	_check(card.is_visible_in_tree(), "and the panel")
 	await _frames(3)
 	_check(chip.is_visible_in_tree(), "and the chip with it")
@@ -992,7 +978,7 @@ func test_polling_backs_off_behind_a_slow_draw() -> void:
 
 ## The title probe (a letter and 300 combining marks) as a pane's
 ## terminal title, its workspace, tab and pane labels: the office draws the
-## card, the agent list with its history rows, and the building section, and
+## card, the HISTORY page with its rows, and the building section, and
 ## no frame takes longer than the budget. Unbounded, the first frame hangs.
 func test_a_hostile_title_draws_in_the_card_list_and_section() -> void:
 	_fakes()
@@ -1009,22 +995,14 @@ func test_a_hostile_title_draws_in_the_card_list_and_section() -> void:
 	await _pick_bee(office, PANE)
 	_eq(office.picked_key, HerdrFleet.pane_key(BEE, PANE), "picked: the card shows it")
 	_check(await _longest_frame(1.0) < FRAME_BUDGET_MSEC, "the card")
-	var list := office.hud.agent_list
-	# S3 PANEL-a1 (2026-10-27): the docked bottom panel, the 52-unit bar band on tall screens, no drawer tab:
-	# the drawer has no closed tab to click; opening it is this case's setup.
-	office.hud.open_drawer()
-	await _until(office.hud.drawer_open, "the drawer opens the list")
+	# S3 PANEL-a2 (2026-10-28): the agent list and the attention records retire: the History rows are the HISTORY page's, shown
+	# by a real click on its tab, where they were the agent list's History group.
+	await _click_tab(office, OfficeBottomPanel.Page.HISTORY)
 	# History reads the StateLog: the pane has a line once it stops waiting.
 	_ctl("control-b", "status", {"pane_id": PANE, "agent_status": "idle"})
-	await _until(func() -> bool: return list.group_for(AgentListModel.FLAT_HISTORY) != null, "a History line")
-	var group := list.group_for(AgentListModel.FLAT_HISTORY)
-	_check(group != null, "the list has its history")
-	if group != null:
-		var scroll: ScrollContainer = list.get_node("%Scroll")
-		scroll.ensure_control_visible(group)
-		await _frames(2)
-		await _click_control(group)
-		await _until(func() -> bool: return not list.collapsed(AgentListModel.FLAT_HISTORY), "history open")
+	var key := HerdrFleet.pane_key(BEE, PANE)
+	await _until(func() -> bool: return office.hud.history_list.row_for(key) != null, "a History line")
+	_check(office.hud.history_list.row_for(key).is_visible_in_tree(), "the HISTORY page shows it")
 	_check(await _longest_frame(1.0) < FRAME_BUDGET_MSEC, "the history rows")
 	var titled := office.frame.pane(HerdrFleet.pane_key(BEE, PANE))
 	_check(titled != null and titled.terminal_title.length() <= TerminalText.CLUSTER_MAX, "the title is bounded")
